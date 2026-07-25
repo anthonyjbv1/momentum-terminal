@@ -1,0 +1,319 @@
+type Value = 
+ variant {
+   "bool": bool;
+   float: float64;
+   "int": int;
+   "nat": nat;
+   "null";
+   "text": text;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = 
+ record {
+   name: text;
+   username: text;
+ };
+type TrendState = 
+ record {
+   direction: TrendDirection;
+   remainingDuration: nat;
+   stepSize: float64;
+ };
+type TrendDirection = 
+ variant {
+   down;
+   up;
+ };
+type TransformArgs = 
+ record {
+   context: blob;
+   response: HttpResponse;
+ };
+type TransactionType = 
+ variant {
+   buy;
+   deposit;
+   redeemAll;
+   sell;
+   shortAllocate;
+   shortRedeem;
+   withdrawal;
+ };
+type Transaction = 
+ record {
+   amount: float64;
+   assetInvolved: opt text;
+   assetName: opt text;
+   dollarAmount: opt float64;
+   id: nat;
+   timestamp: int;
+   transactionType: TransactionType;
+   units: opt float64;
+   username: text;
+ };
+type TickRecord = 
+ record {
+   gsiValue: float64;
+   scores: vec record {
+                 text;
+                 float64;
+               };
+   tickIndex: nat;
+   timestamp: int;
+   topHeadline: opt text;
+ };
+type SubsidyReserveMap = vec SubsidyReserveEntry;
+type SubsidyReserveEntry = 
+ record {
+   text;
+   float64;
+ };
+type ShortPositionView = 
+ record {
+   markToMarketValue: float64;
+   shortEntryScore: float64;
+   shortUnits: float64;
+ };
+type Result = 
+ record {
+   hasMore: bool;
+   rows: vec vec Cell;
+ };
+type RedeemShortResult = 
+ variant {
+   err: text;
+   ok: record {valueCredited: float64;};
+ };
+type ProcessedHeadline = 
+ record {
+   confidence: float64;
+   impact: float64;
+   sentimentLabel: text;
+   sourceTier: nat;
+   targetIndex: text;
+   "text": text;
+   timestamp: int;
+ };
+type NewsEventCategory = 
+ variant {
+   AI;
+   Mexico;
+   Warriors;
+   Washington;
+ };
+type NewsEvent = 
+ record {
+   category: NewsEventCategory;
+   headline: text;
+   relatedIndex: opt text;
+   sentimentScore: float64;
+ };
+type HttpResponse = 
+ record {
+   body: blob;
+   headers: vec HttpHeader;
+   status: nat;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
+type Holding = 
+ record {
+   accruedYield: float64;
+   allocationTimestamp: int;
+   assetName: text;
+   units: float64;
+   yieldStartTime: int;
+ };
+type FullPositionView = 
+ record {
+   longEntryScore: float64;
+   longMarkToMarketValue: float64;
+   longUnits: float64;
+   shortEntryScore: float64;
+   shortMarkToMarketValue: float64;
+   shortUnits: float64;
+ };
+type CircuitBreakerStatus = 
+ record {
+   breakerActive: bool;
+   velocity: float64;
+ };
+type Cell = 
+ record {
+   name: text;
+   value: Value;
+ };
+type AssetPrice = 
+ record {
+   baseScore: float64;
+   buyPrice: float64;
+   category: text;
+   currentAllocated: float64;
+   maxAllocation: float64;
+   name: text;
+   redeemPrice: float64;
+   volatilityBuffer: float64;
+ };
+type AllocateShortResult = 
+ variant {
+   err: text;
+   ok: record {unitsOpened: float64;};
+ };
+type AccountStatus = 
+ variant {
+   Active;
+   Suspended;
+ };
+service : {
+  _initializeAccessControl: () -> ();
+  adjustUserBalance: (_userId: text, amount: float64) -> ();
+  allocateFunds: (assetName: text, allocationAmount: float64) -> (bool);
+  allocateShort: (assetName: text, allocationAmount: float64) ->
+   (AllocateShortResult);
+  /// Legacy function retained for backward compatibility.
+  /// New callers should use classifyHeadline() instead.
+  analyzeSentiment: ("text": text) -> (text);
+  applyNewsEvent: (event: NewsEvent) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  backfillVolume: () -> ();
+  /// Public update function — frontend calls this to classify a headline.
+  /// HTTP outcalls require update calls (not query).
+  /// Returns neutral_fallback if key is not set or on any error.
+  /// NOTE: field is "sentimentLabel" not "label" — "label" is a reserved keyword in Motoko.
+  classifyHeadline: (headline: text) ->
+   (record {
+      confidence: float64;
+      sentimentLabel: text;
+      source: text;
+    });
+  depositFunds: (amount: float64) -> ();
+  execute: (qJson: text) -> (Result) query;
+  fetchACLUData: () -> (text);
+  fetchBLSData: () -> (text);
+  fetchCongressData: () -> (text);
+  fetchCongressTraditionalData: () -> (text);
+  fetchCourtListenerData: () -> (text);
+  fetchEPAData: () -> (text);
+  fetchFTCData: () -> (text);
+  fetchFedData: () -> (text);
+  fetchGDELTData: () -> (text);
+  fetchGlobeNewswire: () -> (text);
+  fetchNews: () -> (text);
+  fetchOMDBDCData: () -> (text);
+  fetchOMDBMarvelData: () -> (text);
+  fetchRedditFeed: (subreddit: text) -> (text);
+  fetchReliefWebData: () -> (text);
+  fetchSCOTUSData: () -> (text);
+  fetchSECFilings: () -> (text);
+  fetchTMDBData: () -> (text);
+  fetchTMDBPopularData: () -> (text);
+  fetchUSPTOData: () -> (text);
+  fetchYouTubeData: () -> (text);
+  getAllHoldings: () -> (vec record {
+                               text;
+                               Holding;
+                             }) query;
+  getAllUsers: () ->
+   (vec record {
+          text;
+          float64;
+          float64;
+          float64;
+          AccountStatus;
+        }) query;
+  getAssetPrices: () -> (vec AssetPrice) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCircuitBreakerStatus: (assetName: text) -> (CircuitBreakerStatus) query;
+  getCurrentTrends: () -> (vec record {
+                                 text;
+                                 TrendState;
+                               }) query;
+  /// Returns the current cycles balance of this canister.
+  /// PUBLIC — no auth required. Use for monitoring without controller access:
+  ///   dfx canister call noek7-3yaaa-aaaaj-qn6ea-cai getCyclesBalance --network ic
+  getCyclesBalance: () -> (nat) query;
+  getHoldings: (assetName: text) -> (opt Holding) query;
+  /// Returns key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+  getHuggingFaceKeyStatus: () -> (text);
+  getIsTradingPaused: () -> (bool) query;
+  getLatestHeadlines: (limit: nat) -> (vec NewsEvent) query;
+  /// Returns the latest score snapshot committed by persistTick.
+  /// PUBLIC query — no auth restriction. Used on frontend mount to bootstrap scores.
+  getLatestScores: () -> (vec record {
+                                text;
+                                float64;
+                              }) query;
+  /// Returns the most recent `limit` tick records, oldest first.
+  /// PUBLIC query — no auth restriction. Used on frontend mount for hydration.
+  getLatestTicks: (limit: nat) -> (vec TickRecord) query;
+  getNextRefreshTimeNs: () -> (int) query;
+  getOracleStatus: () -> (text) query;
+  /// Returns all persisted AI-graded headlines, oldest first.
+  /// PUBLIC — no auth restriction. Used on frontend mount to hydrate the Oracle Feed.
+  getPersistedHeadlines: () -> (vec ProcessedHeadline) query;
+  getRecentTransactions: (limit: nat) -> (vec Transaction) query;
+  getSentimentScores: () -> (vec record {
+                                   text;
+                                   float64;
+                                 }) query;
+  getShortPositionCap: () -> (float64) query;
+  getSubsidyReserves: () -> (SubsidyReserveMap) query;
+  getTotalAllocatedByIndex: () -> (vec record {
+                                         text;
+                                         float64;
+                                       }) query;
+  getTotalPlatformTVL: () -> (float64) query;
+  getTotalSubsidyReserve: () -> (float64) query;
+  getTotalUsers: () -> (nat) query;
+  getTotalVolumeByIndex: () -> (vec record {
+                                      text;
+                                      float64;
+                                    }) query;
+  getTransactionHistory: () -> (vec Transaction) query;
+  getUserFullPosition: (assetName: text) -> (FullPositionView) query;
+  /// Returns the most recent scores from the caller's personal history.
+  getUserLatestScores: () -> (vec record {
+                                    text;
+                                    float64;
+                                  }) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getUserShortPosition: (assetName: text) -> (ShortPositionView) query;
+  /// Returns the caller's personal tick history, limited to the last N entries.
+  getUserTickHistory: (limit: nat) -> (vec TickRecord) query;
+  getWalletBalance: () -> (float64) query;
+  isCallerAdmin: () -> (bool) query;
+  /// Commits a single tick result to canister memory.
+  /// Called fire-and-forget from OracleTickContext after each tick cycle.
+  /// Capped at 720 entries (≈6 hours at 30-second ticks).
+  persistTick: ("record": TickRecord) -> ();
+  redeemAll: (assetName: text) -> (bool);
+  redeemFunds: (assetName: text, unitsToSell: float64) -> (bool);
+  redeemShort: (assetName: text, unitsToRedeem: float64) ->
+   (RedeemShortResult);
+  /// Resets Reddit backoff state so the next heartbeat triggers an immediate retry.
+  /// Use this after a canister top-up to avoid waiting up to 50 minutes for the
+  /// backoff window to expire. Admin-gated — only canister admins may call this.
+  resetRedditBackoff: () -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  schema: () -> (text) query;
+  /// Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
+  setHuggingFaceKey: (key: text) -> ();
+  setUserStatus: (username: text, status: AccountStatus) -> ();
+  /// Persists a fully-scored headline to canister memory.
+  /// Called fire-and-forget from OracleTickContext after FinBERT scoring.
+  /// No auth restriction.
+  storeProcessedHeadline: (h: ProcessedHeadline) -> ();
+  toggleTradingPaused: () -> ();
+  transform: (args: TransformArgs) -> (HttpResponse) query;
+  updateData: () -> ();
+  withdrawFunds: (amount: float64) -> (bool);
+}

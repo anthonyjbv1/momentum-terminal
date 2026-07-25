@@ -1,0 +1,162 @@
+/**
+ * finbertService.ts
+ *
+ * Sentiment classification routed through the ICP backend canister.
+ *
+ * Classification priority:
+ *   1. Deterministic Lexicon Override — high-signal macro/geopolitical/cultural
+ *      phrases matched before any ML model is consulted. Returns immediately.
+ *
+ *   2. Mock pool fast-path — when sentimentScore is provided AND non-zero
+ *      (pre-assigned score from the 84-headline mock pool), direction is derived
+ *      directly from the sign. No canister call.
+ *      sentimentScore > 0.05  → positive
+ *      sentimentScore < -0.05 → negative
+ *      -0.05 ≤ score ≤ 0.05  → neutral (legitimate dead zone)
+ *
+ *   3. Real FinBERT via canister — when sentimentScore is undefined or zero
+ *      (live Finnhub headline or any external source without a pre-assigned score),
+ *      calls canister.classifyHeadline(text). The canister POSTs to the
+ *      HuggingFace Inference API (ProsusAI/finbert) and returns a structured
+ *      { sentimentLabel, confidence, source } result.
+ *      source === "finbert_live" when the HuggingFace key is set and the call
+ *      succeeds; source === "neutral_fallback" when the key is absent or the
+ *      model returns an error (503 cold start, rate limit, timeout).
+ *
+ *   4. NEUTRAL_FALLBACK — any canister call failure falls back silently. The
+ *      pipeline is never interrupted by a classification error.
+ *
+ * STRICT SAFETY: no UI changes, no engine file changes. Pure TypeScript utility.
+ */
+
+import { createActorWithConfig } from "../../config";
+import type { SentimentLabel } from "./entityValidator";
+import { applyLexiconOverride } from "./lexiconOverrideService";
+
+export interface SentimentResult {
+  label: SentimentLabel;
+  confidence: number;
+  scoringMethod: "lexicon" | "finbert" | "neutral_fallback";
+  /** Passthrough from canister: "finbert_live" | "neutral_fallback" | undefined */
+  source?: string;
+}
+
+/** @deprecated Use SentimentResult */
+export type FinBERTResult = SentimentResult;
+
+const NEUTRAL_FALLBACK: SentimentResult = {
+  label: "neutral",
+  confidence: 0.5,
+  scoringMethod: "neutral_fallback",
+  source: "neutral_fallback",
+};
+
+/**
+ * Classifies the sentiment of a headline.
+ *
+ * @param text            The headline text to classify.
+ * @param sentimentScore  Optional pre-computed sentiment score from the mock
+ *                        headline pool. When present AND non-zero, classification
+ *                        is derived directly from its sign — no canister call.
+ *                        When undefined or zero, calls canister.classifyHeadline().
+ */
+export async function analyzeSentiment(
+  text: string,
+  sentimentScore?: number,
+): Promise<SentimentResult> {
+  // ── 1. Deterministic Lexicon Override ──────────────────────────────────
+  const override = applyLexiconOverride(text);
+  if (override) {
+    console.log(
+      `[FinBERT] Lexicon override: "${text.slice(0, 60)}" → ${override.direction} (${override.confidence.toFixed(2)})`,
+    );
+    return {
+      label: override.direction,
+      confidence: override.confidence,
+      scoringMethod: "lexicon",
+    };
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
+  // ── 2. Mock pool fast-path ──────────────────────────────────────────────
+  // sentimentScore is defined and non-zero → pre-assigned mock pool headline.
+  // Derive direction from sign; skip canister call entirely.
+  if (sentimentScore !== undefined && sentimentScore !== 0) {
+    const clampedConfidence = Math.min(
+      0.95,
+      Math.max(0.55, Math.abs(sentimentScore)),
+    );
+    if (sentimentScore > 0.05) {
+      return {
+        label: "positive",
+        confidence: clampedConfidence,
+        scoringMethod: "finbert",
+      };
+    }
+    if (sentimentScore < -0.05) {
+      return {
+        label: "negative",
+        confidence: clampedConfidence,
+        scoringMethod: "finbert",
+      };
+    }
+    // Dead zone: -0.05 ≤ sentimentScore ≤ 0.05 → legitimate neutral
+    return {
+      label: "neutral",
+      confidence: 0.5,
+      scoringMethod: "neutral_fallback",
+    };
+  }
+  // ───────────────────────────────────────────────────────────────────────
+
+  // ── 3. Real FinBERT via canister classifyHeadline() ─────────────────────
+  // sentimentScore is undefined or zero → live headline with no pre-assigned
+  // score. Route to the canister which calls HuggingFace ProsusAI/finbert.
+  //
+  // The canister returns { sentimentLabel: Text; confidence: Float; source: Text }
+  // Note: field is "sentimentLabel" not "label" — "label" is reserved in Motoko.
+  //
+  // actor is typed as `any` by createActorWithConfig() — the method is callable
+  // at runtime even though backend.d.ts doesn't yet list classifyHeadline.
+  try {
+    const actor = await createActorWithConfig();
+
+    const result = (await actor.classifyHeadline(text)) as {
+      sentimentLabel: string;
+      confidence: number;
+      source: string;
+    };
+
+    console.log(
+      `[FinBERT] canister.classifyHeadline("${text.slice(0, 60)}") → ${result.sentimentLabel} (${result.confidence.toFixed(2)}) [${result.source}]`,
+    );
+
+    // Normalize label — guard against unexpected casing or unknown values.
+    const normalized = result.sentimentLabel.toLowerCase() as SentimentLabel;
+    const validLabel: SentimentLabel = (
+      ["positive", "negative", "neutral"] as SentimentLabel[]
+    ).includes(normalized)
+      ? normalized
+      : "neutral";
+
+    // source === "neutral_fallback" means the canister fell back (key not set,
+    // model loading, etc.) — reflect that in scoringMethod so the Oracle Feed
+    // badge shows NEUTRAL rather than FINBERT.
+    const scoringMethod =
+      result.source === "finbert_live" ? "finbert" : "neutral_fallback";
+
+    return {
+      label: validLabel,
+      confidence: Math.round(result.confidence * 100) / 100,
+      scoringMethod: scoringMethod as SentimentResult["scoringMethod"],
+      source: result.source,
+    };
+  } catch (err) {
+    console.warn(
+      "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
+      err,
+    );
+    return NEUTRAL_FALLBACK;
+  }
+  // ───────────────────────────────────────────────────────────────────────
+}

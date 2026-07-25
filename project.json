@@ -1,0 +1,20 @@
+{
+  "overview": "Momentum Terminal backend with short position infrastructure: stable per-user positions, long/short mark-to-market, allocation and redemption, spread widening, and a velocity circuit breaker.",
+  "features": [
+    "Stable per-user position storage keyed by principal and asset",
+    "Long and short mark-to-market calculations",
+    "Short allocation and redemption with $500 cap",
+    "LMSR spread widening on short entry when score rises",
+    "Velocity circuit breaker blocking rapid short entries",
+    "Public getters for short position state"
+  ],
+  "category": "productivity",
+  "tags": [
+    "backend",
+    "motoko",
+    "positions",
+    "short-selling",
+    "lmsr"
+  ],
+  "last_updated": "2026-07-09T17:22:42.229Z"
+}

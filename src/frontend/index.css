@@ -1,0 +1,110 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Core palette (dark FinTech) ── */
+    --background: oklch(0.1 0.008 240);
+    --foreground: oklch(0.93 0.01 240);
+
+    --card: oklch(0.13 0.01 240);
+    --card-foreground: oklch(0.93 0.01 240);
+
+    --popover: oklch(0.13 0.01 240);
+    --popover-foreground: oklch(0.93 0.01 240);
+
+    /* Signature green primary */
+    --primary: oklch(0.72 0.18 145);
+    --primary-foreground: oklch(0.1 0.008 240);
+
+    --secondary: oklch(0.18 0.012 240);
+    --secondary-foreground: oklch(0.8 0.01 240);
+
+    --muted: oklch(0.18 0.012 240);
+    --muted-foreground: oklch(0.52 0.012 240);
+
+    --accent: oklch(0.2 0.015 240);
+    --accent-foreground: oklch(0.93 0.01 240);
+
+    --destructive: oklch(0.6 0.22 25);
+    --destructive-foreground: oklch(0.98 0.005 240);
+
+    --border: oklch(0.22 0.01 240);
+    --input: oklch(0.22 0.01 240);
+    --ring: oklch(0.72 0.18 145);
+
+    --radius: 0.25rem;
+
+    /* ── Electric-blue accent ── */
+    --electric-blue: oklch(0.65 0.22 250);
+
+    /* ── Sports category color ── */
+    --sports: oklch(0.72 0.18 200);
+
+    /* ── Geopolitical category color (warm amber/gold) ── */
+    --geopolitical: oklch(0.78 0.16 65);
+
+    /* ── Dynamic spread tokens ── */
+    --dynamic-spread: oklch(0.75 0.18 55);
+    --dynamic-spread-text: oklch(0.85 0.14 55);
+    --dynamic-spread-bright: oklch(0.9 0.18 55);
+    --dynamic-spread-muted: oklch(0.6 0.1 55);
+  }
+
+  /* Force dark mode always */
+  html {
+    color-scheme: dark;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Monospace elements */
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+  }
+}
+
+@layer utilities {
+  /* Subtle pulse for live indicators */
+  @keyframes pulse-subtle {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.4;
+    }
+  }
+  .animate-pulse-subtle {
+    animation: pulse-subtle 2.5s ease-in-out infinite;
+  }
+
+  /* Dynamic spread banner glow */
+  @keyframes dynamic-spread-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 oklch(0.75 0.18 55 / 0);
+    }
+    50% {
+      box-shadow: 0 0 12px 2px oklch(0.75 0.18 55 / 0.25);
+    }
+  }
+  .dynamic-spread-banner {
+    animation: dynamic-spread-pulse 3s ease-in-out infinite;
+  }
+}
