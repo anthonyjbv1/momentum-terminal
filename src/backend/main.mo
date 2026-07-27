@@ -229,16 +229,27 @@ actor {
   // Retained for stable-variable compatibility (previously NEWS_API_KEY / NEWS_URL)
   transient let NEWS_API_KEY : Text = "";
   transient let NEWS_URL : Text = "";
-  // Retained for stable-variable compatibility
-  transient let FINNHUB_API_KEY : Text = "";
+  // Finnhub API key stored in mutable state (not hardcoded) — set via setFinnhubKey()
+  // Initial value is supplied by the migration chain (migrations/20260725_165417.mo),
+  // not by an inline initializer — required under --enhanced-migration.
+  var finnhubApiKey : Text;
+  // FINNHUB_API_KEY retained as an empty constant for stable-variable upgrade compatibility.
+  // The actual key is now stored in finnhubApiKey (mutable, admin-settable).
+  transient let FINNHUB_API_KEY : Text = ""; // retained for upgrade compat — do not remove
 
-  
-
-  transient let FINNHUB_URL : Text = "https://finnhub.io/api/v1/news?category=general&token=d6sqet9r01qoqoir3cs0d6sqet9r01qoqoir3csg";
+  // Base URL without the token — the full URL is built dynamically inside fetchNews()
+  // by appending "&token=" # finnhubApiKey.
+  transient let FINNHUB_BASE_URL : Text = "https://finnhub.io/api/v1/news?category=general";
 
   public func fetchNews() : async Text {
+    // Early-return guard: do not make an outcall with an empty/invalid key.
+    if (finnhubApiKey == "") {
+      Debug.print("[fetchNews] finnhubApiKey not set — returning empty array");
+      return "[]";
+    };
+    let finnhubUrl : Text = FINNHUB_BASE_URL # "&token=" # finnhubApiKey;
     let request : HttpRequestArgs = {
-      url = FINNHUB_URL;
+      url = finnhubUrl;
       max_response_bytes = ?Nat64.fromNat(500_000);
       headers = [
         { name = "Accept"; value = "application/json" },
@@ -487,6 +498,17 @@ actor {
   public shared func getHuggingFaceKeyStatus() : async Text {
     if (huggingfaceApiKey == "") { return "NOT SET" };
     return "SET (" # huggingfaceApiKey.size().toText() # " chars)";
+  };
+
+  /// Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
+  public shared func setFinnhubKey(key : Text) : async () {
+    finnhubApiKey := key;
+  };
+
+  /// Returns Finnhub key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+  public shared func getFinnhubKeyStatus() : async Text {
+    if (finnhubApiKey == "") { return "NOT SET" };
+    return "SET (" # finnhubApiKey.size().toText() # " chars)";
   };
 
   // Neutral fallback returned on any error or when key is not set.

@@ -14,6 +14,7 @@ import {
   Clock,
   FileText,
   LogOut,
+  Newspaper,
   Plus,
   Shield,
 } from "lucide-react";
@@ -29,8 +30,10 @@ import {
 } from "../contexts/WalletContext";
 import { useInternetIdentity } from "../hooks/useInternetIdentity";
 import {
+  useFinnhubKeyStatus,
   useGetCallerUserProfile,
   useHuggingFaceKeyStatus,
+  useSetFinnhubKey,
   useSetHuggingFaceKey,
   useSubsidyReserves,
   useTotalSubsidyReserve,
@@ -527,6 +530,7 @@ export function ProfilePage() {
   const [activeView, setActiveView] = useState<ActiveView>("main");
   const [isDepositOpen, setIsDepositOpen] = useState(false);
   const [hfKeyValue, setHfKeyValue] = useState<string>("");
+  const [finnhubKeyValue, setFinnhubKeyValue] = useState<string>("");
   const [selectedEntry, setSelectedEntry] = useState<ActivityEntry | null>(
     null,
   );
@@ -637,6 +641,8 @@ export function ProfilePage() {
   const { data: totalReserve } = useTotalSubsidyReserve();
   const hfKeyStatusQuery = useHuggingFaceKeyStatus();
   const setHfKeyMutation = useSetHuggingFaceKey();
+  const finnhubKeyStatusQuery = useFinnhubKeyStatus();
+  const setFinnhubKeyMutation = useSetFinnhubKey();
   const { costBasisMap } = useLocalHoldings();
   void costBasisMap;
 
@@ -1762,6 +1768,13 @@ export function ProfilePage() {
     }
   }, [setHfKeyMutation.isSuccess]);
 
+  // Clear the Finnhub key input on successful mutation
+  useEffect(() => {
+    if (setFinnhubKeyMutation.isSuccess) {
+      setFinnhubKeyValue("");
+    }
+  }, [setFinnhubKeyMutation.isSuccess]);
+
   // Restart interval on speed mode change without resetting any state
   // biome-ignore lint/correctness/useExhaustiveDependencies: runSimTick reads only refs
   useEffect(() => {
@@ -2702,6 +2715,102 @@ export function ProfilePage() {
                     : hfKeyStatusQuery.isError
                       ? "error"
                       : (hfKeyStatusQuery.data ?? "unknown")}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FINNHUB SETTINGS ─────────────────── */}
+        <div className="mt-4" data-ocid="profile_page.finnhub_settings.section">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1.5">
+              <Newspaper className="w-3 h-3" strokeWidth={2} />
+              Finnhub Settings
+            </p>
+          </div>
+
+          <div className="rounded bg-white/[0.03] border border-border/50 p-3 space-y-4">
+            {/* Finnhub API key input */}
+            <div>
+              <label
+                htmlFor="finnhub-key-input"
+                className="block text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1.5"
+              >
+                Finnhub API Key
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="finnhub-key-input"
+                  type="password"
+                  value={finnhubKeyValue}
+                  onChange={(e) => setFinnhubKeyValue(e.target.value)}
+                  placeholder="Enter new API key"
+                  autoComplete="off"
+                  spellCheck={false}
+                  data-ocid="profile_page.finnhub_settings.key_input"
+                  className="flex-1 min-w-0 rounded border border-border/50 bg-white/[0.02] px-2.5 py-2 text-[12px] font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-green-500/50 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = finnhubKeyValue.trim();
+                    if (!trimmed) return;
+                    setFinnhubKeyMutation.mutate(trimmed);
+                  }}
+                  disabled={
+                    finnhubKeyValue.trim().length === 0 ||
+                    setFinnhubKeyMutation.isPending
+                  }
+                  data-ocid="profile_page.finnhub_settings.submit_button"
+                  className="shrink-0 rounded border border-green-500/40 bg-green-500/10 text-green-400 text-[11px] uppercase tracking-widest font-bold px-3 py-2 hover:bg-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  {setFinnhubKeyMutation.isPending
+                    ? "Saving…"
+                    : setFinnhubKeyMutation.isSuccess
+                      ? "Saved"
+                      : setFinnhubKeyMutation.isError
+                        ? "Error"
+                        : "Save"}
+                </button>
+              </div>
+              {setFinnhubKeyMutation.isSuccess && (
+                <p className="mt-1.5 text-[11px] text-green-400 font-mono">
+                  Key updated successfully.
+                </p>
+              )}
+              {setFinnhubKeyMutation.isError && (
+                <p className="mt-1.5 text-[11px] text-red-400 font-mono">
+                  Failed to update key:{" "}
+                  {setFinnhubKeyMutation.error?.message ?? "unknown error"}
+                </p>
+              )}
+            </div>
+
+            {/* Finnhub key status indicator */}
+            <div>
+              <p className="text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1.5">
+                Key Status
+              </p>
+              <div
+                className="flex items-center gap-2 rounded bg-white/[0.02] border border-border/50 px-3 py-2"
+                data-ocid="profile_page.finnhub_settings.status"
+              >
+                <span
+                  className={`inline-block w-1.5 h-1.5 rounded-full ${
+                    finnhubKeyStatusQuery.data === "set"
+                      ? "bg-green-400"
+                      : finnhubKeyStatusQuery.data === "missing"
+                        ? "bg-red-400"
+                        : "bg-muted-foreground"
+                  }`}
+                />
+                <span className="font-mono text-[12px] text-foreground">
+                  {finnhubKeyStatusQuery.isLoading
+                    ? "loading…"
+                    : finnhubKeyStatusQuery.isError
+                      ? "error"
+                      : (finnhubKeyStatusQuery.data ?? "unknown")}
                 </span>
               </div>
             </div>

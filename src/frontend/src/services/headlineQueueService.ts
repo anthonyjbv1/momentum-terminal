@@ -2414,14 +2414,22 @@ export function dequeueHeadlines(n: number): QueuedHeadline[] {
     console.info(
       `[HeadlineQueue] Low water mark reached (${getQueueLength()} remaining) — triggering background refill.`,
     );
-    // LIVE MODE: fetchNewsBatch();
 
-    // Refill from the live 84-headline pool first; fall back to DEMO_HEADLINES if empty
-    const freshBatch = generateBatchedTickHeadlines();
-    const freshHeadlines: QueuedHeadline[] = [];
-    for (const batch of freshBatch.values()) {
+    // LIVE MODE: refill from the live Finnhub newswire. fetchNewsBatch() is
+    // async (it awaits actor.fetchNews()) and pushes validated headlines onto
+    // _queue internally with source='finnhub'. Fire-and-forget here matches the
+    // pattern already used by init()'s 5-minute setInterval — the next drain
+    // tick will pick up the freshly fetched headlines.
+    void fetchNewsBatch();
+
+    // Synchronous last-resort top-up so the queue is never empty while the
+    // async Finnhub fetch is in flight. generateBatchedTickHeadlines() is kept
+    // ONLY as this immediate bridge; the active refill source is Finnhub above.
+    const bridgeBatch = generateBatchedTickHeadlines();
+    const bridgeHeadlines: QueuedHeadline[] = [];
+    for (const batch of bridgeBatch.values()) {
       for (const event of batch.headlines) {
-        freshHeadlines.push({
+        bridgeHeadlines.push({
           text: event.headline,
           sourceTier: (event.sourceTier as 1 | 2 | 3 | 4 | 5) ?? 1,
           // Thread the mock pool's sentimentScore through so finbertService
@@ -2433,8 +2441,8 @@ export function dequeueHeadlines(n: number): QueuedHeadline[] {
         });
       }
     }
-    if (freshHeadlines.length > 0) {
-      for (const _item of freshHeadlines) {
+    if (bridgeHeadlines.length > 0) {
+      for (const _item of bridgeHeadlines) {
         const _br = shouldBlockHeadline(_item.text);
         if (_br) {
           blockedHeadlines.push({
@@ -2447,7 +2455,7 @@ export function dequeueHeadlines(n: number): QueuedHeadline[] {
         }
       }
       console.info(
-        `[HeadlineQueue] Refilled queue with ${freshHeadlines.length} headlines from live pool.`,
+        `[HeadlineQueue] Bridge top-up with ${bridgeHeadlines.length} headlines while Finnhub fetch is in flight.`,
       );
     } else {
       for (const _item of shuffle(DEMO_HEADLINES)) {
@@ -2463,7 +2471,7 @@ export function dequeueHeadlines(n: number): QueuedHeadline[] {
         }
       }
       console.info(
-        `[HeadlineQueue] Live pool returned empty — falling back to ${DEMO_HEADLINES.length} demo headlines.`,
+        `[HeadlineQueue] Bridge pool returned empty — falling back to ${DEMO_HEADLINES.length} demo headlines.`,
       );
     }
   }

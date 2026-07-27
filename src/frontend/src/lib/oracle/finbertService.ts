@@ -78,36 +78,42 @@ export async function analyzeSentiment(
   }
   // ───────────────────────────────────────────────────────────────────────
 
-  // ── 2. Mock pool fast-path ──────────────────────────────────────────────
-  // sentimentScore is defined and non-zero → pre-assigned mock pool headline.
-  // Derive direction from sign; skip canister call entirely.
-  if (sentimentScore !== undefined && sentimentScore !== 0) {
+  // ── 2. Mock pool fast-path (disabled) ───────────────────────────────────
+  // All headlines — including those with a pre-assigned sentimentScore — now
+  // fall through to the canister call below. sentimentScore is retained only as
+  // a fallback in the Step 3 catch block, used when the canister call fails.
+  // ───────────────────────────────────────────────────────────────────────
+
+  // Local helper: derive a SentimentResult from a pre-assigned sentimentScore
+  // using the same clampedConfidence + sign-based threshold logic that the old
+  // fast-path used. Shared between this block (for documentation) and the
+  // Step 3 catch fallback so the two paths stay in sync.
+  const scoreFallback = (): SentimentResult => {
+    if (sentimentScore === undefined || sentimentScore === 0) {
+      return NEUTRAL_FALLBACK;
+    }
     const clampedConfidence = Math.min(
       0.95,
       Math.max(0.55, Math.abs(sentimentScore)),
     );
+    let label: SentimentLabel;
     if (sentimentScore > 0.05) {
-      return {
-        label: "positive",
-        confidence: clampedConfidence,
-        scoringMethod: "finbert",
-      };
+      label = "positive";
+    } else if (sentimentScore < -0.05) {
+      label = "negative";
+    } else {
+      label = "neutral";
     }
-    if (sentimentScore < -0.05) {
-      return {
-        label: "negative",
-        confidence: clampedConfidence,
-        scoringMethod: "finbert",
-      };
-    }
-    // Dead zone: -0.05 ≤ sentimentScore ≤ 0.05 → legitimate neutral
     return {
-      label: "neutral",
-      confidence: 0.5,
-      scoringMethod: "neutral_fallback",
+      label,
+      confidence: clampedConfidence,
+      scoringMethod: "finbert",
     };
-  }
-  // ───────────────────────────────────────────────────────────────────────
+  };
+
+  console.log(
+    `[FinBERT] no lexicon match → routing to canister: "${text.slice(0, 60)}"`,
+  );
 
   // ── 3. Real FinBERT via canister classifyHeadline() ─────────────────────
   // sentimentScore is undefined or zero → live headline with no pre-assigned
@@ -156,7 +162,9 @@ export async function analyzeSentiment(
       "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
       err,
     );
-    return NEUTRAL_FALLBACK;
+    // Canister call failed: fall back to sentimentScore if it was provided
+    // and non-zero (pre-assigned mock pool score); otherwise NEUTRAL_FALLBACK.
+    return scoreFallback();
   }
   // ───────────────────────────────────────────────────────────────────────
 }

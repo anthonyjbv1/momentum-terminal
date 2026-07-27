@@ -4,8 +4,14 @@ type AccessControlState__38618698 =
     var adminAssigned : Bool;
     userRoles : Map__246123559<Principal, UserRole__2586141>
   };
+type AccessControlState__838697633 =
+  {
+    var adminAssigned : Bool;
+    userRoles : Map__246123559<Principal, UserRole__985463976>
+  };
 type AccountStatus__165025260 = {#Active; #Suspended};
 type AccountStatus__387317020 = {#Active; #Suspended};
+type AccountStatus__89451537 = {#Active; #Suspended};
 type AssetConfig__131746289 =
   {maxAllocation : Float; volatilityBuffer : Float};
 type Asset__432114617 =
@@ -119,8 +125,92 @@ type NewActor__1004579041 =
     volumeByIndex : Map__246123559<Text, Float>;
     walletBalance : {var balance : Float}
   };
+type NewActor__362857188 =
+  {
+    accessControlState : AccessControlState__838697633;
+    allocationsMap : Map__246123559<Text, Float>;
+    assetTrends : Map__246123559<Text, TrendState__924608102>;
+    crisisState :
+      {var dynamicSpreadActive : Bool; var dynamicSpreadExpiry : Int};
+    var currentCycleIndex : Nat;
+    var dynamicSpreadActive : Bool;
+    var dynamicSpreadExpiry : Int;
+    var failures_ACLU : Nat;
+    var failures_BLS : Nat;
+    var failures_Congress : Nat;
+    var failures_CongressTrad : Nat;
+    var failures_CourtListener : Nat;
+    var failures_EPA : Nat;
+    var failures_FTC : Nat;
+    var failures_Fed : Nat;
+    var failures_GDELT : Nat;
+    var failures_GlobeNewswire : Nat;
+    var failures_OMDBDC : Nat;
+    var failures_OMDBMarvel : Nat;
+    var failures_Reddit : Nat;
+    failures_RedditMap : Map__246123559<Text, Nat>;
+    var failures_ReliefWeb : Nat;
+    var failures_SCOTUS : Nat;
+    var failures_SEC : Nat;
+    var failures_TMDB : Nat;
+    var failures_TMDBPopular : Nat;
+    var failures_USPTO : Nat;
+    var failures_YouTube : Nat;
+    var finnhubApiKey : Text;
+    var huggingfaceApiKey : Text;
+    var isTradingPaused : Bool;
+    var lastFetch_ACLU : Int;
+    var lastFetch_BLS : Int;
+    var lastFetch_Congress : Int;
+    var lastFetch_CongressTrad : Int;
+    var lastFetch_CourtListener : Int;
+    var lastFetch_EPA : Int;
+    var lastFetch_FTC : Int;
+    var lastFetch_Fed : Int;
+    var lastFetch_GDELT : Int;
+    var lastFetch_GlobeNewswire : Int;
+    var lastFetch_OMDBDC : Int;
+    var lastFetch_OMDBMarvel : Int;
+    var lastFetch_Reddit : Int;
+    lastFetch_RedditMap : Map__246123559<Text, Int>;
+    var lastFetch_ReliefWeb : Int;
+    var lastFetch_SCOTUS : Int;
+    var lastFetch_SEC : Int;
+    var lastFetch_TMDB : Int;
+    var lastFetch_TMDBPopular : Int;
+    var lastFetch_USPTO : Int;
+    var lastFetch_YouTube : Int;
+    var lastTickTimestamp : Int;
+    var latestScoreSnapshot : [(Text, Float)];
+    newsEvents : List__852723865<NewsEvent__180183984>;
+    var nextTransactionId : Nat;
+    positions : Map__246123559<PositionKey__874115738, Position__327082601>;
+    processedHeadlines : List__852723865<ProcessedHeadline__431563332>;
+    sentimentScores : Map__246123559<Text, Float>;
+    var spreadActive : Bool;
+    subsidyReserves : Map__246123559<Text, Float>;
+    var tickHeartbeat : Nat;
+    tickHistoryState : {var ticks : [TickRecord__1057603622]};
+    transactions : List__852723865<Transaction__699891295>;
+    userAllocationStates :
+      Map__246123559<Principal, UserAllocationState__1017663498>;
+    userProfiles : Map__246123559<Principal, UserProfile__271342000>;
+    userStatuses : Map__246123559<Text, AccountStatus__89451537>;
+    userTickHistory : Map__246123559<Principal, [TickRecord__1057603622]>;
+    var volumeBackfilled : Bool;
+    volumeByIndex : Map__246123559<Text, Float>;
+    walletBalance : {var balance : Float}
+  };
 type NewsEventCategory__126899453 = {#AI; #Mexico; #Warriors; #Washington};
+type NewsEventCategory__183827851 = {#AI; #Mexico; #Warriors; #Washington};
 type NewsEventCategory__59551573 = {#AI; #Mexico; #Warriors; #Washington};
+type NewsEvent__180183984 =
+  {
+    category : NewsEventCategory__183827851;
+    headline : Text;
+    relatedIndex : ?Text;
+    sentimentScore : Float
+  };
 type NewsEvent__478673363 =
   {
     category : NewsEventCategory__59551573;
@@ -137,6 +227,81 @@ type NewsEvent__592482062 =
   };
 type Node__279997185<K, V> =
   {#internal : Internal__455405067<K, V>; #leaf : Leaf__114713147<K, V>};
+type OldActor__311323503 =
+  {
+    accessControlState : AccessControlState__838697633;
+    allocationsMap : Map__246123559<Text, Float>;
+    assetTrends : Map__246123559<Text, TrendState__924608102>;
+    crisisState :
+      {var dynamicSpreadActive : Bool; var dynamicSpreadExpiry : Int};
+    var currentCycleIndex : Nat;
+    var dynamicSpreadActive : Bool;
+    var dynamicSpreadExpiry : Int;
+    var failures_ACLU : Nat;
+    var failures_BLS : Nat;
+    var failures_Congress : Nat;
+    var failures_CongressTrad : Nat;
+    var failures_CourtListener : Nat;
+    var failures_EPA : Nat;
+    var failures_FTC : Nat;
+    var failures_Fed : Nat;
+    var failures_GDELT : Nat;
+    var failures_GlobeNewswire : Nat;
+    var failures_OMDBDC : Nat;
+    var failures_OMDBMarvel : Nat;
+    var failures_Reddit : Nat;
+    failures_RedditMap : Map__246123559<Text, Nat>;
+    var failures_ReliefWeb : Nat;
+    var failures_SCOTUS : Nat;
+    var failures_SEC : Nat;
+    var failures_TMDB : Nat;
+    var failures_TMDBPopular : Nat;
+    var failures_USPTO : Nat;
+    var failures_YouTube : Nat;
+    var huggingfaceApiKey : Text;
+    var isTradingPaused : Bool;
+    var lastFetch_ACLU : Int;
+    var lastFetch_BLS : Int;
+    var lastFetch_Congress : Int;
+    var lastFetch_CongressTrad : Int;
+    var lastFetch_CourtListener : Int;
+    var lastFetch_EPA : Int;
+    var lastFetch_FTC : Int;
+    var lastFetch_Fed : Int;
+    var lastFetch_GDELT : Int;
+    var lastFetch_GlobeNewswire : Int;
+    var lastFetch_OMDBDC : Int;
+    var lastFetch_OMDBMarvel : Int;
+    var lastFetch_Reddit : Int;
+    lastFetch_RedditMap : Map__246123559<Text, Int>;
+    var lastFetch_ReliefWeb : Int;
+    var lastFetch_SCOTUS : Int;
+    var lastFetch_SEC : Int;
+    var lastFetch_TMDB : Int;
+    var lastFetch_TMDBPopular : Int;
+    var lastFetch_USPTO : Int;
+    var lastFetch_YouTube : Int;
+    var lastTickTimestamp : Int;
+    var latestScoreSnapshot : [(Text, Float)];
+    newsEvents : List__852723865<NewsEvent__180183984>;
+    var nextTransactionId : Nat;
+    positions : Map__246123559<PositionKey__874115738, Position__327082601>;
+    processedHeadlines : List__852723865<ProcessedHeadline__431563332>;
+    sentimentScores : Map__246123559<Text, Float>;
+    var spreadActive : Bool;
+    subsidyReserves : Map__246123559<Text, Float>;
+    var tickHeartbeat : Nat;
+    tickHistoryState : {var ticks : [TickRecord__1057603622]};
+    transactions : List__852723865<Transaction__699891295>;
+    userAllocationStates :
+      Map__246123559<Principal, UserAllocationState__1017663498>;
+    userProfiles : Map__246123559<Principal, UserProfile__271342000>;
+    userStatuses : Map__246123559<Text, AccountStatus__89451537>;
+    userTickHistory : Map__246123559<Principal, [TickRecord__1057603622]>;
+    var volumeBackfilled : Bool;
+    volumeByIndex : Map__246123559<Text, Float>;
+    walletBalance : {var balance : Float}
+  };
 type OldActor__789801168 =
   {
     AI_BASELINE : Float;
@@ -252,6 +417,15 @@ type OldActor__789801168 =
   };
 type PositionKey__34665039 = (Principal, Text);
 type PositionKey__569295609 = (Principal, Text);
+type PositionKey__874115738 = (Principal, Text);
+type Position__327082601 =
+  {
+    longEntryScore : Float;
+    longUnits : Float;
+    openedAt : Int;
+    shortEntryScore : Float;
+    shortUnits : Float
+  };
 type Position__372672791 =
   {
     longEntryScore : Float;
@@ -278,6 +452,16 @@ type ProcessedHeadline__270689069 =
     text : Text;
     timestamp : Int
   };
+type ProcessedHeadline__431563332 =
+  {
+    confidence : Float;
+    impact : Float;
+    sentimentLabel : Text;
+    sourceTier : Nat;
+    targetIndex : Text;
+    text : Text;
+    timestamp : Int
+  };
 type ProcessedHeadline__516214802 =
   {
     confidence : Float;
@@ -287,6 +471,14 @@ type ProcessedHeadline__516214802 =
     targetIndex : Text;
     text : Text;
     timestamp : Int
+  };
+type TickRecord__1057603622 =
+  {
+    gsiValue : Float;
+    scores : [(Text, Float)];
+    tickIndex : Nat;
+    timestamp : Int;
+    topHeadline : ?Text
   };
 type TickRecord__429625764 =
   {
@@ -303,6 +495,16 @@ type TickRecord__979211228 =
     tickIndex : Nat;
     timestamp : Int;
     topHeadline : ?Text
+  };
+type TransactionType__764858646 =
+  {
+    #buy;
+    #deposit;
+    #redeemAll;
+    #sell;
+    #shortAllocate;
+    #shortRedeem;
+    #withdrawal
   };
 type TransactionType__767491300 =
   {
@@ -336,6 +538,18 @@ type Transaction__155003472 =
     units : ?Float;
     username : Text
   };
+type Transaction__699891295 =
+  {
+    amount : Float;
+    assetInvolved : ?Text;
+    assetName : ?Text;
+    dollarAmount : ?Float;
+    id : Nat;
+    timestamp : Int;
+    transactionType : TransactionType__764858646;
+    units : ?Float;
+    username : Text
+  };
 type Transaction__865268250 =
   {
     amount : Float;
@@ -356,6 +570,7 @@ type TransformContext__330020461 =
     function :
       shared query TransformArgs__701234689 -> async HttpResponse__940512756
   };
+type TrendDirection__412432350 = {#down; #up};
 type TrendDirection__613569276 = {#down; #up};
 type TrendDirection__753216792 = {#down; #up};
 type TrendState__220918011 =
@@ -370,14 +585,24 @@ type TrendState__693065190 =
     remainingDuration : Nat;
     stepSize : Float
   };
+type TrendState__924608102 =
+  {
+    direction : TrendDirection__412432350;
+    remainingDuration : Nat;
+    stepSize : Float
+  };
+type UserAllocationState__1017663498 = {lastAllocationCycle : ?Nat};
 type UserAllocationState__143998485 = {lastAllocationCycle : ?Nat};
 type UserAllocationState__409608314 = {lastAllocationCycle : ?Nat};
+type UserProfile__271342000 = {name : Text; username : Text};
 type UserProfile__42720462 = {name : Text; username : Text};
 type UserProfile__491224006 = {name : Text; username : Text};
 type UserRole__1073662873 = {#admin; #guest; #user};
 type UserRole__2586141 = {#admin; #guest; #user};
+type UserRole__985463976 = {#admin; #guest; #user};
 {
-  "20260725_165417" : (old : OldActor__789801168) -> NewActor__1004579041
+  "20260725_165417" : (old : OldActor__789801168) -> NewActor__1004579041;
+  "20260725_210516" : (old : OldActor__311323503) -> NewActor__362857188
 }
 actor  {
   stable accessControlState :
@@ -419,6 +644,7 @@ actor  {
   stable var failures_TMDBPopular : Nat;
   stable var failures_USPTO : Nat;
   stable var failures_YouTube : Nat;
+  stable var finnhubApiKey : Text;
   stable var huggingfaceApiKey : Text;
   stable var isTradingPaused : Bool;
   stable var lastFetch_ACLU : Int;

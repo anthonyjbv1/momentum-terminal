@@ -277,6 +277,10 @@ export interface backendInterface {
      * /   dfx canister call noek7-3yaaa-aaaaj-qn6ea-cai getCyclesBalance --network ic
      */
     getCyclesBalance(): Promise<bigint>;
+    /**
+     * / Returns Finnhub key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+     */
+    getFinnhubKeyStatus(): Promise<string>;
     getHoldings(assetName: string): Promise<Holding | null>;
     /**
      * / Returns key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
@@ -341,6 +345,10 @@ export interface backendInterface {
     resetRedditBackoff(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     schema(): Promise<string>;
+    /**
+     * / Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
+     */
+    setFinnhubKey(key: string): Promise<void>;
     /**
      * / Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
      */
@@ -924,6 +932,20 @@ export class Backend implements backendInterface {
             return result;
         }
     }
+    async getFinnhubKeyStatus(): Promise<string> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.getFinnhubKeyStatus();
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.getFinnhubKeyStatus();
+            return result;
+        }
+    }
     async getHoldings(arg0: string): Promise<Holding | null> {
         if (this.processError) {
             try {
@@ -1383,6 +1405,20 @@ export class Backend implements backendInterface {
             }
         } else {
             const result = await this.actor.schema();
+            return result;
+        }
+    }
+    async setFinnhubKey(arg0: string): Promise<void> {
+        if (this.processError) {
+            try {
+                const result = await this.actor.setFinnhubKey(arg0);
+                return result;
+            } catch (e) {
+                this.processError(e);
+                throw new Error("unreachable");
+            }
+        } else {
+            const result = await this.actor.setFinnhubKey(arg0);
             return result;
         }
     }

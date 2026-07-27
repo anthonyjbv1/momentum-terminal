@@ -230,6 +230,10 @@ export interface backendInterface {
      * /   dfx canister call noek7-3yaaa-aaaaj-qn6ea-cai getCyclesBalance --network ic
      */
     getCyclesBalance(): Promise<bigint>;
+    /**
+     * / Returns Finnhub key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+     */
+    getFinnhubKeyStatus(): Promise<string>;
     getHoldings(assetName: string): Promise<Holding | null>;
     /**
      * / Returns key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
@@ -294,6 +298,10 @@ export interface backendInterface {
     resetRedditBackoff(): Promise<void>;
     saveCallerUserProfile(profile: UserProfile): Promise<void>;
     schema(): Promise<string>;
+    /**
+     * / Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
+     */
+    setFinnhubKey(key: string): Promise<void>;
     /**
      * / Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
      */

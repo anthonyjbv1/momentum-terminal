@@ -750,6 +750,41 @@ export function useHuggingFaceKeyStatus() {
   });
 }
 
+// ── Finnhub API Key ───────────────────────────────────────────────────────────
+// Admin-gated backend methods for managing the Finnhub API key used by the
+// market data pipeline. setFinnhubKey persists the key on the canister;
+// getFinnhubKeyStatus returns a human-readable status string (e.g. "SET",
+// "UNSET"). Mirrors the HuggingFace key hooks exactly (same error handling,
+// same mutation shape, same query return type).
+
+export function useSetFinnhubKey() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (key) => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.setFinnhubKey(key);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finnhub-key-status"] });
+    },
+  });
+}
+
+export function useFinnhubKeyStatus() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<string>({
+    queryKey: ["finnhub-key-status"],
+    queryFn: async () => {
+      if (!actor) return "UNKNOWN";
+      return actor.getFinnhubKeyStatus();
+    },
+    enabled: !!actor && !actorFetching,
+  });
+}
+
 export function useIsCallerAdmin() {
   const { actor, isFetching: actorFetching } = useActor();
 

@@ -29605,6 +29605,7 @@ Service({
     ["query"]
   ),
   "getCyclesBalance": Func([], [Nat], ["query"]),
+  "getFinnhubKeyStatus": Func([], [Text$1], []),
   "getHoldings": Func([Text$1], [Opt(Holding)], ["query"]),
   "getHuggingFaceKeyStatus": Func([], [Text$1], []),
   "getIsTradingPaused": Func([], [Bool], ["query"]),
@@ -29670,6 +29671,7 @@ Service({
   "resetRedditBackoff": Func([], [], []),
   "saveCallerUserProfile": Func([UserProfile], [], []),
   "schema": Func([], [Text$1], ["query"]),
+  "setFinnhubKey": Func([Text$1], [], []),
   "setHuggingFaceKey": Func([Text$1], [], []),
   "setUserStatus": Func([Text$1, AccountStatus$1], [], []),
   "storeProcessedHeadline": Func([ProcessedHeadline], [], []),
@@ -29891,6 +29893,7 @@ const idlFactory = ({ IDL: IDL2 }) => {
       ["query"]
     ),
     "getCyclesBalance": IDL2.Func([], [IDL2.Nat], ["query"]),
+    "getFinnhubKeyStatus": IDL2.Func([], [IDL2.Text], []),
     "getHoldings": IDL2.Func([IDL2.Text], [IDL2.Opt(Holding2)], ["query"]),
     "getHuggingFaceKeyStatus": IDL2.Func([], [IDL2.Text], []),
     "getIsTradingPaused": IDL2.Func([], [IDL2.Bool], ["query"]),
@@ -29964,6 +29967,7 @@ const idlFactory = ({ IDL: IDL2 }) => {
     "resetRedditBackoff": IDL2.Func([], [], []),
     "saveCallerUserProfile": IDL2.Func([UserProfile2], [], []),
     "schema": IDL2.Func([], [IDL2.Text], ["query"]),
+    "setFinnhubKey": IDL2.Func([IDL2.Text], [], []),
     "setHuggingFaceKey": IDL2.Func([IDL2.Text], [], []),
     "setUserStatus": IDL2.Func([IDL2.Text, AccountStatus2], [], []),
     "storeProcessedHeadline": IDL2.Func([ProcessedHeadline2], [], []),
@@ -30554,6 +30558,20 @@ class Backend {
       return result;
     }
   }
+  async getFinnhubKeyStatus() {
+    if (this.processError) {
+      try {
+        const result = await this.actor.getFinnhubKeyStatus();
+        return result;
+      } catch (e3) {
+        this.processError(e3);
+        throw new Error("unreachable");
+      }
+    } else {
+      const result = await this.actor.getFinnhubKeyStatus();
+      return result;
+    }
+  }
   async getHoldings(arg0) {
     if (this.processError) {
       try {
@@ -31013,6 +31031,20 @@ class Backend {
       }
     } else {
       const result = await this.actor.schema();
+      return result;
+    }
+  }
+  async setFinnhubKey(arg0) {
+    if (this.processError) {
+      try {
+        const result = await this.actor.setFinnhubKey(arg0);
+        return result;
+      } catch (e3) {
+        this.processError(e3);
+        throw new Error("unreachable");
+      }
+    } else {
+      const result = await this.actor.setFinnhubKey(arg0);
       return result;
     }
   }
@@ -35156,31 +35188,31 @@ async function analyzeSentiment(text, sentimentScore) {
       scoringMethod: "lexicon"
     };
   }
-  if (sentimentScore !== void 0 && sentimentScore !== 0) {
+  const scoreFallback = () => {
+    if (sentimentScore === void 0 || sentimentScore === 0) {
+      return NEUTRAL_FALLBACK;
+    }
     const clampedConfidence = Math.min(
       0.95,
       Math.max(0.55, Math.abs(sentimentScore))
     );
+    let label;
     if (sentimentScore > 0.05) {
-      return {
-        label: "positive",
-        confidence: clampedConfidence,
-        scoringMethod: "finbert"
-      };
-    }
-    if (sentimentScore < -0.05) {
-      return {
-        label: "negative",
-        confidence: clampedConfidence,
-        scoringMethod: "finbert"
-      };
+      label = "positive";
+    } else if (sentimentScore < -0.05) {
+      label = "negative";
+    } else {
+      label = "neutral";
     }
     return {
-      label: "neutral",
-      confidence: 0.5,
-      scoringMethod: "neutral_fallback"
+      label,
+      confidence: clampedConfidence,
+      scoringMethod: "finbert"
     };
-  }
+  };
+  console.log(
+    `[FinBERT] no lexicon match → routing to canister: "${text.slice(0, 60)}"`
+  );
   try {
     const actor = await createActorWithConfig();
     const result = await actor.classifyHeadline(text);
@@ -35201,7 +35233,7 @@ async function analyzeSentiment(text, sentimentScore) {
       "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
       err
     );
-    return NEUTRAL_FALLBACK;
+    return scoreFallback();
   }
 }
 const STORAGE_KEY = "momentum_capacity_state_v1";
@@ -37889,11 +37921,12 @@ function dequeueHeadlines(n2) {
     console.info(
       `[HeadlineQueue] Low water mark reached (${getQueueLength()} remaining) — triggering background refill.`
     );
-    const freshBatch = generateBatchedTickHeadlines();
-    const freshHeadlines = [];
-    for (const batch of freshBatch.values()) {
+    void fetchNewsBatch();
+    const bridgeBatch = generateBatchedTickHeadlines();
+    const bridgeHeadlines = [];
+    for (const batch of bridgeBatch.values()) {
       for (const event of batch.headlines) {
-        freshHeadlines.push({
+        bridgeHeadlines.push({
           text: event.headline,
           sourceTier: event.sourceTier ?? 1,
           // Thread the mock pool's sentimentScore through so finbertService
@@ -37902,8 +37935,8 @@ function dequeueHeadlines(n2) {
         });
       }
     }
-    if (freshHeadlines.length > 0) {
-      for (const _item of freshHeadlines) {
+    if (bridgeHeadlines.length > 0) {
+      for (const _item of bridgeHeadlines) {
         const _br = shouldBlockHeadline(_item.text);
         if (_br) {
           blockedHeadlines.push({
@@ -37916,7 +37949,7 @@ function dequeueHeadlines(n2) {
         }
       }
       console.info(
-        `[HeadlineQueue] Refilled queue with ${freshHeadlines.length} headlines from live pool.`
+        `[HeadlineQueue] Bridge top-up with ${bridgeHeadlines.length} headlines while Finnhub fetch is in flight.`
       );
     } else {
       for (const _item of shuffle(DEMO_HEADLINES)) {
@@ -37932,7 +37965,7 @@ function dequeueHeadlines(n2) {
         }
       }
       console.info(
-        `[HeadlineQueue] Live pool returned empty — falling back to ${DEMO_HEADLINES.length} demo headlines.`
+        `[HeadlineQueue] Bridge pool returned empty — falling back to ${DEMO_HEADLINES.length} demo headlines.`
       );
     }
   }
@@ -40209,6 +40242,30 @@ function useHuggingFaceKeyStatus() {
     queryFn: async () => {
       if (!actor) return "UNKNOWN";
       return actor.getHuggingFaceKeyStatus();
+    },
+    enabled: !!actor && !actorFetching
+  });
+}
+function useSetFinnhubKey() {
+  const { actor } = useActor();
+  const queryClient2 = useQueryClient();
+  return useMutation({
+    mutationFn: async (key) => {
+      if (!actor) throw new Error("Actor not available");
+      return actor.setFinnhubKey(key);
+    },
+    onSuccess: () => {
+      queryClient2.invalidateQueries({ queryKey: ["finnhub-key-status"] });
+    }
+  });
+}
+function useFinnhubKeyStatus() {
+  const { actor, isFetching: actorFetching } = useActor();
+  return useQuery({
+    queryKey: ["finnhub-key-status"],
+    queryFn: async () => {
+      if (!actor) return "UNKNOWN";
+      return actor.getFinnhubKeyStatus();
     },
     enabled: !!actor && !actorFetching
   });
@@ -78876,10 +78933,11 @@ function formatEntryBlock(entry) {
   ].join("\n");
 }
 function ProfilePage() {
-  var _a3, _b3, _c2, _d2, _e2;
+  var _a3, _b3, _c2, _d2, _e2, _f2;
   const [activeView, setActiveView] = reactExports.useState("main");
   const [isDepositOpen, setIsDepositOpen] = reactExports.useState(false);
   const [hfKeyValue, setHfKeyValue] = reactExports.useState("");
+  const [finnhubKeyValue, setFinnhubKeyValue] = reactExports.useState("");
   const [selectedEntry, setSelectedEntry] = reactExports.useState(
     null
   );
@@ -78970,6 +79028,8 @@ function ProfilePage() {
   const { data: totalReserve } = useTotalSubsidyReserve();
   const hfKeyStatusQuery = useHuggingFaceKeyStatus();
   const setHfKeyMutation = useSetHuggingFaceKey();
+  const finnhubKeyStatusQuery = useFinnhubKeyStatus();
+  const setFinnhubKeyMutation = useSetFinnhubKey();
   const { costBasisMap } = useLocalHoldings();
   const {
     tier: loyaltyTier,
@@ -79923,6 +79983,11 @@ function ProfilePage() {
       setHfKeyValue("");
     }
   }, [setHfKeyMutation.isSuccess]);
+  reactExports.useEffect(() => {
+    if (setFinnhubKeyMutation.isSuccess) {
+      setFinnhubKeyValue("");
+    }
+  }, [setFinnhubKeyMutation.isSuccess]);
   reactExports.useEffect(() => {
     simSpeedModeRef.current = simSpeedMode;
     if (!simRunning) return;
@@ -80932,6 +80997,80 @@ function ProfilePage() {
               ] })
             ] })
           ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-4", "data-ocid": "profile_page.finnhub_settings.section", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "flex items-center justify-between mb-2", children: /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "text-[10px] text-muted-foreground uppercase tracking-widest font-semibold flex items-center gap-1.5", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsx(Newspaper, { className: "w-3 h-3", strokeWidth: 2 }),
+              "Finnhub Settings"
+            ] }) }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "rounded bg-white/[0.03] border border-border/50 p-3 space-y-4", children: [
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx(
+                  "label",
+                  {
+                    htmlFor: "finnhub-key-input",
+                    className: "block text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1.5",
+                    children: "Finnhub API Key"
+                  }
+                ),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-2", children: [
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "input",
+                    {
+                      id: "finnhub-key-input",
+                      type: "password",
+                      value: finnhubKeyValue,
+                      onChange: (e3) => setFinnhubKeyValue(e3.target.value),
+                      placeholder: "Enter new API key",
+                      autoComplete: "off",
+                      spellCheck: false,
+                      "data-ocid": "profile_page.finnhub_settings.key_input",
+                      className: "flex-1 min-w-0 rounded border border-border/50 bg-white/[0.02] px-2.5 py-2 text-[12px] font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-green-500/50 transition-colors"
+                    }
+                  ),
+                  /* @__PURE__ */ jsxRuntimeExports.jsx(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        const trimmed = finnhubKeyValue.trim();
+                        if (!trimmed) return;
+                        setFinnhubKeyMutation.mutate(trimmed);
+                      },
+                      disabled: finnhubKeyValue.trim().length === 0 || setFinnhubKeyMutation.isPending,
+                      "data-ocid": "profile_page.finnhub_settings.submit_button",
+                      className: "shrink-0 rounded border border-green-500/40 bg-green-500/10 text-green-400 text-[11px] uppercase tracking-widest font-bold px-3 py-2 hover:bg-green-500/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors",
+                      children: setFinnhubKeyMutation.isPending ? "Saving…" : setFinnhubKeyMutation.isSuccess ? "Saved" : setFinnhubKeyMutation.isError ? "Error" : "Save"
+                    }
+                  )
+                ] }),
+                setFinnhubKeyMutation.isSuccess && /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "mt-1.5 text-[11px] text-green-400 font-mono", children: "Key updated successfully." }),
+                setFinnhubKeyMutation.isError && /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "mt-1.5 text-[11px] text-red-400 font-mono", children: [
+                  "Failed to update key:",
+                  " ",
+                  ((_b3 = setFinnhubKeyMutation.error) == null ? void 0 : _b3.message) ?? "unknown error"
+                ] })
+              ] }),
+              /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
+                /* @__PURE__ */ jsxRuntimeExports.jsx("p", { className: "text-[10px] uppercase tracking-widest font-semibold text-muted-foreground mb-1.5", children: "Key Status" }),
+                /* @__PURE__ */ jsxRuntimeExports.jsxs(
+                  "div",
+                  {
+                    className: "flex items-center gap-2 rounded bg-white/[0.02] border border-border/50 px-3 py-2",
+                    "data-ocid": "profile_page.finnhub_settings.status",
+                    children: [
+                      /* @__PURE__ */ jsxRuntimeExports.jsx(
+                        "span",
+                        {
+                          className: `inline-block w-1.5 h-1.5 rounded-full ${finnhubKeyStatusQuery.data === "set" ? "bg-green-400" : finnhubKeyStatusQuery.data === "missing" ? "bg-red-400" : "bg-muted-foreground"}`
+                        }
+                      ),
+                      /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "font-mono text-[12px] text-foreground", children: finnhubKeyStatusQuery.isLoading ? "loading…" : finnhubKeyStatusQuery.isError ? "error" : finnhubKeyStatusQuery.data ?? "unknown" })
+                    ]
+                  }
+                )
+              ] })
+            ] })
+          ] }),
           /* @__PURE__ */ jsxRuntimeExports.jsx(
             DepositModal,
             {
@@ -80980,7 +81119,7 @@ function ProfilePage() {
                             color: simRunning ? "oklch(0.65 0.22 145)" : "oklch(0.52 0.012 240)"
                           },
                           "data-ocid": "profile_page.simulation.status",
-                          children: simRunning ? `RUNNING · ${String(((_b3 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _b3.userCount) ?? simUsers.length)}u · tick ${String(simTickCount)} · ${SIM_SPEED_MODES[simSpeedMode].label}` : "IDLE"
+                          children: simRunning ? `RUNNING · ${String(((_c2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _c2.userCount) ?? simUsers.length)}u · tick ${String(simTickCount)} · ${SIM_SPEED_MODES[simSpeedMode].label}` : "IDLE"
                         }
                       ),
                       simulationOpen && /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [
@@ -81163,7 +81302,7 @@ function ProfilePage() {
                           {
                             className: "text-[10px] leading-relaxed",
                             style: { color: "oklch(0.48 0.008 240)" },
-                            children: (_c2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _c2.description
+                            children: (_d2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _d2.description
                           }
                         )
                       ] }),
@@ -81249,7 +81388,7 @@ function ProfilePage() {
                                 className: "text-[11px] font-mono font-semibold ml-auto",
                                 style: { color: "oklch(0.65 0.22 145)" },
                                 children: [
-                                  (_d2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _d2.userCount.toLocaleString(),
+                                  (_e2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _e2.userCount.toLocaleString(),
                                   " ",
                                   "(locked to preset)"
                                 ]
@@ -82008,7 +82147,7 @@ function ProfilePage() {
                                   className: "text-[10px] font-mono",
                                   style: { color: "oklch(0.65 0.22 145)" },
                                   children: [
-                                    (_e2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _e2.userCount.toLocaleString(),
+                                    (_f2 = SCENARIO_PRESETS[selectedScenario]) == null ? void 0 : _f2.userCount.toLocaleString(),
                                     " ",
                                     "users active — showing profile summary only (large-scale scenario)"
                                   ]

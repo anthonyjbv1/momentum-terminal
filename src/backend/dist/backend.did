@@ -241,6 +241,8 @@ service : {
   /// PUBLIC — no auth required. Use for monitoring without controller access:
   ///   dfx canister call noek7-3yaaa-aaaaj-qn6ea-cai getCyclesBalance --network ic
   getCyclesBalance: () -> (nat) query;
+  /// Returns Finnhub key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+  getFinnhubKeyStatus: () -> (text);
   getHoldings: (assetName: text) -> (opt Holding) query;
   /// Returns key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
   getHuggingFaceKeyStatus: () -> (text);
@@ -305,6 +307,8 @@ service : {
   resetRedditBackoff: () -> ();
   saveCallerUserProfile: (profile: UserProfile) -> ();
   schema: () -> (text) query;
+  /// Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
+  setFinnhubKey: (key: text) -> ();
   /// Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
   setHuggingFaceKey: (key: text) -> ();
   setUserStatus: (username: text, status: AccountStatus) -> ();

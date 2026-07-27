@@ -187,6 +187,10 @@ export interface _SERVICE {
    * /   dfx canister call noek7-3yaaa-aaaaj-qn6ea-cai getCyclesBalance --network ic
    */
   'getCyclesBalance' : ActorMethod<[], bigint>,
+  /**
+   * / Returns Finnhub key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
+   */
+  'getFinnhubKeyStatus' : ActorMethod<[], string>,
   'getHoldings' : ActorMethod<[string], [] | [Holding]>,
   /**
    * / Returns key status without exposing the value. Open during pre-deployment — any signed-in caller may check the key.
@@ -251,6 +255,10 @@ export interface _SERVICE {
   'resetRedditBackoff' : ActorMethod<[], undefined>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
   'schema' : ActorMethod<[], string>,
+  /**
+   * / Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
+   */
+  'setFinnhubKey' : ActorMethod<[string], undefined>,
   /**
    * / Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
    */
