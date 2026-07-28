@@ -470,7 +470,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       drainCount = roll < 0.6 ? 1 : roll < 0.85 ? 2 : 3;
     }
 
-    const rawHeadlines = dequeueHeadlines(drainCount);
+    const rawHeadlines = await dequeueHeadlines(drainCount);
 
     // Fix 2 — Tier 3 / social starvation guard.
     // If the normal FIFO drain produced no social (forcedIndex) headlines this

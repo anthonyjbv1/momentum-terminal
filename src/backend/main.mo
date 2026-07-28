@@ -230,12 +230,9 @@ actor {
   transient let NEWS_API_KEY : Text = "";
   transient let NEWS_URL : Text = "";
   // Finnhub API key stored in mutable state (not hardcoded) — set via setFinnhubKey()
-  // Initial value is supplied by the migration chain (migrations/20260725_165417.mo),
+  // Initial value is supplied by the migration chain (migrations/20260725_210516.mo),
   // not by an inline initializer — required under --enhanced-migration.
   var finnhubApiKey : Text;
-  // FINNHUB_API_KEY retained as an empty constant for stable-variable upgrade compatibility.
-  // The actual key is now stored in finnhubApiKey (mutable, admin-settable).
-  transient let FINNHUB_API_KEY : Text = ""; // retained for upgrade compat — do not remove
 
   // Base URL without the token — the full URL is built dynamically inside fetchNews()
   // by appending "&token=" # finnhubApiKey.

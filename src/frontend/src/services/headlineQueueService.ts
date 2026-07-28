@@ -2406,25 +2406,45 @@ export function dequeueForcedIndexHeadline(): QueuedHeadline | null {
   return extracted ?? null;
 }
 
-export function dequeueHeadlines(n: number): QueuedHeadline[] {
+export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
   const count = Math.min(n, _queue.length);
   const extracted = _queue.splice(0, count);
 
   if (getQueueLength() < LOW_WATER_MARK) {
     console.info(
-      `[HeadlineQueue] Low water mark reached (${getQueueLength()} remaining) — triggering background refill.`,
+      `[HeadlineQueue] Low water mark reached (${getQueueLength()} remaining) — triggering refill.`,
     );
 
-    // LIVE MODE: refill from the live Finnhub newswire. fetchNewsBatch() is
-    // async (it awaits actor.fetchNews()) and pushes validated headlines onto
-    // _queue internally with source='finnhub'. Fire-and-forget here matches the
-    // pattern already used by init()'s 5-minute setInterval — the next drain
-    // tick will pick up the freshly fetched headlines.
-    void fetchNewsBatch();
+    // A refill from init()'s 5-minute interval (or an overlapping tick) is
+    // already in flight. fetchNewsBatch() would early-return on its own
+    // _isFetchingNews guard, making the live feed look empty and triggering a
+    // spurious mock top-up — so defer to the in-flight fetch instead.
+    if (_isFetchingNews) {
+      console.info(
+        "[HeadlineQueue] Refill already in flight — deferring to it, no mock top-up.",
+      );
+      return extracted;
+    }
 
-    // Synchronous last-resort top-up so the queue is never empty while the
-    // async Finnhub fetch is in flight. generateBatchedTickHeadlines() is kept
-    // ONLY as this immediate bridge; the active refill source is Finnhub above.
+    // LIVE MODE: refill from the live Finnhub newswire and wait for the result.
+    // fetchNewsBatch() pushes validated headlines onto _queue internally
+    // (source='finnhub', or canister-persisted headlines via its own internal
+    // fallback), so measure queue depth across the call to tell whether the
+    // live fetch actually produced anything.
+    const depthBeforeFetch = getQueueLength();
+    await fetchNewsBatch();
+    const liveEnqueued = getQueueLength() - depthBeforeFetch;
+
+    if (liveEnqueued > 0) {
+      console.info(
+        `[HeadlineQueue] Live refill added ${liveEnqueued} headlines — skipping mock top-up. Queue depth: ${getQueueLength()}`,
+      );
+      return extracted;
+    }
+
+    // Live fetch produced nothing (empty newswire, or a failed outcall that
+    // also exhausted the persisted-headline fallback) — only now fall back to
+    // the mock pool so the queue is never left empty.
     const bridgeBatch = generateBatchedTickHeadlines();
     const bridgeHeadlines: QueuedHeadline[] = [];
     for (const batch of bridgeBatch.values()) {
