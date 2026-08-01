@@ -804,56 +804,11 @@ export function generateBatchedTickHeadlines(): Map<
   string,
   BatchedTickHeadlines
 > {
-  const result = new Map<string, BatchedTickHeadlines>();
-
-  const roll = Math.random();
-
-  // Guarantee at least 1 headline per tick — zero-headline ticks starve the
-  // pipeline of positive signal and cause runaway floor collapse.
-  // Distribution: volume=1 (75%), volume=2 (20%), volume=3 (5%).
-  // Sentiment ratio of the headline pool is unchanged.
-  let volume: number;
-  if (roll < 0.75) {
-    volume = 1;
-  } else if (roll < 0.95) {
-    volume = 2;
-  } else {
-    volume = 3;
-  }
-
-  if (volume >= 3) {
-    const meltdownIndex = pickWeightedIndex();
-    const headlines: AuditableNewsEvent[] = [];
-    for (let i = 0; i < 3; i++) {
-      const h = getNextHeadlineForIndex(meltdownIndex);
-      if (h) headlines.push(h);
-    }
-    if (headlines.length > 0) {
-      const netImpact = headlines.reduce((sum, h) => sum + h.sentimentScore, 0);
-      result.set(meltdownIndex, { headlines, netImpact });
-    }
-    return result;
-  }
-
-  const perIndex = new Map<string, AuditableNewsEvent[]>();
-
-  for (let i = 0; i < volume; i++) {
-    const indexName = pickWeightedIndex();
-    const h = getNextHeadlineForIndex(indexName);
-    if (!h) continue;
-
-    if (!perIndex.has(indexName)) {
-      perIndex.set(indexName, []);
-    }
-    perIndex.get(indexName)!.push(h);
-  }
-
-  for (const [indexName, headlines] of perIndex) {
-    const netImpact = headlines.reduce((sum, h) => sum + h.sentimentScore, 0);
-    result.set(indexName, { headlines, netImpact });
-  }
-
-  return result;
+  // MOCK SYSTEM DISABLED — always returns an empty batch so no synthetic
+  // headlines can enter the Oracle pipeline. The live Finnhub newswire (plus
+  // the canister's persisted-headline fallback) is the only source now.
+  // Signature and return type are unchanged so existing callers still compile.
+  return new Map<string, BatchedTickHeadlines>();
 }
 
 let roundRobinIndex = 0;

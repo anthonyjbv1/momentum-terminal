@@ -5,7 +5,6 @@
  */
 
 import { createActorWithConfig } from "../config";
-import { generateBatchedTickHeadlines } from "./mockHeadlineService";
 
 export type SentimentLabel = "positive" | "negative" | "neutral";
 
@@ -214,84 +213,10 @@ interface FinnhubArticle {
   category?: string;
 }
 
-// ─── Shuffle helper ───────────────────────────────────────────────────────────
-function shuffle<T>(arr: T[]): T[] {
-  return [...arr].sort(() => Math.random() - 0.5);
-}
-
 // ─── Jitter helper ────────────────────────────────────────────────────────────
 function jitter(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
-
-// ─── DEMO MODE: 14 seed headlines covering all 7 indexes ─────────────────────
-//
-// No forcedIndex — routeHeadline() handles dispatch normally.
-// 2 headlines per index (one positive tone, one negative tone) for balanced
-// cold-start sentiment. Used as fallback if generateBatchedTickHeadlines()
-// returns empty.
-//
-const DEMO_HEADLINES: QueuedHeadline[] = [
-  // ── AI Regulation Risk Sentiment ────────────────────────────────────────────
-  {
-    text: "FTC drops landmark AI antitrust investigation — Commission signals new framework favoring innovation over restriction.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-  {
-    text: "Senate AI Safety Act passes committee 14-3, mandating third-party audits of large language models before public deployment.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-
-  // ── Fed Policy Sentiment ─────────────────────────────────────────────────────
-  {
-    text: "PCE inflation cools to 2.3% — Fed's preferred measure approaching target, rate cut path opening.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-  {
-    text: "CPI prints hotter than expected at 4.2% — markets pricing in three additional Fed rate hikes through year-end.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-
-  // ── MENA Stability Sentiment ────────────────────────────────────────────────
-  {
-    text: "Israel and Hamas reach 60-day ceasefire agreement brokered by Qatar and Egypt.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-  {
-    text: "Strait of Hormuz tanker incident disrupts 20% of global LNG flow; Brent crude surges $9 in Asian trading session.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-
-  // ── Traditional American Values Sentiment Index ──────────────────────────────
-  {
-    text: "Supreme Court rules 6-3 in favor of religious exemptions for employers citing sincerely held beliefs — landmark free exercise decision.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-  {
-    text: "Federal court strikes down school choice voucher program in three states — ruling limits parental rights advocates' key legislative win.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-
-  // ── Progressive American Values Sentiment Index ──────────────────────────────
-  {
-    text: "Historic climate bill passes Senate with bipartisan support — largest green energy investment in US history at $800B over decade.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-  {
-    text: "Student loan forgiveness program blocked again by appeals court — millions of borrowers left in uncertainty.",
-    sourceTier: 1,
-    source: "newswire",
-  },
-];
 
 export async function fetchNewsBatch(): Promise<void> {
   if (_isFetchingNews) {
@@ -2259,19 +2184,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   if (_initialized) return () => {};
   _initialized = true;
 
-  // Seed with demo headlines as initial buffer — will be replaced by live data on first fetch
-  for (const _item of shuffle(DEMO_HEADLINES)) {
-    const _br = shouldBlockHeadline(_item.text);
-    if (_br) {
-      blockedHeadlines.push({
-        text: _item.text,
-        reason: _br,
-        blockedAt: Date.now(),
-      });
-    } else {
-      _queue.push(_item);
-    }
-  }
+  // No demo/mock seeding — the queue starts empty and is populated only by the
+  // live source fetches kicked off below. Early ticks will have no headlines to
+  // score until the first successful fetch lands.
 
   // LIVE MODE:
   fetchNewsBatch();
@@ -2437,61 +2352,15 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
 
     if (liveEnqueued > 0) {
       console.info(
-        `[HeadlineQueue] Live refill added ${liveEnqueued} headlines — skipping mock top-up. Queue depth: ${getQueueLength()}`,
-      );
-      return extracted;
-    }
-
-    // Live fetch produced nothing (empty newswire, or a failed outcall that
-    // also exhausted the persisted-headline fallback) — only now fall back to
-    // the mock pool so the queue is never left empty.
-    const bridgeBatch = generateBatchedTickHeadlines();
-    const bridgeHeadlines: QueuedHeadline[] = [];
-    for (const batch of bridgeBatch.values()) {
-      for (const event of batch.headlines) {
-        bridgeHeadlines.push({
-          text: event.headline,
-          sourceTier: (event.sourceTier as 1 | 2 | 3 | 4 | 5) ?? 1,
-          // Thread the mock pool's sentimentScore through so finbertService
-          // can derive direction from sign instead of falling back to neutral.
-          sentimentScore:
-            typeof event.sentimentScore === "number"
-              ? event.sentimentScore
-              : undefined,
-        });
-      }
-    }
-    if (bridgeHeadlines.length > 0) {
-      for (const _item of bridgeHeadlines) {
-        const _br = shouldBlockHeadline(_item.text);
-        if (_br) {
-          blockedHeadlines.push({
-            text: _item.text,
-            reason: _br,
-            blockedAt: Date.now(),
-          });
-        } else {
-          _queue.push(_item);
-        }
-      }
-      console.info(
-        `[HeadlineQueue] Bridge top-up with ${bridgeHeadlines.length} headlines while Finnhub fetch is in flight.`,
+        `[HeadlineQueue] Live refill added ${liveEnqueued} headlines. Queue depth: ${getQueueLength()}`,
       );
     } else {
-      for (const _item of shuffle(DEMO_HEADLINES)) {
-        const _br = shouldBlockHeadline(_item.text);
-        if (_br) {
-          blockedHeadlines.push({
-            text: _item.text,
-            reason: _br,
-            blockedAt: Date.now(),
-          });
-        } else {
-          _queue.push(_item);
-        }
-      }
-      console.info(
-        `[HeadlineQueue] Bridge pool returned empty — falling back to ${DEMO_HEADLINES.length} demo headlines.`,
+      // Mock fallback removed — the queue is intentionally left empty when the
+      // live newswire yields nothing, rather than being padded with synthetic
+      // headlines. Ticks will have no headlines to score until the next
+      // successful Finnhub fetch.
+      console.warn(
+        "[HeadlineQueue] Live refill produced no headlines — queue left empty (mock fallback disabled).",
       );
     }
   }

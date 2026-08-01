@@ -401,7 +401,8 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
         if (age > contribution.halfLifeTicks * 3) continue;
 
         const decayFactor = 0.5 ** (age / contribution.halfLifeTicks);
-        const residual = contribution.delta * (decayFactor - 1.0);
+        const decayFactorPrev = 0.5 ** ((age - 1) / contribution.halfLifeTicks);
+        const residual = contribution.delta * (decayFactor - decayFactorPrev);
         totalResidual += residual;
         surviving.push(contribution);
       }
