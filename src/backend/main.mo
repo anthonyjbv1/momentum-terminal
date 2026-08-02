@@ -484,7 +484,7 @@ actor {
   transient let YOUTUBE_API_KEY : Text = "AIzaSyA6NUeCxursODsuAFQ4Wa0bcua6C19gIEw";
   transient let TMDB_API_KEY : Text = "YOUR_TMDB_KEY_HERE";
   transient let OMDB_API_KEY : Text = "346ceaea";
-  transient let HF_FINBERT_URL : Text = "https://api-inference.huggingface.co/models/Anthonyjb1/momentum-finbert-v5";
+  transient let HF_FINBERT_URL : Text = "https://router.huggingface.co/hf-inference/models/Anthonyjb1/momentum-finbert-v5";
 
   /// Sets the HuggingFace API key. Open during pre-deployment — any signed-in caller may set the key.
   public shared func setHuggingFaceKey(key : Text) : async () {
