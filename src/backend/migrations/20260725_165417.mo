@@ -143,7 +143,7 @@ module {
 
   type OldActor = {
     // ── Constants / capability handles (consumed, NOT carried forward) ──
-    AI_BASELINE : Float;
+    AI_BASELINE : ?Float;
     BLS_API_KEY : Text;
     CONGRESS_API_KEY : Text;
     CYCLES_SAFETY_THRESHOLD : Nat;
