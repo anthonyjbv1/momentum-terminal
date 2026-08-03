@@ -142,40 +142,6 @@ module {
   // representations, so the stable-compatibility check (M0169) accepts them.
 
   type OldActor = {
-    // ── Constants / capability handles (consumed, NOT carried forward) ──
-    BLS_API_KEY : ?Text;
-    CONGRESS_API_KEY : ?Text;
-    CYCLES_SAFETY_THRESHOLD : ?Nat;
-    FINNHUB_API_KEY : ?Text;
-    FINNHUB_URL : ?Text;
-    HF_API_KEY : ?Text;
-    HF_FINBERT_URL : ?Text;
-    INITIAL_BALANCE : ?Float;
-    MAX_NEWS_EVENTS : ?Nat;
-    MAX_PERSISTED_HEADLINES : ?Nat;
-    MAX_SHORT_POSITION_VALUE : ?Float;
-    MEXICO_BASELINE : Float;
-    NEUTRAL_FALLBACK : { confidence : Float; sentimentLabel : Text; source : Text };
-    NEWS_API_KEY : ?Text;
-    NEWS_URL : ?Text;
-    OMDB_API_KEY : ?Text;
-    PARTICIPATION_YIELD_RATE_HOURLY : ?Float;
-    REDDIT_SUBREDDITS : [Text];
-    REDDIT_WORLDNEWS_URL : ?Text;
-    REDDIT_WSB_URL : ?Text;
-    REDEMPTION_FEE_RATE : ?Float;
-    TICK_INTERVAL_NS : ?Int;
-    TIER_B_INTERVAL_NS : ?Int;
-    TIER_C_30MIN_NS : ?Int;
-    TIER_C_60MIN_NS : ?Int;
-    TIER_C_INTERVAL_NS : ?Int;
-    TMDB_API_KEY : ?Text;
-    WARRIORS_BASELINE : Float;
-    WASHINGTON_BASELINE : Float;
-    YOUTUBE_API_KEY : ?Text;
-    ic : actor { http_request : shared HttpRequestArgs -> async HttpResponse };
-    assets : [Asset];
-
     // ── State fields (carried forward into NewActor) ──
     accessControlState : AccessControlState;
     var allocationsMap : Map.Map<Text, Float>;
@@ -332,41 +298,6 @@ module {
   // since they are re-derived on every (re)start and carry no durable state.
 
   public func migration(old : OldActor) : NewActor {
-    // Explicitly consume the retired constant/capability fields so the compiler
-    // and reader can see they are intentionally dropped (not silently lost).
-    ignore old.BLS_API_KEY;
-    ignore old.CONGRESS_API_KEY;
-    ignore old.CYCLES_SAFETY_THRESHOLD;
-    ignore old.FINNHUB_API_KEY;
-    ignore old.FINNHUB_URL;
-    ignore old.HF_API_KEY;
-    ignore old.HF_FINBERT_URL;
-    ignore old.INITIAL_BALANCE;
-    ignore old.MAX_NEWS_EVENTS;
-    ignore old.MAX_PERSISTED_HEADLINES;
-    ignore old.MAX_SHORT_POSITION_VALUE;
-    ignore old.MEXICO_BASELINE;
-    ignore old.NEUTRAL_FALLBACK;
-    ignore old.NEWS_API_KEY;
-    ignore old.NEWS_URL;
-    ignore old.OMDB_API_KEY;
-    ignore old.PARTICIPATION_YIELD_RATE_HOURLY;
-    ignore old.REDDIT_SUBREDDITS;
-    ignore old.REDDIT_WORLDNEWS_URL;
-    ignore old.REDDIT_WSB_URL;
-    ignore old.REDEMPTION_FEE_RATE;
-    ignore old.TICK_INTERVAL_NS;
-    ignore old.TIER_B_INTERVAL_NS;
-    ignore old.TIER_C_30MIN_NS;
-    ignore old.TIER_C_60MIN_NS;
-    ignore old.TIER_C_INTERVAL_NS;
-    ignore old.TMDB_API_KEY;
-    ignore old.WARRIORS_BASELINE;
-    ignore old.WASHINGTON_BASELINE;
-    ignore old.YOUTUBE_API_KEY;
-    ignore old.ic;
-    ignore old.assets;
-
     // Carry forward every state field from the previously-deployed actor.
     {
       var spreadActive = old.spreadActive;
