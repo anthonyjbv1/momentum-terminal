@@ -143,7 +143,6 @@ module {
 
   type OldActor = {
     // ── Constants / capability handles (consumed, NOT carried forward) ──
-    AI_BASELINE : ?Float;
     BLS_API_KEY : ?Text;
     CONGRESS_API_KEY : ?Text;
     CYCLES_SAFETY_THRESHOLD : ?Nat;
@@ -335,7 +334,6 @@ module {
   public func migration(old : OldActor) : NewActor {
     // Explicitly consume the retired constant/capability fields so the compiler
     // and reader can see they are intentionally dropped (not silently lost).
-    ignore old.AI_BASELINE;
     ignore old.BLS_API_KEY;
     ignore old.CONGRESS_API_KEY;
     ignore old.CYCLES_SAFETY_THRESHOLD;
