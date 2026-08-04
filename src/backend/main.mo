@@ -499,7 +499,7 @@ actor {
   };
 
   /// Returns the first 200 chars of the last raw HuggingFace response body for debugging.
-  public query func getLastRawResponse() : Text {
+  public query func getLastRawResponse() : async Text {
     lastRawResponse;
   };
 
