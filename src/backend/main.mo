@@ -548,29 +548,46 @@ actor {
 
       switch (response.body.decodeUtf8()) {
         case (?json) {
-          // HuggingFace FinBERT returns: [[{"label":"positive","score":0.9},{"label":"negative","score":0.05},{"label":"neutral","score":0.05}]]
-          // Parse the highest-confidence label from the raw JSON text.
-          // We scan for the first label/score pair with the maximum score value.
-          //
-          // Strategy: find all occurrences of "label":"X" and "score":Y, extract pairs,
-          // pick the one with the highest score.
-          //
-          // Simplified parser: scan for pattern "label":"positive" / "negative" / "neutral"
-          // and their adjacent score values using substring search.
-          let posScore = extractScore(json, "positive");
-          let negScore = extractScore(json, "negative");
-          let neuScore = extractScore(json, "neutral");
-
-          // Pick the label with the highest score
-          if (posScore >= negScore and posScore >= neuScore and posScore > 0.0) {
-            { sentimentLabel = "positive"; confidence = posScore; source = "finbert_live" };
-          } else if (negScore >= posScore and negScore >= neuScore and negScore > 0.0) {
-            { sentimentLabel = "negative"; confidence = negScore; source = "finbert_live" };
-          } else if (neuScore > 0.0) {
-            { sentimentLabel = "neutral"; confidence = neuScore; source = "finbert_live" };
+          // Gradio Space format: {"data": ["{\"sentimentLabel\": \"negative\", \"confidence\": 0.9994, \"source\": \"finbert_live\"}"]}
+          // The inner value is a JSON-escaped string with literal backslashes in the raw body.
+          // Detect by presence of sentimentLabel and parse directly via substring scanning.
+          if (json.contains(#text "sentimentLabel")) {
+            let labelVal = extractTextValue(json, "sentimentLabel\\\": \\\"");
+            let confVal  = extractFloatValue(json, "confidence\\\": ");
+            let srcVal   = extractTextValue(json, "source\\\": \\\"");
+            let resolvedLabel = switch (labelVal) {
+              case (?l) {
+                let lo = l.toLowercase();
+                if (lo == "positive" or lo == "negative" or lo == "neutral") lo else "neutral";
+              };
+              case null "neutral";
+            };
+            let resolvedConf = switch (confVal) {
+              case (?c) { if (c > 0.0 and c <= 1.0) c else 0.5 };
+              case null 0.5;
+            };
+            let resolvedSrc = switch (srcVal) {
+              case (?s) s;
+              case null "finbert_live";
+            };
+            { sentimentLabel = resolvedLabel; confidence = resolvedConf; source = resolvedSrc };
           } else {
-            // Case 4: response cannot be parsed — return neutral fallback
-            NEUTRAL_FALLBACK;
+            // HuggingFace Inference API format: [[{"label":"positive","score":0.9}, ...]]
+            // Simplified parser: scan for "label":"X" and pick the highest adjacent score.
+            let posScore = extractScore(json, "positive");
+            let negScore = extractScore(json, "negative");
+            let neuScore = extractScore(json, "neutral");
+
+            if (posScore >= negScore and posScore >= neuScore and posScore > 0.0) {
+              { sentimentLabel = "positive"; confidence = posScore; source = "finbert_live" };
+            } else if (negScore >= posScore and negScore >= neuScore and negScore > 0.0) {
+              { sentimentLabel = "negative"; confidence = negScore; source = "finbert_live" };
+            } else if (neuScore > 0.0) {
+              { sentimentLabel = "neutral"; confidence = neuScore; source = "finbert_live" };
+            } else {
+              // Case 4: response cannot be parsed — return neutral fallback
+              NEUTRAL_FALLBACK;
+            };
           };
         };
         // Case 2: HTTP call succeeded but body is not UTF-8 — return neutral fallback
@@ -642,6 +659,69 @@ actor {
     };
     if (not startedDigits) { return 0.0 };
     intPart.toFloat() + (fracNumerator.toFloat() / fracDenominator.toFloat());
+  };
+
+  /// Extracts a text value from a Gradio-escaped JSON body.
+  /// Scans for `key` then collects chars until the next `\` terminator (escaped-quote boundary).
+  /// Returns null if the key is not found.
+  func extractTextValue(json : Text, key : Text) : ?Text {
+    if (not json.contains(#text key)) { return null };
+    var after : Text = "";
+    var skipped = false;
+    for (part in json.split(#text key)) {
+      if (skipped and after == "") { after := part };
+      if (not skipped) { skipped := true };
+    };
+    if (after == "") { return null };
+    var result : Text = "";
+    var stop = false;
+    for (c in after.toIter()) {
+      if (not stop) {
+        if (c == '\\') { stop := true } else { result := result # Text.fromChar(c) };
+      };
+    };
+    if (result == "") null else ?result;
+  };
+
+  /// Extracts a Float value from a Gradio-escaped JSON body.
+  /// Scans for `key` then collects the numeric value that follows using the same
+  /// digit-collection loop as extractScore.
+  /// Returns null if the key is not found or no digits are present.
+  func extractFloatValue(json : Text, key : Text) : ?Float {
+    if (not json.contains(#text key)) { return null };
+    var after : Text = "";
+    var skipped = false;
+    for (part in json.split(#text key)) {
+      if (skipped and after == "") { after := part };
+      if (not skipped) { skipped := true };
+    };
+    if (after == "") { return null };
+    var intPart : Nat = 0;
+    var fracNumerator : Nat = 0;
+    var fracDenominator : Nat = 1;
+    var inFrac = false;
+    var startedDigits = false;
+    var stop = false;
+    for (c in after.toIter()) {
+      if (not stop) {
+        if (c >= '0' and c <= '9') {
+          startedDigits := true;
+          let digit = c.toNat32().toNat() - 48;
+          if (inFrac) {
+            fracNumerator := fracNumerator * 10 + digit;
+            fracDenominator := fracDenominator * 10;
+          } else {
+            intPart := intPart * 10 + digit;
+          };
+        } else if (c == '.' and not inFrac) {
+          inFrac := true;
+        } else if (startedDigits) {
+          stop := true;
+        };
+      };
+    };
+    if (not startedDigits) { return null };
+    ?(intPart.toFloat() + (fracNumerator.toFloat() / fracDenominator.toFloat()));
   };
 
   /// Public update function — frontend calls this to classify a headline.
