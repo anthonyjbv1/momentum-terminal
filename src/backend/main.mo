@@ -557,7 +557,7 @@ actor {
             let srcVal   = extractTextValue(json, "source\\\": \\\"");
             let resolvedLabel = switch (labelVal) {
               case (?l) {
-                let lo = Text.toLowercase(l);
+                let lo = Text.map(l, Char.toLowercase);
                 if (lo == "positive" or lo == "negative" or lo == "neutral") lo else "neutral";
               };
               case null "neutral";
