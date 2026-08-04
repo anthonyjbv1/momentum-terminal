@@ -557,7 +557,7 @@ actor {
             let srcVal   = extractTextValue(json, "source\\\": \\\"");
             let resolvedLabel = switch (labelVal) {
               case (?l) {
-                let lo = l.toLowercase();
+                let lo = Text.toLowercase(l);
                 if (lo == "positive" or lo == "negative" or lo == "neutral") lo else "neutral";
               };
               case null "neutral";
@@ -677,7 +677,7 @@ actor {
     var stop = false;
     for (c in after.toIter()) {
       if (not stop) {
-        if (c == '\\') { stop := true } else { result := result # Text.fromChar(c) };
+        if (c == '\\') { stop := true } else { result := result # Char.toText(c) };
       };
     };
     if (result == "") null else ?result;
