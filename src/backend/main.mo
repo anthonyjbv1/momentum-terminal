@@ -476,6 +476,7 @@ actor {
   // ─── HuggingFace FinBERT Sentiment Analysis ───────────────────────────────
   // API key stored in mutable state (not hardcoded) — set via setHuggingFaceKey()
   var huggingfaceApiKey : Text;
+  var lastRawResponse : Text = "";
   // HF_API_KEY retained as an empty constant for stable-variable upgrade compatibility.
   // The actual key is now stored in huggingfaceApiKey (mutable, admin-settable).
   transient let HF_API_KEY : Text = ""; // retained for upgrade compat — do not remove
@@ -495,6 +496,11 @@ actor {
   public shared func getHuggingFaceKeyStatus() : async Text {
     if (huggingfaceApiKey == "") { return "NOT SET" };
     return "SET (" # huggingfaceApiKey.size().toText() # " chars)";
+  };
+
+  /// Returns the first 200 chars of the last raw HuggingFace response body for debugging.
+  public query func getLastRawResponse() : Text {
+    lastRawResponse;
   };
 
   /// Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
@@ -548,6 +554,13 @@ actor {
 
       switch (response.body.decodeUtf8()) {
         case (?json) {
+          // Store first 200 chars of raw response for external inspection
+          var _i = 0;
+          var _preview = "";
+          for (_c in json.toIter()) {
+            if (_i < 200) { _preview #= Char.toText(_c); _i += 1 };
+          };
+          lastRawResponse := _preview;
           // Gradio Space format: {"data": ["{\"sentimentLabel\": \"negative\", \"confidence\": 0.9994, \"source\": \"finbert_live\"}"]}
           // The inner value is a JSON-escaped string with literal backslashes in the raw body.
           // Detect by presence of sentimentLabel and parse directly via substring scanning.
