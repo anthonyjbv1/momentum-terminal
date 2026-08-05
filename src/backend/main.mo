@@ -526,17 +526,20 @@ actor {
       return NEUTRAL_FALLBACK;
     };
 
-    let bodyText : Text = "{\"inputs\": \"" # headline # "\"}";
-    let bodyBlob : Blob = bodyText.encodeUtf8();
+    // Step 1 — POST to Gradio queue endpoint to obtain event_id
+    let step1Body : Text = "{\"headline\": \"" # headline # "\"}";
+    let step1Blob : Blob = step1Body.encodeUtf8();
 
-    let request : HttpRequestArgs = {
-      url = HF_FINBERT_URL;
+    let step1Url = "https://anthonyjb1-momentum-finbert-inference.hf.space/gradio_api/call/v2/classify_api";
+
+    let step1Request : HttpRequestArgs = {
+      url = step1Url;
       max_response_bytes = ?Nat64.fromNat(10_000);
       headers = [
         { name = "Content-Type"; value = "application/json" },
         { name = "Authorization"; value = "Bearer " # huggingfaceApiKey },
       ];
-      body = ?bodyBlob;
+      body = ?step1Blob;
       method = #post;
       transform = ?{
         function = transform;
@@ -544,26 +547,58 @@ actor {
       };
     };
 
-    try {
-      let response = await (with cycles = 10_000_000_000) ic.http_request(request);
-
-      // Case 3: 503 cold start — model loading, return neutral fallback
-      if (response.status == 503) {
-        return NEUTRAL_FALLBACK;
+    let eventId : Text = try {
+      let resp1 = await (with cycles = 10_000_000_000) ic.http_request(step1Request);
+      if (resp1.status == 503) { return NEUTRAL_FALLBACK };
+      switch (resp1.body.decodeUtf8()) {
+        case (?j) {
+          // Response: {"event_id": "abc123"}
+          // Store for debugging
+          var _i = 0; var _preview = "";
+          for (_c in j.toIter()) {
+            if (_i < 200) { _preview #= Char.toText(_c); _i += 1 };
+          };
+          lastRawResponse := _preview;
+          switch (extractTextValue(j, "event_id\": \"")) {
+            case (?id) id;
+            case null { return NEUTRAL_FALLBACK };
+          };
+        };
+        case null { return NEUTRAL_FALLBACK };
       };
+    } catch (_) { return NEUTRAL_FALLBACK };
 
-      switch (response.body.decodeUtf8()) {
+    // Step 2 — GET the result stream using the event_id
+    let step2Url = "https://anthonyjb1-momentum-finbert-inference.hf.space/gradio_api/call/classify_api/" # eventId;
+
+    let step2Request : HttpRequestArgs = {
+      url = step2Url;
+      max_response_bytes = ?Nat64.fromNat(10_000);
+      headers = [
+        { name = "Accept"; value = "text/event-stream" },
+        { name = "Authorization"; value = "Bearer " # huggingfaceApiKey },
+      ];
+      body = null;
+      method = #get;
+      transform = ?{
+        function = transform;
+        context = ("" : Blob);
+      };
+    };
+
+    try {
+      let resp2 = await (with cycles = 10_000_000_000) ic.http_request(step2Request);
+      if (resp2.status == 503) { return NEUTRAL_FALLBACK };
+
+      switch (resp2.body.decodeUtf8()) {
         case (?json) {
-          // Store first 200 chars of raw response for external inspection
-          var _i = 0;
-          var _preview = "";
+          // Store first 200 chars for debugging (overwrites step1 preview)
+          var _i = 0; var _preview = "";
           for (_c in json.toIter()) {
             if (_i < 200) { _preview #= Char.toText(_c); _i += 1 };
           };
           lastRawResponse := _preview;
-          // Gradio Space format: {"data": ["{\"sentimentLabel\": \"negative\", \"confidence\": 0.9994, \"source\": \"finbert_live\"}"]}
-          // The inner value is a JSON-escaped string with literal backslashes in the raw body.
-          // Detect by presence of sentimentLabel and parse directly via substring scanning.
+          // SSE result contains the JSON payload. Detect by presence of sentimentLabel.
           if (json.contains(#text "sentimentLabel")) {
             let labelVal = extractTextValue(json, "sentimentLabel\\\": \\\"");
             let confVal  = extractFloatValue(json, "confidence\\\": ");
@@ -586,29 +621,12 @@ actor {
             };
             { sentimentLabel = resolvedLabel; confidence = resolvedConf; source = resolvedSrc };
           } else {
-            // HuggingFace Inference API format: [[{"label":"positive","score":0.9}, ...]]
-            // Simplified parser: scan for "label":"X" and pick the highest adjacent score.
-            let posScore = extractScore(json, "positive");
-            let negScore = extractScore(json, "negative");
-            let neuScore = extractScore(json, "neutral");
-
-            if (posScore >= negScore and posScore >= neuScore and posScore > 0.0) {
-              { sentimentLabel = "positive"; confidence = posScore; source = "finbert_live" };
-            } else if (negScore >= posScore and negScore >= neuScore and negScore > 0.0) {
-              { sentimentLabel = "negative"; confidence = negScore; source = "finbert_live" };
-            } else if (neuScore > 0.0) {
-              { sentimentLabel = "neutral"; confidence = neuScore; source = "finbert_live" };
-            } else {
-              // Case 4: response cannot be parsed — return neutral fallback
-              NEUTRAL_FALLBACK;
-            };
+            NEUTRAL_FALLBACK;
           };
         };
-        // Case 2: HTTP call succeeded but body is not UTF-8 — return neutral fallback
         case null { NEUTRAL_FALLBACK };
       };
     } catch (_) {
-      // Case 2: HTTP call failed or timed out — return neutral fallback
       NEUTRAL_FALLBACK;
     };
   };
