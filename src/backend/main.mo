@@ -476,7 +476,6 @@ actor {
   // ─── HuggingFace FinBERT Sentiment Analysis ───────────────────────────────
   // API key stored in mutable state (not hardcoded) — set via setHuggingFaceKey()
   var huggingfaceApiKey : Text;
-  var lastRawResponse : Text;
   // HF_API_KEY retained as an empty constant for stable-variable upgrade compatibility.
   // The actual key is now stored in huggingfaceApiKey (mutable, admin-settable).
   transient let HF_API_KEY : Text = ""; // retained for upgrade compat — do not remove
@@ -498,10 +497,6 @@ actor {
     return "SET (" # huggingfaceApiKey.size().toText() # " chars)";
   };
 
-  /// Returns the first 200 chars of the last raw HuggingFace response body for debugging.
-  public query func getLastRawResponse() : async Text {
-    lastRawResponse;
-  };
 
   /// Sets the Finnhub API key. Open during pre-deployment — any signed-in caller may set the key.
   public shared func setFinnhubKey(key : Text) : async () {
@@ -553,12 +548,6 @@ actor {
       switch (resp1.body.decodeUtf8()) {
         case (?j) {
           // Response: {"event_id": "abc123"}
-          // Store for debugging
-          var _i = 0; var _preview = "";
-          for (_c in j.toIter()) {
-            if (_i < 200) { _preview #= Char.toText(_c); _i += 1 };
-          };
-          lastRawResponse := _preview;
           switch (extractTextValue(j, "event_id\": \"")) {
             case (?id) id;
             case null { return NEUTRAL_FALLBACK };
@@ -593,11 +582,6 @@ actor {
       switch (resp2.body.decodeUtf8()) {
         case (?json) {
           // Store first 200 chars for debugging (overwrites step1 preview)
-          var _i = 0; var _preview = "";
-          for (_c in json.toIter()) {
-            if (_i < 200) { _preview #= Char.toText(_c); _i += 1 };
-          };
-          lastRawResponse := _preview;
           // SSE result contains the JSON payload. Detect by presence of sentimentLabel.
           if (json.contains(#text "sentimentLabel")) {
             let labelVal = extractTextValue(json, "sentimentLabel\\\": \\\"");

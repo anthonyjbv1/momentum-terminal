@@ -286,7 +286,6 @@ module {
     userAllocationStates : Map.Map<Principal, UserAllocationState>;
     sentimentScores : Map.Map<Text, Float>;
     userStatuses : Map.Map<Text, AccountStatus>;
-    var lastRawResponse : Text;
   };
 
   // ─── migration ────────────────────────────────────────────────────────────
@@ -371,7 +370,6 @@ module {
       userAllocationStates = old.userAllocationStates;
       sentimentScores = old.sentimentScores;
       userStatuses = old.userStatuses;
-      var lastRawResponse = "";
     };
   };
 };
