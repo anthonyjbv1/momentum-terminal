@@ -151,6 +151,9 @@ export async function analyzeSentiment(
     const scoringMethod =
       result.source === "finbert_live" ? "finbert" : "neutral_fallback";
 
+    if (result.source === "neutral_fallback") {
+      return gradioFallback(text, scoreFallback);
+    }
     return {
       label: validLabel,
       confidence: Math.round(result.confidence * 100) / 100,
@@ -162,9 +165,58 @@ export async function analyzeSentiment(
       "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
       err,
     );
-    // Canister call failed: fall back to sentimentScore if it was provided
-    // and non-zero (pre-assigned mock pool score); otherwise NEUTRAL_FALLBACK.
-    return scoreFallback();
+    return gradioFallback(text, scoreFallback);
   }
   // ───────────────────────────────────────────────────────────────────────
+}
+
+async function gradioFallback(
+  text: string,
+  scoreFallback: () => SentimentResult,
+): Promise<SentimentResult> {
+  const BASE = "https://anthonyjb1-momentum-finbert-inference.hf.space";
+  try {
+    const step1 = await fetch(`${BASE}/gradio_api/call/v2/classify_api`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ headline: text }),
+    });
+    if (!step1.ok) return scoreFallback();
+    const { event_id: eventId } = await step1.json() as { event_id: string };
+    if (!eventId) return scoreFallback();
+
+    const step2 = await fetch(`${BASE}/gradio_api/call/classify_api/${eventId}`, {
+      headers: { Accept: "text/event-stream" },
+    });
+    if (!step2.ok) return scoreFallback();
+    const raw = await step2.text();
+
+    // SSE payload: lines like "data: [...]" — extract the JSON array line
+    const dataLine = raw.split("\n").find((l) => l.startsWith("data:"));
+    if (!dataLine) return scoreFallback();
+    const payload = JSON.parse(dataLine.slice(5).trim()) as Array<{
+      sentimentLabel: string;
+      confidence: number;
+      source: string;
+    }>;
+    const result = Array.isArray(payload) ? payload[0] : (payload as unknown as typeof payload[0]);
+    if (!result?.sentimentLabel) return scoreFallback();
+
+    const normalized = result.sentimentLabel.toLowerCase() as SentimentLabel;
+    const validLabel: SentimentLabel = (
+      ["positive", "negative", "neutral"] as SentimentLabel[]
+    ).includes(normalized) ? normalized : "neutral";
+
+    console.log(
+      `[FinBERT] Gradio fallback: "${text.slice(0, 60)}" → ${validLabel} (${result.confidence.toFixed(2)})`,
+    );
+    return {
+      label: validLabel,
+      confidence: Math.round(result.confidence * 100) / 100,
+      scoringMethod: result.source === "finbert_live" ? "finbert" : "neutral_fallback",
+      source: result.source ?? "gradio_direct",
+    };
+  } catch {
+    return scoreFallback();
+  }
 }
