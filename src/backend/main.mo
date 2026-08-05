@@ -476,7 +476,7 @@ actor {
   // ─── HuggingFace FinBERT Sentiment Analysis ───────────────────────────────
   // API key stored in mutable state (not hardcoded) — set via setHuggingFaceKey()
   var huggingfaceApiKey : Text;
-  var lastRawResponse : Text = "";
+  var lastRawResponse : Text;
   // HF_API_KEY retained as an empty constant for stable-variable upgrade compatibility.
   // The actual key is now stored in huggingfaceApiKey (mutable, admin-settable).
   transient let HF_API_KEY : Text = ""; // retained for upgrade compat — do not remove
