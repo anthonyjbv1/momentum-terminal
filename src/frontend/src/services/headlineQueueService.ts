@@ -229,6 +229,44 @@ export async function fetchNewsBatch(): Promise<void> {
   _isFetchingNews = true;
 
   try {
+    // Direct browser fetch — bypasses the canister HTTP outcall entirely.
+    const finnhubKey = import.meta.env.VITE_FINNHUB_API_KEY as string | undefined;
+    if (finnhubKey) {
+      try {
+        const directResp = await fetch(
+          `https://finnhub.io/api/v1/news?category=general&token=${finnhubKey}`,
+        );
+        if (directResp.ok) {
+          const directData: unknown = await directResp.json();
+          if (Array.isArray(directData) && directData.length > 0) {
+            const directMapped: QueuedHeadline[] = (directData as FinnhubArticle[])
+              .filter((a) => (a.headline ?? a.title ?? "").trim().length > 0)
+              .map((a) => ({
+                text: (a.headline ?? a.title ?? "").trim(),
+                sourceTier: mapSourceToTier(a.source ?? ""),
+                source: "finnhub",
+              }))
+              .sort(() => Math.random() - 0.5)
+              .slice(0, 4);
+            for (const _item of directMapped) {
+              const _br = shouldBlockHeadline(_item.text);
+              if (_br) {
+                blockedHeadlines.push({ text: _item.text, reason: _br, blockedAt: Date.now() });
+              } else {
+                _queue.push(_item);
+              }
+            }
+            console.info(
+              `[HeadlineQueue] Enqueued ${directMapped.length} live headlines from Finnhub via direct browser fetch. Queue depth: ${_queue.length}`,
+            );
+            return;
+          }
+        }
+      } catch (directErr) {
+        console.warn("[HeadlineQueue] Direct Finnhub fetch failed — falling through to canister.", directErr);
+      }
+    }
+
     const actor = await createActorWithConfig();
     const rawJson = await actor.fetchNews();
 
