@@ -152,6 +152,7 @@ export async function analyzeSentiment(
       result.source === "finbert_live" ? "finbert" : "neutral_fallback";
 
     if (result.source === "neutral_fallback") {
+      console.log("[FinBERT] Routing to Gradio fallback.");
       return gradioFallback(text, scoreFallback);
     }
     return {
@@ -165,6 +166,7 @@ export async function analyzeSentiment(
       "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
       err,
     );
+    console.log("[FinBERT] Routing to Gradio fallback.");
     return gradioFallback(text, scoreFallback);
   }
   // ───────────────────────────────────────────────────────────────────────
@@ -175,6 +177,7 @@ async function gradioFallback(
   scoreFallback: () => SentimentResult,
 ): Promise<SentimentResult> {
   const BASE = "https://anthonyjb1-momentum-finbert-inference.hf.space";
+  console.log(`[FinBERT] Gradio fallback triggered for: "${text.slice(0, 60)}"`);
   try {
     const step1 = await fetch(`${BASE}/gradio_api/call/v2/classify_api`, {
       method: "POST",
