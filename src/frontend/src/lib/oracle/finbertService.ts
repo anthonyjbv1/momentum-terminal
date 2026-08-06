@@ -64,25 +64,11 @@ export async function analyzeSentiment(
   text: string,
   sentimentScore?: number,
 ): Promise<SentimentResult> {
-  // ── 1. Deterministic Lexicon Override ──────────────────────────────────
-  const override = applyLexiconOverride(text);
-  if (override) {
-    console.log(
-      `[FinBERT] Lexicon override: "${text.slice(0, 60)}" → ${override.direction} (${override.confidence.toFixed(2)})`,
-    );
-    return {
-      label: override.direction,
-      confidence: override.confidence,
-      scoringMethod: "lexicon",
-    };
-  }
-  // ───────────────────────────────────────────────────────────────────────
-
-  // ── 2. Mock pool fast-path (disabled) ───────────────────────────────────
+  // ── Mock pool fast-path (disabled) ────────────────────────────────────────
   // All headlines — including those with a pre-assigned sentimentScore — now
   // fall through to the canister call below. sentimentScore is retained only as
   // a fallback in the Step 3 catch block, used when the canister call fails.
-  // ───────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
 
   // Local helper: derive a SentimentResult from a pre-assigned sentimentScore
   // using the same clampedConfidence + sign-based threshold logic that the old
@@ -111,11 +97,30 @@ export async function analyzeSentiment(
     };
   };
 
-  console.log(
-    `[FinBERT] no lexicon match → routing to canister: "${text.slice(0, 60)}"`,
-  );
+  // ── 1. Gradio Space (primary path) ────────────────────────────────────────
+  console.log(`[FinBERT] routing to Gradio first: "${text.slice(0, 60)}"`);
+  const gradioResult = await gradioFallback(text, scoreFallback);
 
-  // ── 3. Real FinBERT via canister classifyHeadline() ─────────────────────
+  if (gradioResult.scoringMethod !== "neutral_fallback") {
+    if (gradioResult.label === "neutral" && gradioResult.confidence < 0.7) {
+      // ── 2. Lexicon override — only when Gradio is weakly neutral ──────────
+      const override = applyLexiconOverride(text);
+      if (override) {
+        console.log(
+          `[FinBERT] Lexicon override (weak Gradio neutral): "${text.slice(0, 60)}" → ${override.direction} (${override.confidence.toFixed(2)})`,
+        );
+        return {
+          label: override.direction,
+          confidence: override.confidence,
+          scoringMethod: "lexicon",
+        };
+      }
+    }
+    return gradioResult;
+  }
+
+  // Gradio failed or returned neutral_fallback — fall through to canister.
+  // ── 3. Canister classifyHeadline() (fallback) ──────────────────────────────
   // sentimentScore is undefined or zero → live headline with no pre-assigned
   // score. Route to the canister which calls HuggingFace ProsusAI/finbert.
   //
@@ -151,10 +156,6 @@ export async function analyzeSentiment(
     const scoringMethod =
       result.source === "finbert_live" ? "finbert" : "neutral_fallback";
 
-    if (result.source === "neutral_fallback") {
-      console.log("[FinBERT] Routing to Gradio fallback.");
-      return gradioFallback(text, scoreFallback);
-    }
     return {
       label: validLabel,
       confidence: Math.round(result.confidence * 100) / 100,
@@ -166,8 +167,7 @@ export async function analyzeSentiment(
       "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
       err,
     );
-    console.log("[FinBERT] Routing to Gradio fallback.");
-    return gradioFallback(text, scoreFallback);
+    return scoreFallback();
   }
   // ───────────────────────────────────────────────────────────────────────
 }
