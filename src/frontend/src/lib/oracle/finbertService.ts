@@ -176,10 +176,9 @@ async function gradioFallback(
   text: string,
   scoreFallback: () => SentimentResult,
 ): Promise<SentimentResult> {
-  const BASE = "https://anthonyjb1-momentum-finbert-inference.hf.space";
   console.log(`[FinBERT] Gradio fallback triggered for: "${text.slice(0, 60)}"`);
   try {
-    const step1 = await fetch(`${BASE}/gradio_api/call/v2/classify_api`, {
+    const step1 = await fetch(`${GRADIO_BASE}/gradio_api/call/v2/classify_api`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ headline: text }),
@@ -188,7 +187,7 @@ async function gradioFallback(
     const { event_id: eventId } = await step1.json() as { event_id: string };
     if (!eventId) return scoreFallback();
 
-    const step2 = await fetch(`${BASE}/gradio_api/call/classify_api/${eventId}`, {
+    const step2 = await fetch(`${GRADIO_BASE}/gradio_api/call/classify_api/${eventId}`, {
       headers: { Accept: "text/event-stream" },
     });
     if (!step2.ok) return scoreFallback();
@@ -223,3 +222,14 @@ async function gradioFallback(
     return scoreFallback();
   }
 }
+
+const GRADIO_BASE = "https://anthonyjb1-momentum-finbert-inference.hf.space";
+
+function keepAlive(): void {
+  fetch(`${GRADIO_BASE}/gradio_api/info`, { method: "GET" }).catch(() => {
+    // Silence errors — this is a best-effort warm-up ping only.
+  });
+}
+
+keepAlive();
+setInterval(keepAlive, 10 * 60 * 1000);
