@@ -372,6 +372,9 @@ const CATEGORY_TABS = [
   "CULTURAL",
   "SPORTS",
   "HEALTH",
+  "INDIVIDUALS",
+  "UNIVERSITIES",
+  "REGIONAL",
 ] as const;
 type CategoryTab = (typeof CATEGORY_TABS)[number];
 
@@ -511,6 +514,9 @@ export function AssetList() {
       CULTURAL: allowedAssets.filter((a) => a.category === "CULTURAL").length,
       SPORTS: allowedAssets.filter((a) => a.category === "SPORTS").length,
       HEALTH: allowedAssets.filter((a) => a.category === "HEALTH").length,
+      INDIVIDUALS: allowedAssets.filter((a) => a.category === "INDIVIDUALS").length,
+      UNIVERSITIES: allowedAssets.filter((a) => a.category === "UNIVERSITIES").length,
+      REGIONAL: allowedAssets.filter((a) => a.category === "REGIONAL").length,
     }),
     [allowedAssets],
   );
