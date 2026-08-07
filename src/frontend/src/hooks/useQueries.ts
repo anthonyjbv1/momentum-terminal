@@ -281,6 +281,7 @@ export function useAssetPrices() {
         }
       }
 
+      console.log("[useAssetPrices] returning result length:", result.length);
       return result;
       // ─────────────────────────────────────────────────────────────────────
     },
