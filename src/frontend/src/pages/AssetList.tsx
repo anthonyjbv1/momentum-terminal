@@ -12,6 +12,7 @@ import type { AssetPriceWithCapacity } from "../hooks/useQueries";
 // ─── ALLOWED INDEXES (display filter — render layer only) ───────────────────────────────
 // All underlying data and code remain intact; only these 7 are shown to users.
 const ALLOWED_INDEX_NAMES = new Set([
+  // ── Original 11 ──────────────────────────────────────────────────────────────
   "Fed Policy Sentiment",
   "MENA Stability Sentiment",
   "AI Regulation Risk Sentiment",
@@ -23,6 +24,53 @@ const ALLOWED_INDEX_NAMES = new Set([
   "NASCAR Racing Sentiment",
   "Obesity Drug Sentiment",
   "Whole Food & Wellness Sentiment",
+  // ── Individuals ───────────────────────────────────────────────────────────────
+  "Elon Musk Sentiment",
+  "MrBeast Sentiment",
+  "Kai Cenat Sentiment",
+  "Drake Sentiment",
+  "Adin Ross Sentiment",
+  "Patrick Mahomes Sentiment",
+  "Kendrick Lamar Sentiment",
+  "Jensen Huang Sentiment",
+  "Mark Zuckerberg Sentiment",
+  "Warren Buffett Sentiment",
+  "Larry Ellison Sentiment",
+  "Jeff Bezos Sentiment",
+  "Larry Page Sentiment",
+  "Sergey Brin Sentiment",
+  "Michael Dell Sentiment",
+  // ── Sports (new) ──────────────────────────────────────────────────────────────
+  "Kansas City Chiefs Sentiment",
+  "Denver Broncos Sentiment",
+  "Ferrari Sentiment",
+  "FC Barcelona Sentiment",
+  "France National Team Sentiment",
+  "McLaren Sentiment",
+  "Real Madrid CF Sentiment",
+  "Mercedes Sentiment",
+  "Spain National Team Sentiment",
+  // ── Universities ──────────────────────────────────────────────────────────────
+  "University of Michigan Sentiment",
+  "Ohio State University Sentiment",
+  "Harvard University Sentiment",
+  "Yale University Sentiment",
+  // ── Health (new) ──────────────────────────────────────────────────────────────
+  "Type 2 Diabetes Sentiment",
+  "Alzheimer's Sentiment",
+  "Seasonal Influenza Sentiment",
+  "Ozempic Sentiment",
+  "Wegovy Sentiment",
+  "Mental Health Sentiment",
+  "Cancer Research Sentiment",
+  // ── Regional ──────────────────────────────────────────────────────────────────
+  "California Sentiment",
+  "New York Sentiment",
+  "Florida Sentiment",
+  "Texas Sentiment",
+  "China Sentiment",
+  "Germany Sentiment",
+  "United States Sentiment",
 ]);
 // ──────────────────────────────────────────────────────────────────────────────
 
