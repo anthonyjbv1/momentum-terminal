@@ -145,7 +145,7 @@ async function gradioFallback(
     const raw = await step2.text();
 
     // SSE payload: lines like "data: [...]" — extract the JSON array line
-    const dataLine = raw.split("\n").find((l) => l.startsWith("data:"));
+    const dataLine = raw.split("\n").filter((l) => l.startsWith("data:") && l.trim() !== "data: null").at(-1);
     if (!dataLine) return scoreFallback();
     const payload = JSON.parse(dataLine.slice(5).trim()) as Array<{
       sentimentLabel: string;
