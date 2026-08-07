@@ -229,137 +229,44 @@ export async function fetchNewsBatch(): Promise<void> {
   _isFetchingNews = true;
 
   try {
-    // Direct browser fetch — bypasses the canister HTTP outcall entirely.
     const finnhubKey = import.meta.env.VITE_FINNHUB_API_KEY as string | undefined;
-    if (finnhubKey) {
-      try {
-        const directResp = await fetch(
-          `https://finnhub.io/api/v1/news?category=general&token=${finnhubKey}`,
-        );
-        if (directResp.ok) {
-          const directData: unknown = await directResp.json();
-          if (Array.isArray(directData) && directData.length > 0) {
-            const directMapped: QueuedHeadline[] = (directData as FinnhubArticle[])
-              .filter((a) => (a.headline ?? a.title ?? "").trim().length > 0)
-              .map((a) => ({
-                text: (a.headline ?? a.title ?? "").trim(),
-                sourceTier: mapSourceToTier(a.source ?? ""),
-                source: "finnhub",
-              }))
-              .sort(() => Math.random() - 0.5)
-              .slice(0, 4);
-            for (const _item of directMapped) {
-              const _br = shouldBlockHeadline(_item.text);
-              if (_br) {
-                blockedHeadlines.push({ text: _item.text, reason: _br, blockedAt: Date.now() });
-              } else {
-                _queue.push(_item);
-              }
-            }
-            console.info(
-              `[HeadlineQueue] Enqueued ${directMapped.length} live headlines from Finnhub via direct browser fetch. Queue depth: ${_queue.length}`,
-            );
-            return;
-          }
-        }
-      } catch (directErr) {
-        console.warn("[HeadlineQueue] Direct Finnhub fetch failed — falling through to canister.", directErr);
-      }
+    if (!finnhubKey) {
+      console.warn("[HeadlineQueue] VITE_FINNHUB_API_KEY not set — skipping Finnhub fetch.");
+      return;
     }
-
-    const actor = await createActorWithConfig();
-    const rawJson = await actor.fetchNews();
-
-    const data: unknown = JSON.parse(rawJson);
-
-    if (!Array.isArray(data)) {
-      console.error("RAW BACKEND RESPONSE:", data);
-      throw new Error("Finnhub returned non-array response");
+    const resp = await fetch(
+      `https://finnhub.io/api/v1/news?category=general&token=${finnhubKey}`,
+    );
+    if (!resp.ok) {
+      throw new Error(`Finnhub responded with status ${resp.status}`);
     }
-
-    const articles = data as FinnhubArticle[];
-
-    const mapped: QueuedHeadline[] = articles
-      .filter((a) => {
-        const text = (a.headline ?? a.title ?? "").trim();
-        return text.length > 0;
-      })
+    const data: unknown = await resp.json();
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn("[HeadlineQueue] Finnhub returned empty or non-array response.");
+      return;
+    }
+    const mapped: QueuedHeadline[] = (data as FinnhubArticle[])
+      .filter((a) => (a.headline ?? a.title ?? "").trim().length > 0)
       .map((a) => ({
         text: (a.headline ?? a.title ?? "").trim(),
         sourceTier: mapSourceToTier(a.source ?? ""),
         source: "finnhub",
       }))
-      .sort(() => Math.random() - 0.5);
-
-    if (mapped.length === 0) {
-      throw new Error("No articles returned from Finnhub");
-    }
-
-    const limitedNews = mapped.slice(0, 4);
-
-    for (const _item of limitedNews) {
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 4);
+    for (const _item of mapped) {
       const _br = shouldBlockHeadline(_item.text);
       if (_br) {
-        blockedHeadlines.push({
-          text: _item.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
+        blockedHeadlines.push({ text: _item.text, reason: _br, blockedAt: Date.now() });
       } else {
         _queue.push(_item);
       }
     }
     console.info(
-      `[HeadlineQueue] Enqueued ${limitedNews.length} live headlines from Finnhub via canister HTTP outcall. Queue depth: ${_queue.length}`,
+      `[HeadlineQueue] Enqueued ${mapped.length} live headlines from Finnhub. Queue depth: ${_queue.length}`,
     );
   } catch (err) {
-    console.warn(
-      "[HeadlineQueue] Finnhub fetch failed — falling back to canister persisted headlines.",
-      err,
-    );
-    try {
-      const actor = await createActorWithConfig();
-      const persisted = await actor.getPersistedHeadlines();
-
-      if (persisted.length > 0) {
-        const fallback: QueuedHeadline[] = persisted
-          .map((ph) => ({
-            text: ph.text,
-            sourceTier: Math.max(1, Math.min(5, Number(ph.sourceTier))) as
-              | 1
-              | 2
-              | 3
-              | 4
-              | 5,
-          }))
-          .sort(() => Math.random() - 0.5);
-
-        for (const _item of fallback) {
-          const _br = shouldBlockHeadline(_item.text);
-          if (_br) {
-            blockedHeadlines.push({
-              text: _item.text,
-              reason: _br,
-              blockedAt: Date.now(),
-            });
-          } else {
-            _queue.push(_item);
-          }
-        }
-        console.info(
-          `[HeadlineQueue] Circuit breaker: loaded ${fallback.length} persisted headlines from canister. Queue depth: ${_queue.length}`,
-        );
-      } else {
-        console.warn(
-          "[HeadlineQueue] Canister has no persisted headlines yet — queue remains empty until first tick produces data.",
-        );
-      }
-    } catch (fallbackErr) {
-      console.warn(
-        "[HeadlineQueue] Canister fallback also failed — queue remains empty.",
-        fallbackErr,
-      );
-    }
+    console.warn("[HeadlineQueue] Finnhub direct fetch failed — queue remains empty.", err);
   } finally {
     _isFetchingNews = false;
   }

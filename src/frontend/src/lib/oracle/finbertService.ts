@@ -29,7 +29,6 @@
  * STRICT SAFETY: no UI changes, no engine file changes. Pure TypeScript utility.
  */
 
-import { createActorWithConfig } from "../../config";
 import type { SentimentLabel } from "./entityValidator";
 import { applyLexiconOverride } from "./lexiconOverrideService";
 
@@ -119,57 +118,9 @@ export async function analyzeSentiment(
     return gradioResult;
   }
 
-  // Gradio failed or returned neutral_fallback — fall through to canister.
-  // ── 3. Canister classifyHeadline() (fallback) ──────────────────────────────
-  // sentimentScore is undefined or zero → live headline with no pre-assigned
-  // score. Route to the canister which calls HuggingFace ProsusAI/finbert.
-  //
-  // The canister returns { sentimentLabel: Text; confidence: Float; source: Text }
-  // Note: field is "sentimentLabel" not "label" — "label" is reserved in Motoko.
-  //
-  // actor is typed as `any` by createActorWithConfig() — the method is callable
-  // at runtime even though backend.d.ts doesn't yet list classifyHeadline.
-  try {
-    const actor = await createActorWithConfig();
-
-    const result = (await actor.classifyHeadline(text)) as {
-      sentimentLabel: string;
-      confidence: number;
-      source: string;
-    };
-
-    console.log(
-      `[FinBERT] canister.classifyHeadline("${text.slice(0, 60)}") → ${result.sentimentLabel} (${result.confidence.toFixed(2)}) [${result.source}]`,
-    );
-
-    // Normalize label — guard against unexpected casing or unknown values.
-    const normalized = result.sentimentLabel.toLowerCase() as SentimentLabel;
-    const validLabel: SentimentLabel = (
-      ["positive", "negative", "neutral"] as SentimentLabel[]
-    ).includes(normalized)
-      ? normalized
-      : "neutral";
-
-    // source === "neutral_fallback" means the canister fell back (key not set,
-    // model loading, etc.) — reflect that in scoringMethod so the Oracle Feed
-    // badge shows NEUTRAL rather than FINBERT.
-    const scoringMethod =
-      result.source === "finbert_live" ? "finbert" : "neutral_fallback";
-
-    return {
-      label: validLabel,
-      confidence: Math.round(result.confidence * 100) / 100,
-      scoringMethod: scoringMethod as SentimentResult["scoringMethod"],
-      source: result.source,
-    };
-  } catch (err) {
-    console.warn(
-      "[FinBERT] canister.classifyHeadline failed — returning neutral fallback.",
-      err,
-    );
-    return scoreFallback();
-  }
-  // ───────────────────────────────────────────────────────────────────────
+  // ── 3. scoreFallback — last resort when Gradio returns neutral_fallback ──
+  return scoreFallback();
+  // ──────────────────────────────────────────────────────────────────────────
 }
 
 async function gradioFallback(
