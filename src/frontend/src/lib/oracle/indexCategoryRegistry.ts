@@ -34,6 +34,53 @@ export const INDEX_DISPLAY_NAMES: Record<string, string> = {
   "NASCAR Racing Sentiment": "NASCAR American Racing Sentiment",
   "Obesity Drug Sentiment": "Obesity Drug Sentiment",
   "Whole Food & Wellness Sentiment": "Whole Food & Wellness Sentiment",
+  // ── Individuals ──────────────────────────────────────────────────────────────
+  "Elon Musk Sentiment": "Elon Musk Sentiment",
+  "MrBeast Sentiment": "MrBeast Sentiment",
+  "Kai Cenat Sentiment": "Kai Cenat Sentiment",
+  "Drake Sentiment": "Drake Sentiment",
+  "Adin Ross Sentiment": "Adin Ross Sentiment",
+  "Patrick Mahomes Sentiment": "Patrick Mahomes Sentiment",
+  "Kendrick Lamar Sentiment": "Kendrick Lamar Sentiment",
+  "Jensen Huang Sentiment": "Jensen Huang Sentiment",
+  "Mark Zuckerberg Sentiment": "Mark Zuckerberg Sentiment",
+  "Warren Buffett Sentiment": "Warren Buffett Sentiment",
+  "Larry Ellison Sentiment": "Larry Ellison Sentiment",
+  "Jeff Bezos Sentiment": "Jeff Bezos Sentiment",
+  "Larry Page Sentiment": "Larry Page Sentiment",
+  "Sergey Brin Sentiment": "Sergey Brin Sentiment",
+  "Michael Dell Sentiment": "Michael Dell Sentiment",
+  // ── Sports ───────────────────────────────────────────────────────────────────
+  "Kansas City Chiefs Sentiment": "Kansas City Chiefs Sentiment",
+  "Denver Broncos Sentiment": "Denver Broncos Sentiment",
+  "Ferrari Sentiment": "Ferrari Sentiment",
+  "FC Barcelona Sentiment": "FC Barcelona Sentiment",
+  "France National Team Sentiment": "France National Team Sentiment",
+  "McLaren Sentiment": "McLaren Sentiment",
+  "Real Madrid CF Sentiment": "Real Madrid CF Sentiment",
+  "Mercedes Sentiment": "Mercedes Sentiment",
+  "Spain National Team Sentiment": "Spain National Team Sentiment",
+  // ── Universities ─────────────────────────────────────────────────────────────
+  "University of Michigan Sentiment": "University of Michigan Sentiment",
+  "Ohio State University Sentiment": "Ohio State University Sentiment",
+  "Harvard University Sentiment": "Harvard University Sentiment",
+  "Yale University Sentiment": "Yale University Sentiment",
+  // ── Health ───────────────────────────────────────────────────────────────────
+  "Type 2 Diabetes Sentiment": "Type 2 Diabetes Sentiment",
+  "Alzheimer's Sentiment": "Alzheimer's Sentiment",
+  "Seasonal Influenza Sentiment": "Seasonal Influenza Sentiment",
+  "Ozempic Sentiment": "Ozempic Sentiment",
+  "Wegovy Sentiment": "Wegovy Sentiment",
+  "Mental Health Sentiment": "Mental Health Sentiment",
+  "Cancer Research Sentiment": "Cancer Research Sentiment",
+  // ── Regional ─────────────────────────────────────────────────────────────────
+  "California Sentiment": "California Sentiment",
+  "New York Sentiment": "New York Sentiment",
+  "Florida Sentiment": "Florida Sentiment",
+  "Texas Sentiment": "Texas Sentiment",
+  "China Sentiment": "China Sentiment",
+  "Germany Sentiment": "Germany Sentiment",
+  "United States Sentiment": "United States Sentiment",
 };
 
 /**
@@ -50,7 +97,10 @@ export type IndexCategory =
   | "macro"
   | "sports"
   | "technology"
-  | "health";
+  | "health"
+  | "individuals"
+  | "universities"
+  | "regional";
 
 const MAX_BASE_IMPACT: Record<IndexCategory, number> = {
   geopolitical: 1.5,
@@ -59,6 +109,9 @@ const MAX_BASE_IMPACT: Record<IndexCategory, number> = {
   sports: 1.5,
   technology: 2.5,
   health: 2.0,
+  individuals: 2.0,
+  universities: 1.5,
+  regional: 1.5,
 };
 
 /**
@@ -74,6 +127,9 @@ const DECAY_RATE: Record<IndexCategory, number> = {
   sports: 0.35,
   technology: 0.25,
   health: 0.4,
+  individuals: 0.5,
+  universities: 0.25,
+  regional: 0.3,
 };
 
 const FALLBACK_MAX_BASE_IMPACT = 1.5;
