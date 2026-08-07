@@ -147,12 +147,13 @@ async function gradioFallback(
     // SSE payload: lines like "data: [...]" — extract the JSON array line
     const dataLine = raw.split("\n").filter((l) => l.startsWith("data:") && l.trim() !== "data: null").at(-1);
     if (!dataLine) return scoreFallback();
-    const payload = JSON.parse(dataLine.slice(5).trim()) as Array<{
+    const payload = JSON.parse(dataLine.slice(5).trim()) as Array<unknown>;
+    const first = Array.isArray(payload) ? payload[0] : payload;
+    const result = (typeof first === "string" ? JSON.parse(first) : first) as {
       sentimentLabel: string;
       confidence: number;
       source: string;
-    }>;
-    const result = Array.isArray(payload) ? payload[0] : (payload as unknown as typeof payload[0]);
+    };
     if (!result?.sentimentLabel) return scoreFallback();
 
     const normalized = result.sentimentLabel.toLowerCase() as SentimentLabel;
