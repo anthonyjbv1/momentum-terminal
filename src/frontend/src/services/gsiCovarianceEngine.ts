@@ -21,6 +21,8 @@
  * All logic stays within this TypeScript service file.
  */
 
+import { FALLBACK_ASSET_DEFS } from "../data/fallbackAssets";
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Active index canonical names — must match backend and AssetList exactly. */
@@ -39,6 +41,9 @@ export const ACTIVE_INDICES = [
 ] as const;
 
 export type ActiveIndex = (typeof ACTIVE_INDICES)[number];
+
+/** All index names — derived from the single source of truth. Used for tick loops. */
+export const ALL_INDICES: string[] = FALLBACK_ASSET_DEFS.map((d) => d.name);
 
 /**
  * GSI weights based on narrative systemic importance.

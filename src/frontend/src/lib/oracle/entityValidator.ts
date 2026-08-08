@@ -74,7 +74,7 @@ export const INDEX_NAMES = {
   USA: "United States Sentiment",
 } as const;
 
-export type IndexName = (typeof INDEX_NAMES)[keyof typeof INDEX_NAMES];
+export type IndexName = string;
 
 // ─── Correlation Target ──────────────────────────────────────────────────────────
 interface CorrelatedTarget {

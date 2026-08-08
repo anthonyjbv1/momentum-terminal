@@ -33,6 +33,7 @@ import {
 } from "../services/dispatchedHeadlineLog";
 import {
   ACTIVE_INDICES,
+  ALL_INDICES,
   computeWeightedGSI,
 } from "../services/gsiCovarianceEngine";
 import {
@@ -381,7 +382,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     //   age=halfLifeTicks → residual=-0.5*delta  (half the original delta unwound)
     //   age>halfLifeTicks*3 → pruned (fully decayed, no longer meaningful)
     const decayAdjustments: Record<string, number> = {};
-    for (const indexName of ACTIVE_INDICES) {
+    for (const indexName of ALL_INDICES) {
       const contributions = impactContributionStoreRef.current.get(indexName);
       if (!contributions || contributions.length === 0) {
         decayAdjustments[indexName] = 0;
@@ -416,11 +417,11 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     //   1st — tickStateRef.current.finalScores (carry-forward from last tick)
     //   2nd — cachedAssets.baseScore (React Query cache fallback)
     //   3rd — FALLBACK_ASSET_DEFS.baseScore (cold-start safety net)
-    // Iterates ACTIVE_INDICES as the loop source — not cachedAssets — so the
-    // pipeline always sees all 7 God-Tier indices regardless of cache state.
+    // Iterates ALL_INDICES as the loop source — not cachedAssets — so the
+    // pipeline always sees all indexes regardless of cache state.
     const rawOracleScores: Record<string, number> = {};
 
-    for (const indexName of ACTIVE_INDICES) {
+    for (const indexName of ALL_INDICES) {
       const oracleCarryForward =
         tickStateRef.current.finalScores.get(indexName);
       const cachedBase = cachedAssets.find(

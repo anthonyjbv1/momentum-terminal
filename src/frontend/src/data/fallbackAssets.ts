@@ -1,3 +1,5 @@
+// SINGLE SOURCE OF TRUTH — to add a new index, add one entry here. All other systems derive from this file automatically.
+
 /**
  * Fallback asset baseline scores used when the backend does not return data
  * for a given active index.
