@@ -371,14 +371,17 @@ async function fetchRSSBatch(): Promise<void> {
       RSS_FEEDS.map(async (url) => {
         try {
           const resp = await fetch(
-            `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=5`,
+            `https://corsproxy.io/?${encodeURIComponent(url)}`,
           );
           if (!resp.ok) return [];
-          const data = await resp.json() as { items?: Array<{ title?: string }> };
-          return (data.items ?? [])
-            .filter((item) => (item.title ?? "").trim().length > 0)
-            .map((item) => ({
-              text: (item.title ?? "").trim(),
+          const xml = await resp.text();
+          const doc = new DOMParser().parseFromString(xml, "text/xml");
+          return Array.from(doc.querySelectorAll("item > title"))
+            .map((el) => el.textContent?.trim() ?? "")
+            .filter((t) => t.length > 0)
+            .slice(0, 5)
+            .map((text) => ({
+              text,
               sourceTier: mapSourceToTier("rss") as 1 | 2 | 3 | 4 | 5,
               source: "rss",
             }));
