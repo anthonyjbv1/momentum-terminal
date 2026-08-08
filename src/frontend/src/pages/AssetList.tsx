@@ -312,16 +312,11 @@ export function AssetList() {
     });
   }, [assets, isLoading, finalScores, skeletonExpired]);
 
-  console.log("[AssetList] resolvedAssets length:", resolvedAssets.length);
-
   // ── DISPLAY FILTER: only show the 7 allowed indexes ──────────────────────
   // Applied after merging — all underlying data and logic remain intact.
   const allowedAssets = useMemo<AssetPriceWithCapacity[]>(
     () => {
-      console.log("[AssetList] ALLOWED_INDEX_NAMES size:", ALLOWED_INDEX_NAMES.size);
-      const filtered = resolvedAssets.filter((a) => ALLOWED_INDEX_NAMES.has(a.name));
-      console.log("[AssetList] resolvedAssets:", resolvedAssets.length, "→ allowedAssets:", filtered.length);
-      return filtered;
+      return resolvedAssets.filter((a) => ALLOWED_INDEX_NAMES.has(a.name));
     },
     [resolvedAssets],
   );

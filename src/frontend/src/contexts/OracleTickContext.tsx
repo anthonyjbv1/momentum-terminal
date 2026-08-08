@@ -367,7 +367,6 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const runTick = useCallback(async () => {
-    console.log("[OracleTick] tick fired");
     try {
     // Advance the monotonic tick counter for this tick run.
     const currentTickId = ++tickIdRef.current;
@@ -1325,7 +1324,6 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       const existing = scoreHistoryRef.current.get(indexName) ?? [];
       scoreHistoryRef.current.set(indexName, [...existing, score].slice(-15));
     }
-    console.log("[OracleTick] tick complete");
     } catch (err) {
       console.error("[OracleTick] ERROR:", err);
     }
