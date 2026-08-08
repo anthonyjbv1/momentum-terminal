@@ -117,6 +117,7 @@ let _isFetchingEPA = false;
 let _isFetchingACLU = false;
 let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
+let _isFetchingRSS = false;
 let _isFetchingTMDB = false;
 let _isFetchingTMDBPopular = false;
 let _isFetchingOMDB = false;
@@ -308,6 +309,100 @@ async function fetchNewsAPIBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Newsdataio fetch failed.", err);
   } finally {
     _isFetchingNewsAPI = false;
+  }
+}
+
+const RSS_FEEDS = [
+  // Fed Policy
+  "https://www.federalreserve.gov/feeds/press_all.xml",
+  "https://rss.politico.com/economy.xml",
+  // AI/Tech
+  "https://www.technologyreview.com/feed/",
+  "https://iapp.org/feed/",
+  "https://rss.app/feeds/vmz63wsmiH2iYkPS.xml",
+  "https://rss.app/feeds/siT53CznJQycjrG3.xml",
+  "https://rss.app/feeds/tv6fxE6Ve7e0GGIU.xml",
+  // Cultural
+  "https://rss.app/feeds/u9NnW8qBxnwn6cUZ.xml",
+  "https://rss.app/feeds/PAmogJKfLZTivhKX.xml",
+  "https://rss.app/feeds/tZI3VR1XCeonV4LB.xml",
+  "https://rss.app/feeds/tKvhZ0YbuCHtbga5.xml",
+  // Health/Pharma
+  "https://rss.app/feeds/K7Ayl5e2UG32ySPa.xml",
+  "https://rss.app/feeds/eArVi6r8VNMRCtZu.xml",
+  "https://rss.app/feeds/jZj2jw01OosftOCH.xml",
+  // Wellness
+  "https://rss.app/feeds/vndSayjtxN4CfBUL.xml",
+  "https://rss.app/feeds/tWAO0xDv2bjS8fSm.xml",
+  // F1
+  "https://rss.app/feeds/LbA9D9830ZEBj3G4.xml",
+  "https://rss.app/feeds/hL9FX3P2YpH1KGV6.xml",
+  "https://rss.app/feeds/gF24z2IEweCAh3mU.xml",
+  // NASCAR
+  "https://rss.app/feeds/z7fS4raclQJFPNtd.xml",
+  "https://rss.app/feeds/KcHsZsdAIzWSzlBz.xml",
+  // Elon Musk
+  "https://rss.app/feeds/tL3c9WMgAq7BaDbr.xml",
+  "https://rss.app/feeds/tJ1uPi9qHjZ9dE3J.xml",
+  // Chiefs/Broncos
+  "https://rss.app/feeds/tCHv6kajrGkjg17k.xml",
+  "https://rss.app/feeds/tr7TwyVbI1dMSWrQ.xml",
+  // Germany
+  "https://rss.app/feeds/two1nZ9mZx1IwHoz.xml",
+  "https://rss.app/feeds/tbq2CGqLVxLpNdlh.xml",
+  "https://rss.app/feeds/sZPHQ3AmF3YSSsw6.xml",
+  // China
+  "https://rss.app/feeds/thFpOHw7SBKO4g7V.xml",
+  "https://rss.app/feeds/tGKYVB2c6kezIJTL.xml",
+  "https://rss.app/feeds/tiDyujWUIYmHds7F.xml",
+  // Universities
+  "https://rss.app/feeds/t4Fgkiqia3itNvRd.xml",
+  "https://rss.app/feeds/tavU2yumNMnexZzS.xml",
+  "https://news.harvard.edu/gazette/feed/",
+  // Creators/TMZ
+  "https://rss.app/feeds/ttQpgh9K2l1xlrHm.xml",
+];
+
+async function fetchRSSBatch(): Promise<void> {
+  if (_isFetchingRSS) return;
+  _isFetchingRSS = true;
+  try {
+    const results = await Promise.all(
+      RSS_FEEDS.map(async (url) => {
+        try {
+          const resp = await fetch(
+            `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}&count=5`,
+          );
+          if (!resp.ok) return [];
+          const data = await resp.json() as { items?: Array<{ title?: string }> };
+          return (data.items ?? [])
+            .filter((item) => (item.title ?? "").trim().length > 0)
+            .map((item) => ({
+              text: (item.title ?? "").trim(),
+              sourceTier: mapSourceToTier("rss") as 1 | 2 | 3 | 4 | 5,
+              source: "rss",
+            }));
+        } catch {
+          return [];
+        }
+      }),
+    );
+    const combined: QueuedHeadline[] = (results.flat() as QueuedHeadline[])
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 10);
+    for (const item of combined) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    console.info(`[HeadlineQueue] Enqueued ${combined.length} headlines from RSS feeds. Queue depth: ${_queue.length}`);
+  } catch (err) {
+    console.warn("[HeadlineQueue] RSS batch fetch failed.", err);
+  } finally {
+    _isFetchingRSS = false;
   }
 }
 
@@ -2179,6 +2274,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchNewsAPIBatch();
   const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 420_000);
 
+  void fetchRSSBatch();
+  const rssIntervalId = setInterval(fetchRSSBatch, 600_000);
+
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
   void fetchRedditBatch(actor);
@@ -2285,6 +2383,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(epaIntervalId);
     clearInterval(acluIntervalId);
     clearInterval(newsApiIntervalId);
+    clearInterval(rssIntervalId);
     clearInterval(youtubeIntervalId);
     clearInterval(tmdbIntervalId);
     clearInterval(tmdbPopularIntervalId);
@@ -2335,7 +2434,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
