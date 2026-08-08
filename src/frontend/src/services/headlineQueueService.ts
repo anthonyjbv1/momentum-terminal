@@ -116,6 +116,7 @@ let _isFetchingCourtListener = false;
 let _isFetchingEPA = false;
 let _isFetchingACLU = false;
 let _isFetchingYouTube = false;
+let _isFetchingNewsAPI = false;
 let _isFetchingTMDB = false;
 let _isFetchingTMDBPopular = false;
 let _isFetchingOMDB = false;
@@ -269,6 +270,44 @@ export async function fetchNewsBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Finnhub direct fetch failed — queue remains empty.", err);
   } finally {
     _isFetchingNews = false;
+  }
+}
+
+async function fetchNewsAPIBatch(): Promise<void> {
+  if (_isFetchingNewsAPI) return;
+  _isFetchingNewsAPI = true;
+  try {
+    const newsApiKey = import.meta.env.VITE_NEWSAPI_KEY ?? "";
+    if (!newsApiKey) return;
+    const resp = await fetch(
+      `https://newsapi.org/v2/top-headlines?language=en&pageSize=10&apiKey=${newsApiKey}`,
+    );
+    if (!resp.ok) throw new Error(`NewsAPI responded with status ${resp.status}`);
+    const data: unknown = await resp.json();
+    if (!Array.isArray((data as { articles?: unknown }).articles)) return;
+    const articles = (data as { articles: Array<{ title?: string; source?: { name?: string } }> }).articles;
+    const mapped: QueuedHeadline[] = articles
+      .filter((a) => (a.title ?? "").trim().length > 0)
+      .map((a) => ({
+        text: (a.title ?? "").trim(),
+        sourceTier: mapSourceToTier(a.source?.name ?? ""),
+        source: "newsapi",
+      }))
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 6);
+    for (const item of mapped) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from NewsAPI. Queue depth: ${_queue.length}`);
+  } catch (err) {
+    console.warn("[HeadlineQueue] NewsAPI fetch failed.", err);
+  } finally {
+    _isFetchingNewsAPI = false;
   }
 }
 
@@ -2137,6 +2176,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   fetchNewsBatch();
   const newsIntervalId = setInterval(fetchNewsBatch, 300_000);
 
+  void fetchNewsAPIBatch();
+  const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 420_000);
+
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
   void fetchRedditBatch(actor);
@@ -2242,6 +2284,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(courtListenerIntervalId);
     clearInterval(epaIntervalId);
     clearInterval(acluIntervalId);
+    clearInterval(newsApiIntervalId);
     clearInterval(youtubeIntervalId);
     clearInterval(tmdbIntervalId);
     clearInterval(tmdbPopularIntervalId);
@@ -2292,7 +2335,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await fetchNewsBatch();
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
