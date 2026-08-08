@@ -277,20 +277,20 @@ async function fetchNewsAPIBatch(): Promise<void> {
   if (_isFetchingNewsAPI) return;
   _isFetchingNewsAPI = true;
   try {
-    const newsApiKey = import.meta.env.VITE_NEWSAPI_KEY ?? "";
+    const newsApiKey = import.meta.env.VITE_NEWSDATAIO_KEY ?? "";
     if (!newsApiKey) return;
     const resp = await fetch(
-      `https://newsapi.org/v2/top-headlines?language=en&pageSize=10&apiKey=${newsApiKey}`,
+      `https://newsdata.io/api/1/news?apikey=${newsApiKey}&language=en&size=10`,
     );
-    if (!resp.ok) throw new Error(`NewsAPI responded with status ${resp.status}`);
+    if (!resp.ok) throw new Error(`Newsdataio responded with status ${resp.status}`);
     const data: unknown = await resp.json();
-    if (!Array.isArray((data as { articles?: unknown }).articles)) return;
-    const articles = (data as { articles: Array<{ title?: string; source?: { name?: string } }> }).articles;
+    if (!Array.isArray((data as { results?: unknown }).results)) return;
+    const articles = (data as { results: Array<{ title?: string; source_id?: string }> }).results;
     const mapped: QueuedHeadline[] = articles
       .filter((a) => (a.title ?? "").trim().length > 0)
       .map((a) => ({
         text: (a.title ?? "").trim(),
-        sourceTier: mapSourceToTier(a.source?.name ?? ""),
+        sourceTier: mapSourceToTier(a.source_id ?? ""),
         source: "newsapi",
       }))
       .sort(() => Math.random() - 0.5)
@@ -303,9 +303,9 @@ async function fetchNewsAPIBatch(): Promise<void> {
         _queue.push(item);
       }
     }
-    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from NewsAPI. Queue depth: ${_queue.length}`);
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Newsdataio. Queue depth: ${_queue.length}`);
   } catch (err) {
-    console.warn("[HeadlineQueue] NewsAPI fetch failed.", err);
+    console.warn("[HeadlineQueue] Newsdataio fetch failed.", err);
   } finally {
     _isFetchingNewsAPI = false;
   }
