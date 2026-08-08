@@ -538,6 +538,8 @@ export function AssetList() {
     });
   }, [assets, isLoading, finalScores, skeletonExpired]);
 
+  console.log("[AssetList] resolvedAssets length:", resolvedAssets.length);
+
   // ── DISPLAY FILTER: only show the 7 allowed indexes ──────────────────────
   // Applied after merging — all underlying data and logic remain intact.
   const allowedAssets = useMemo<AssetPriceWithCapacity[]>(
