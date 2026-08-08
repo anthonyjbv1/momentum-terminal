@@ -8,6 +8,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useOracleTick } from "../contexts/OracleTickContext";
 import { computeCapacity, useAssetPrices } from "../hooks/useQueries";
 import type { AssetPriceWithCapacity } from "../hooks/useQueries";
+import { FALLBACK_ASSET_DEFS } from "../data/fallbackAssets";
 
 // ─── ALLOWED INDEXES (display filter — render layer only) ───────────────────────────────
 // All underlying data and code remain intact; only these 7 are shown to users.
@@ -76,184 +77,20 @@ const ALLOWED_INDEX_NAMES = new Set([
 
 // ─── Fallback Assets ───────────────────────────────────────────────────────────────────────────────────
 
-export const FALLBACK_ASSETS: AssetPriceWithCapacity[] = [
-  {
-    name: "Fed Policy Sentiment",
-    category: "MACRO",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
+const FALLBACK_ASSETS: AssetPriceWithCapacity[] = FALLBACK_ASSET_DEFS.map((def) => {
+  const base = def.baseScore;
+  const spread = Math.max(0.1, def.spread);
+  return computeCapacity({
+    name: def.name,
+    category: def.category,
+    baseScore: base,
+    buyPrice: base + spread,
+    redeemPrice: base - spread,
+    maxAllocation: def.maxAllocation,
+    volatilityBuffer: def.volatilityBuffer,
     currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "MENA Stability Sentiment",
-    category: "GEOPOLITICAL",
-    baseScore: 48.5,
-    buyPrice: 49.0,
-    redeemPrice: 48.0,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "AI Regulation Risk Sentiment",
-    category: "TECHNOLOGY",
-    baseScore: 75.0,
-    buyPrice: 75.5,
-    redeemPrice: 74.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Traditional Values Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Progressive Values Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Masculinity Discourse Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Feminism Wave Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "F1 Constructor Sentiment",
-    category: "SPORTS",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "NASCAR Racing Sentiment",
-    category: "SPORTS",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Obesity Drug Sentiment",
-    category: "HEALTH",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-  {
-    name: "Whole Food & Wellness Sentiment",
-    category: "HEALTH",
-    baseScore: 50.0,
-    buyPrice: 50.5,
-    redeemPrice: 49.5,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
-    effectiveCapacity: 90_000.0,
-    isAtCapacity: false,
-    capacityUsedPercent: 0,
-    activeSpread: 0.5,
-    isVolatilitySpread: false,
-    backendSpread: undefined,
-  },
-];
+  });
+});
 
 // ─── Asset Registry ────────────────────────────────────────────────────────────────────────────────────
 // Full registry kept intact — filtering applied at render layer only.
@@ -525,7 +362,7 @@ export function AssetList() {
         });
       }
 
-      // Fallback path: asset came from FALLBACK_ASSETS, buildSyntheticAsset, or a
+      // Fallback path: asset came from FALLBACK_ASSET_DEFS, buildSyntheticAsset, or a
       // fallback push. Recompute prices around the new base using the preserved spread.
       const spreadOffset = roundTo2(asset.buyPrice - asset.baseScore);
       return computeCapacity({
