@@ -117,6 +117,7 @@ let _isFetchingEPA = false;
 let _isFetchingACLU = false;
 let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
+let _isFetchingOddsAPI = false;
 let _isFetchingRSS = false;
 let _isFetchingTMDB = false;
 let _isFetchingTMDBPopular = false;
@@ -309,6 +310,63 @@ async function fetchNewsAPIBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Newsdataio fetch failed.", err);
   } finally {
     _isFetchingNewsAPI = false;
+  }
+}
+
+const ODDS_SPORTS = [
+  { key: "americanfootball_nfl", label: "NFL" },
+  { key: "soccer_uefa_champs_league", label: "Champions League" },
+  { key: "soccer_spain_la_liga", label: "La Liga" },
+  { key: "soccer_fifa_world_cup", label: "World Cup" },
+];
+
+async function fetchOddsAPIBatch(): Promise<void> {
+  if (_isFetchingOddsAPI) return;
+  _isFetchingOddsAPI = true;
+  try {
+    const key = import.meta.env.VITE_ODDS_API_KEY ?? "";
+    if (!key) return;
+    const results = await Promise.all(
+      ODDS_SPORTS.map(async ({ key: sport, label }) => {
+        try {
+          const resp = await fetch(
+            `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=us&markets=h2h&oddsFormat=decimal`,
+          );
+          if (!resp.ok) return [];
+          const games = await resp.json() as Array<{
+            home_team: string;
+            away_team: string;
+            bookmakers: Array<{ markets: Array<{ outcomes: Array<{ name: string; price: number }> }> }>;
+          }>;
+          return games.flatMap((game) => {
+            const outcomes = game.bookmakers[0]?.markets[0]?.outcomes ?? [];
+            const homeOutcome = outcomes.find((o) => o.name === game.home_team);
+            if (!homeOutcome) return [];
+            const prob = Math.round((1 / homeOutcome.price) * 100);
+            const text = `${game.home_team} vs ${game.away_team} — ${game.home_team} implied win probability ${prob}% (${label})`;
+            return [{ text, sourceTier: 2 as const, source: "odds_api" }];
+          });
+        } catch {
+          return [];
+        }
+      }),
+    );
+    const mapped: QueuedHeadline[] = (results.flat() as QueuedHeadline[])
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 8);
+    for (const item of mapped) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Odds API. Queue depth: ${_queue.length}`);
+  } catch (err) {
+    console.warn("[HeadlineQueue] Odds API fetch failed.", err);
+  } finally {
+    _isFetchingOddsAPI = false;
   }
 }
 
@@ -2280,6 +2338,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchRSSBatch();
   const rssIntervalId = setInterval(fetchRSSBatch, 600_000);
 
+  void fetchOddsAPIBatch();
+  const oddsApiIntervalId = setInterval(fetchOddsAPIBatch, 900_000);
+
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
   void fetchRedditBatch(actor);
@@ -2387,6 +2448,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(acluIntervalId);
     clearInterval(newsApiIntervalId);
     clearInterval(rssIntervalId);
+    clearInterval(oddsApiIntervalId);
     clearInterval(youtubeIntervalId);
     clearInterval(tmdbIntervalId);
     clearInterval(tmdbPopularIntervalId);
@@ -2437,7 +2499,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
