@@ -381,6 +381,7 @@ async function fetchOddsAPIBatch(): Promise<void> {
 }
 
 let _googleSearchPointer = 0;
+const _searchVolumePrev = new Map<string, number>();
 
 const SEARCH_QUERIES = [
   { query: "Elon Musk news", index: "Elon Musk Sentiment" },
@@ -425,23 +426,24 @@ async function fetchGoogleSearchBatch(): Promise<void> {
           const rawText = await resp.text();
           if (!resp.ok) return [];
           const data = JSON.parse(rawText);
-          const items = (Array.isArray(data) ? data : []).flatMap((page: any) => page.organicResults ?? []);
-          return items
-            .filter((r: any) => (r.title ?? "").trim().length > 0)
-            .map((r: any) => ({
-              text: (r.title ?? "").trim(),
-              sourceTier: 2 as const,
-              source: "google_search",
-              forcedIndex: entry.index,
-            }));
+          const pages = Array.isArray(data) ? data : [];
+          const totalResults: number = pages[0]?.resultsTotal ?? pages[0]?.totalResults ?? 0;
+          if (totalResults === 0) return [];
+          const prev = _searchVolumePrev.get(entry.index);
+          _searchVolumePrev.set(entry.index, totalResults);
+          if (prev === undefined) return [];
+          const pct = Math.round(((totalResults - prev) / prev) * 100);
+          if (Math.abs(pct) < 10) return [];
+          const surged = pct > 0;
+          const entityName = entry.index.replace(" Sentiment", "");
+          const text = `${entityName} Google search volume ${surged ? "surged" : "declined"} ${Math.abs(pct)}% — ${surged ? "elevated" : "declining"} narrative search activity`;
+          return [{ text, sourceTier: 2 as const, source: "google_search", forcedIndex: entry.index }];
         } catch {
           return [];
         }
       }),
     );
-    const mapped: QueuedHeadline[] = (results.flat() as QueuedHeadline[])
-      .sort(() => Math.random() - 0.5)
-      .slice(0, 6);
+    const mapped: QueuedHeadline[] = results.flat() as QueuedHeadline[];
     for (const item of mapped) {
       const blockReason = shouldBlockHeadline(item.text);
       if (blockReason) {
@@ -450,7 +452,7 @@ async function fetchGoogleSearchBatch(): Promise<void> {
         _queue.push(item);
       }
     }
-    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Google Search. Queue depth: ${_queue.length}`);
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} volume-change headlines from Google Search. Queue depth: ${_queue.length}`);
   } catch (err) {
     console.warn("[HeadlineQueue] Google Search fetch failed.", err);
   } finally {
