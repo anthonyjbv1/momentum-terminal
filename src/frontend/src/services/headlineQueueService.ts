@@ -118,6 +118,7 @@ let _isFetchingACLU = false;
 let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
 let _isFetchingOddsAPI = false;
+let _isFetchingGoogleSearch = false;
 let _isFetchingRSS = false;
 let _isFetchingTMDB = false;
 let _isFetchingTMDBPopular = false;
@@ -376,6 +377,82 @@ async function fetchOddsAPIBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Odds API fetch failed.", err);
   } finally {
     _isFetchingOddsAPI = false;
+  }
+}
+
+let _googleSearchPointer = 0;
+
+const SEARCH_QUERIES = [
+  { query: "Elon Musk news", index: "Elon Musk Sentiment" },
+  { query: "Federal Reserve interest rates", index: "Fed Policy Sentiment" },
+  { query: "MENA Middle East conflict", index: "MENA Stability Sentiment" },
+  { query: "AI regulation policy", index: "AI Regulation Risk Sentiment" },
+  { query: "Kansas City Chiefs", index: "Kansas City Chiefs Sentiment" },
+  { query: "MrBeast YouTube", index: "MrBeast Sentiment" },
+  { query: "Ozempic weight loss drug", index: "Ozempic Sentiment" },
+  { query: "Drake music news", index: "Drake Sentiment" },
+  { query: "Jensen Huang Nvidia", index: "Jensen Huang Sentiment" },
+  { query: "FC Barcelona soccer", index: "FC Barcelona Sentiment" },
+];
+
+async function fetchGoogleSearchBatch(): Promise<void> {
+  if (_isFetchingGoogleSearch) return;
+  _isFetchingGoogleSearch = true;
+  try {
+    const apifyToken = import.meta.env.VITE_APIFY_TOKEN ?? "";
+    if (!apifyToken) return;
+    const batch = [0, 1, 2].map((offset) => {
+      const idx = (_googleSearchPointer + offset) % SEARCH_QUERIES.length;
+      return SEARCH_QUERIES[idx];
+    });
+    _googleSearchPointer = (_googleSearchPointer + 3) % SEARCH_QUERIES.length;
+    const results = await Promise.all(
+      batch.map(async (entry) => {
+        try {
+          const resp = await fetch(
+            `https://api.apify.com/v2/acts/nFJndFXA5zjCTuudP/run-sync-get-dataset-items?token=${apifyToken}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                queries: entry.query,
+                maxPagesPerQuery: 1,
+                resultsPerPage: 5,
+                countryCode: "us",
+              }),
+            },
+          );
+          if (!resp.ok) return [];
+          const data = await resp.json() as Array<{ title?: string; url?: string }>;
+          return (Array.isArray(data) ? data : [])
+            .filter((r) => (r.title ?? "").trim().length > 0)
+            .map((r) => ({
+              text: (r.title ?? "").trim(),
+              sourceTier: 2 as const,
+              source: "google_search",
+              forcedIndex: entry.index,
+            }));
+        } catch {
+          return [];
+        }
+      }),
+    );
+    const mapped: QueuedHeadline[] = (results.flat() as QueuedHeadline[])
+      .sort(() => Math.random() - 0.5)
+      .slice(0, 6);
+    for (const item of mapped) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Google Search. Queue depth: ${_queue.length}`);
+  } catch (err) {
+    console.warn("[HeadlineQueue] Google Search fetch failed.", err);
+  } finally {
+    _isFetchingGoogleSearch = false;
   }
 }
 
@@ -2350,6 +2427,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchOddsAPIBatch();
   const oddsApiIntervalId = setInterval(fetchOddsAPIBatch, 900_000);
 
+  void fetchGoogleSearchBatch();
+  const googleSearchIntervalId = setInterval(fetchGoogleSearchBatch, 1_200_000);
+
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
   void fetchRedditBatch(actor);
@@ -2458,6 +2538,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(newsApiIntervalId);
     clearInterval(rssIntervalId);
     clearInterval(oddsApiIntervalId);
+    clearInterval(googleSearchIntervalId);
     clearInterval(youtubeIntervalId);
     clearInterval(tmdbIntervalId);
     clearInterval(tmdbPopularIntervalId);
@@ -2508,7 +2589,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
