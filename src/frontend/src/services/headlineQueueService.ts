@@ -343,7 +343,16 @@ async function fetchOddsAPIBatch(): Promise<void> {
             const homeOutcome = outcomes.find((o) => o.name === game.home_team);
             if (!homeOutcome) return [];
             const prob = Math.round((1 / homeOutcome.price) * 100);
-            const text = `${game.home_team} vs ${game.away_team} — ${game.home_team} implied win probability ${prob}% (${label})`;
+            const homeTeam = game.home_team;
+            const awayTeam = game.away_team;
+            const formats = [
+              `${homeTeam} vs ${awayTeam} — ${homeTeam} implied win probability ${prob}%`,
+              `${homeTeam} favored at ${prob}% to beat ${awayTeam}`,
+              `Odds update: ${homeTeam} ${prob}% win probability ahead of ${awayTeam} clash`,
+              `${awayTeam} faces ${homeTeam} — oddsmakers give ${homeTeam} ${prob}% edge`,
+              `${homeTeam} opens as ${prob}% favorite vs ${awayTeam}`,
+            ];
+            const text = formats[Math.floor(Math.random() * formats.length)];
             return [{ text, sourceTier: 2 as const, source: "odds_api" }];
           });
         } catch {

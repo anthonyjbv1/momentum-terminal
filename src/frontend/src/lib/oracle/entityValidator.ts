@@ -393,6 +393,7 @@ const ENTITY_KEYWORD_MAP: KeywordEntry[] = [
   { keyword: "France national team", primary: INDEX_NAMES.FRANCE },
   { keyword: "Les Bleus", primary: INDEX_NAMES.FRANCE },
   { keyword: "Deschamps", primary: INDEX_NAMES.FRANCE },
+  { keyword: "France", primary: INDEX_NAMES.FRANCE },
   { keyword: "McLaren", primary: INDEX_NAMES.MCLAREN },
   { keyword: "Norris", primary: INDEX_NAMES.MCLAREN },
   { keyword: "Piastri", primary: INDEX_NAMES.MCLAREN },
@@ -403,9 +404,11 @@ const ENTITY_KEYWORD_MAP: KeywordEntry[] = [
   { keyword: "Mercedes AMG", primary: INDEX_NAMES.MERCEDES },
   { keyword: "Hamilton F1", primary: INDEX_NAMES.MERCEDES },
   { keyword: "Russell F1", primary: INDEX_NAMES.MERCEDES },
+  { keyword: "Mercedes", primary: INDEX_NAMES.MERCEDES },
   { keyword: "Spain national team", primary: INDEX_NAMES.SPAIN },
   { keyword: "La Roja", primary: INDEX_NAMES.SPAIN },
   { keyword: "De La Fuente", primary: INDEX_NAMES.SPAIN },
+  { keyword: "Spain", primary: INDEX_NAMES.SPAIN },
 
   // ── UNIVERSITIES ──────────────────────────────────────────────────────────────
   { keyword: "University of Michigan", primary: INDEX_NAMES.UMICH },
