@@ -422,8 +422,10 @@ async function fetchGoogleSearchBatch(): Promise<void> {
               }),
             },
           );
+          const rawText = await resp.text();
+          console.log(`[GoogleSearch] query="${entry.query}" status=${resp.status} body=${rawText.slice(0, 200)}`);
           if (!resp.ok) return [];
-          const data = await resp.json() as Array<{ title?: string; url?: string }>;
+          const data = JSON.parse(rawText) as Array<{ title?: string; url?: string }>;
           return (Array.isArray(data) ? data : [])
             .filter((r) => (r.title ?? "").trim().length > 0)
             .map((r) => ({
