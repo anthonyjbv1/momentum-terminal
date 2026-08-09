@@ -318,7 +318,6 @@ const ODDS_SPORTS = [
   { key: "soccer_uefa_champs_league", label: "Champions League" },
   { key: "soccer_spain_la_liga", label: "La Liga" },
   { key: "soccer_fifa_world_cup", label: "World Cup" },
-  { key: "motorsport_formula_one", label: "F1" },
 ];
 
 async function fetchOddsAPIBatch(): Promise<void> {
