@@ -423,7 +423,6 @@ async function fetchGoogleSearchBatch(): Promise<void> {
             },
           );
           const rawText = await resp.text();
-          console.log(`[GoogleSearch] query="${entry.query}" status=${resp.status} body=${rawText.slice(0, 200)}`);
           if (!resp.ok) return [];
           const data = JSON.parse(rawText);
           const items = (Array.isArray(data) ? data : []).flatMap((page: any) => page.organicResults ?? []);
