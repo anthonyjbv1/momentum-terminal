@@ -143,16 +143,7 @@ export function useAssetPrices() {
     queryKey: ["assetPrices", finalScoresKey],
     queryFn: async () => {
       if (!actor) return [];
-      const prices = await actor.getAssetPrices();
-      console.log("[useAssetPrices] canister returned:", prices.length, "assets");
-
       const roundTo2 = (n: number) => Math.round(n * 100) / 100;
-
-      // ── Ghost data guard: reject backend baseScore = 0.0 ────────────────
-      // Backend canister may return old/uninitialized index entries with
-      // baseScore = 0.0 (ghost data). Treat any zero as invalid and fall
-      // back to the OracleTickContext score, then fallbackAssets.ts value,
-      // then 50.0 as last-resort floor.
 
       // Read local holdings from localStorage to compute real per-index capacity usage
       let localHoldingsMap: Record<string, { units: number }> = {};
@@ -168,55 +159,8 @@ export function useAssetPrices() {
         /* ignore */
       }
 
-      // Always build and return a NEW array so React sees a state change
-      // and triggers re-renders in all subscribing components.
-      const result = prices.map((price) => {
-        // Score priority order (pure pricing layer — no pipeline execution):
-        //   1. OracleTickContext finalScore — if defined and > 0
-        //   2. Canister score (price.baseScore from backend) — if > 0
-        //   3. fallbackBase (fallbackAssets.ts baseScore) — if > 0
-        //   4. 50.0 — absolute last-resort floor, never 0.0
-        const oracleScore = finalScores.get(price.name);
-        const fallbackDef = FALLBACK_ASSET_DEFS.find(
-          (a) => a.name === price.name,
-        );
-        const fallbackBase = fallbackDef?.baseScore ?? 0;
-        const canisterScore = price.baseScore;
-        const finalBase =
-          oracleScore !== undefined && oracleScore > 0
-            ? oracleScore
-            : canisterScore !== undefined && canisterScore > 0
-              ? canisterScore
-              : fallbackBase > 0
-                ? fallbackBase
-                : 50.0;
-
-        // ── Pricing: use backend-returned buy/redeem prices directly ──────────
-        // The backend actor is the sole pricing authority. The frontend must
-        // not recompute, override, or apply any client-side spread modification
-        // (no LMSR, no crisis override, no circuit-breaker re-pricing) to the
-        // buyPrice / redeemPrice values returned by the canister.
-        const buyPrice = roundTo2(price.buyPrice);
-        const redeemPrice = roundTo2(price.redeemPrice);
-        const backendSpread = roundTo2(price.buyPrice - price.baseScore);
-
-        const localUnits = localHoldingsMap[price.name]?.units ?? 0;
-        const redeemForCapacity = redeemPrice;
-        const currentAllocated = localUnits * buyPrice;
-
-        return computeCapacity({
-          ...price,
-          baseScore: finalBase,
-          buyPrice,
-          redeemPrice: redeemForCapacity,
-          currentAllocated,
-          backendSpread,
-        });
-      });
-
-      console.log("[useAssetPrices] Phase 1 complete — canister mapped:", result.length, "assets");
-      const unknownFromCanister = result.filter((r) => !FALLBACK_ASSET_DEFS.find((d) => d.name === r.name)).map((r) => r.name);
-      if (unknownFromCanister.length > 0) console.log("[useAssetPrices] canister names NOT in FALLBACK_ASSET_DEFS:", unknownFromCanister);
+      // Phase 1 skipped — all 53 assets built from FALLBACK_ASSET_DEFS in Phase 2.
+      const result: AssetPriceWithCapacity[] = [];
 
       // ── Append Oracle-scored indices that the backend didn't return ────────
       // Without this, God-Tier indices absent from the canister would never
