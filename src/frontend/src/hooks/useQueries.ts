@@ -215,6 +215,8 @@ export function useAssetPrices() {
       });
 
       console.log("[useAssetPrices] Phase 1 complete — canister mapped:", result.length, "assets");
+      const unknownFromCanister = result.filter((r) => !FALLBACK_ASSET_DEFS.find((d) => d.name === r.name)).map((r) => r.name);
+      if (unknownFromCanister.length > 0) console.log("[useAssetPrices] canister names NOT in FALLBACK_ASSET_DEFS:", unknownFromCanister);
 
       // ── Append Oracle-scored indices that the backend didn't return ────────
       // Without this, God-Tier indices absent from the canister would never
