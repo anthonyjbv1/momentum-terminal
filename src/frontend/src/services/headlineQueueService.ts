@@ -222,6 +222,29 @@ function jitter(min: number, max: number): number {
   return min + Math.random() * (max - min);
 }
 
+// ─── Headline cache ───────────────────────────────────────────────────────────
+const HEADLINE_CACHE_KEY = "mt_recent_headlines";
+
+function saveHeadlinesToCache(headlines: QueuedHeadline[]): void {
+  try {
+    const existing: QueuedHeadline[] = JSON.parse(localStorage.getItem(HEADLINE_CACHE_KEY) ?? "[]");
+    const merged = [...headlines, ...existing];
+    const seen = new Set<string>();
+    const deduped = merged.filter((h) => {
+      if (seen.has(h.text)) return false;
+      seen.add(h.text);
+      return true;
+    }).slice(0, 15);
+    localStorage.setItem(HEADLINE_CACHE_KEY, JSON.stringify(deduped));
+  } catch {}
+}
+
+function loadHeadlinesFromCache(): QueuedHeadline[] {
+  try {
+    return JSON.parse(localStorage.getItem(HEADLINE_CACHE_KEY) ?? "[]");
+  } catch { return []; }
+}
+
 export async function fetchNewsBatch(): Promise<void> {
   if (_isFetchingNews) {
     console.info(
@@ -266,6 +289,7 @@ export async function fetchNewsBatch(): Promise<void> {
         _queue.push(_item);
       }
     }
+    saveHeadlinesToCache(mapped);
     console.info(
       `[HeadlineQueue] Enqueued ${mapped.length} live headlines from Finnhub. Queue depth: ${_queue.length}`,
     );
@@ -306,6 +330,7 @@ async function fetchNewsAPIBatch(): Promise<void> {
         _queue.push(item);
       }
     }
+    saveHeadlinesToCache(mapped);
     console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Newsdataio. Queue depth: ${_queue.length}`);
   } catch (err) {
     console.warn("[HeadlineQueue] Newsdataio fetch failed.", err);
@@ -372,6 +397,7 @@ async function fetchOddsAPIBatch(): Promise<void> {
         _queue.push(item);
       }
     }
+    saveHeadlinesToCache(mapped);
     console.info(`[HeadlineQueue] Enqueued ${mapped.length} headlines from Odds API. Queue depth: ${_queue.length}`);
   } catch (err) {
     console.warn("[HeadlineQueue] Odds API fetch failed.", err);
@@ -499,6 +525,7 @@ async function fetchGoogleSearchBatch(): Promise<void> {
         _queue.push(item);
       }
     }
+    saveHeadlinesToCache(mapped);
     console.info(`[HeadlineQueue] Enqueued ${mapped.length} volume-change headlines from Google Search. Queue depth: ${_queue.length}`);
   } catch (err) {
     console.warn("[HeadlineQueue] Google Search fetch failed.", err);
@@ -2460,6 +2487,12 @@ async function fetchOMDBBatch(): Promise<void> {
 export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   if (_initialized) return () => {};
   _initialized = true;
+
+  const cached = loadHeadlinesFromCache();
+  if (cached.length > 0) {
+    _queue.push(...cached);
+    console.info(`[HeadlineQueue] Seeded ${cached.length} headlines from localStorage cache.`);
+  }
 
   // No demo/mock seeding — the queue starts empty and is populated only by the
   // live source fetches kicked off below. Early ticks will have no headlines to
