@@ -381,7 +381,6 @@ async function fetchOddsAPIBatch(): Promise<void> {
 }
 
 let _googleSearchPointer = 0;
-const _searchVolumePrev = new Map<string, number>();
 
 const SEARCH_QUERIES = [
   { query: "Elon Musk news", index: "Elon Musk Sentiment" },
@@ -429,15 +428,17 @@ async function fetchGoogleSearchBatch(): Promise<void> {
           const pages = Array.isArray(data) ? data : [];
           const totalResults: number = pages[0]?.resultsTotal ?? pages[0]?.totalResults ?? 0;
           if (totalResults === 0) return [];
-          const prev = _searchVolumePrev.get(entry.index);
-          _searchVolumePrev.set(entry.index, totalResults);
+          const stored: Record<string, number> = JSON.parse(localStorage.getItem("mt_search_volume") ?? "{}");
+          const prev = stored[entry.query];
+          stored[entry.query] = totalResults;
+          localStorage.setItem("mt_search_volume", JSON.stringify(stored));
           if (prev === undefined) return [];
           const pct = Math.round(((totalResults - prev) / prev) * 100);
           if (Math.abs(pct) < 10) return [];
           const surged = pct > 0;
           const entityName = entry.index.replace(" Sentiment", "");
-          const text = `${entityName} Google search volume ${surged ? "surged" : "declined"} ${Math.abs(pct)}% — ${surged ? "elevated" : "declining"} narrative search activity`;
-          return [{ text, sourceTier: 2 as const, source: "google_search", forcedIndex: entry.index }];
+          const text = `${entityName} Google search volume ${surged ? "surged" : "declined"} ${Math.abs(pct).toFixed(0)}% — ${surged ? "elevated" : "declining"} narrative search activity`;
+          return [{ text, sourceTier: mapSourceToTier("google_search") as 1 | 2 | 3 | 4 | 5, source: "google_search", forcedIndex: entry.index }];
         } catch {
           return [];
         }
