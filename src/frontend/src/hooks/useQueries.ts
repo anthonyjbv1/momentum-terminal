@@ -214,11 +214,15 @@ export function useAssetPrices() {
         });
       });
 
+      console.log("[useAssetPrices] Phase 1 complete — canister mapped:", result.length, "assets");
+
       // ── Append Oracle-scored indices that the backend didn't return ────────
       // Without this, God-Tier indices absent from the canister would never
       // surface in assetPrices and AssetList.mergeAssets would keep using
       // static FALLBACK_ASSETS values.
       const ACTIVE_INDICES = FALLBACK_ASSET_DEFS.map((d) => d.name);
+      const missingCount = ACTIVE_INDICES.filter((name) => !result.find((r) => r.name === name)).length;
+      console.log("[useAssetPrices] Phase 2 — missing from canister:", missingCount, "indexes to append");
       for (const indexName of ACTIVE_INDICES) {
         if (!result.find((r) => r.name === indexName)) {
           const fallback = FALLBACK_ASSET_DEFS.find(
@@ -282,7 +286,7 @@ export function useAssetPrices() {
         }
       }
 
-      console.log("[useAssetPrices] returning result length:", result.length);
+      console.log("[useAssetPrices] Phase 2 complete — final result:", result.length, "assets");
       return result;
       // ─────────────────────────────────────────────────────────────────────
     },
