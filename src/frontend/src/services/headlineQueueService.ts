@@ -383,6 +383,7 @@ async function fetchOddsAPIBatch(): Promise<void> {
 let _googleSearchPointer = 0;
 
 const SEARCH_QUERIES = [
+  // Original
   { query: "Elon Musk news", index: "Elon Musk Sentiment" },
   { query: "Federal Reserve interest rates", index: "Fed Policy Sentiment" },
   { query: "MENA Middle East conflict", index: "MENA Stability Sentiment" },
@@ -393,6 +394,51 @@ const SEARCH_QUERIES = [
   { query: "Drake music news", index: "Drake Sentiment" },
   { query: "Jensen Huang Nvidia", index: "Jensen Huang Sentiment" },
   { query: "FC Barcelona soccer", index: "FC Barcelona Sentiment" },
+  // Individuals
+  { query: "Mark Zuckerberg Meta news", index: "Mark Zuckerberg Sentiment" },
+  { query: "Warren Buffett Berkshire Hathaway", index: "Warren Buffett Sentiment" },
+  { query: "Patrick Mahomes NFL", index: "Patrick Mahomes Sentiment" },
+  { query: "Kendrick Lamar music", index: "Kendrick Lamar Sentiment" },
+  { query: "Kai Cenat Twitch", index: "Kai Cenat Sentiment" },
+  { query: "Adin Ross livestream", index: "Adin Ross Sentiment" },
+  { query: "Jeff Bezos Amazon", index: "Jeff Bezos Sentiment" },
+  { query: "Larry Ellison Oracle", index: "Larry Ellison Sentiment" },
+  { query: "Larry Page Google", index: "Larry Page Sentiment" },
+  { query: "Sergey Brin Google", index: "Sergey Brin Sentiment" },
+  { query: "Michael Dell Dell Technologies", index: "Michael Dell Sentiment" },
+  // Sports
+  { query: "Real Madrid news", index: "Real Madrid CF Sentiment" },
+  { query: "Ferrari Formula 1", index: "Ferrari Sentiment" },
+  { query: "McLaren F1 racing", index: "McLaren Sentiment" },
+  { query: "Mercedes F1 team", index: "Mercedes Sentiment" },
+  { query: "Denver Broncos NFL", index: "Denver Broncos Sentiment" },
+  { query: "France national soccer team", index: "France National Team Sentiment" },
+  { query: "Spain national soccer team", index: "Spain National Team Sentiment" },
+  // Health
+  { query: "Alzheimer's disease treatment", index: "Alzheimer's Sentiment" },
+  { query: "mental health crisis news", index: "Mental Health Sentiment" },
+  { query: "cancer research breakthrough", index: "Cancer Research Sentiment" },
+  { query: "type 2 diabetes treatment", index: "Type 2 Diabetes Sentiment" },
+  { query: "flu season influenza news", index: "Seasonal Influenza Sentiment" },
+  { query: "Wegovy semaglutide news", index: "Wegovy Sentiment" },
+  // Cultural
+  { query: "traditional values conservative news", index: "Traditional Values Sentiment" },
+  { query: "progressive liberal politics news", index: "Progressive Values Sentiment" },
+  { query: "masculinity men culture news", index: "Masculinity Discourse Sentiment" },
+  { query: "feminism women rights news", index: "Feminism Wave Sentiment" },
+  // Regional
+  { query: "California politics news", index: "California Sentiment" },
+  { query: "Texas politics news", index: "Texas Sentiment" },
+  { query: "Florida politics news", index: "Florida Sentiment" },
+  { query: "New York city news", index: "New York Sentiment" },
+  { query: "China economy news", index: "China Sentiment" },
+  { query: "Germany economy news", index: "Germany Sentiment" },
+  { query: "United States economy news", index: "United States Sentiment" },
+  // Universities
+  { query: "Harvard University news", index: "Harvard University Sentiment" },
+  { query: "Yale University news", index: "Yale University Sentiment" },
+  { query: "Ohio State University news", index: "Ohio State University Sentiment" },
+  { query: "University of Michigan news", index: "University of Michigan Sentiment" },
 ];
 
 async function fetchGoogleSearchBatch(): Promise<void> {
