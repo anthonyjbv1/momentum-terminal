@@ -144,6 +144,7 @@ export function useAssetPrices() {
     queryFn: async () => {
       if (!actor) return [];
       const prices = await actor.getAssetPrices();
+      console.log("[useAssetPrices] canister returned:", prices.length, "assets");
 
       const roundTo2 = (n: number) => Math.round(n * 100) / 100;
 
