@@ -43,6 +43,7 @@ const ALLOC_100_HOLDINGS_SUFFIX = "sentimentam_100_alloc_holdings_v1";
 const PNL_UNLOCKED_SUFFIX = "sentimentam_pnl_unlocked_v1";
 const KEY_MIGRATION_SUFFIX = "sentimentam_key_migration_v1";
 const SHORT_COST_BASIS_SUFFIX = "sentimentam_short_cost_basis_v1";
+const LOCAL_VOLUME_SUFFIX = "sentimentam_local_volume_v1";
 
 // ── One-time localStorage key migration ─────────────────────────────────────
 // Renames the original 3 engine keys (which carried an 'Index' suffix) to
@@ -139,6 +140,8 @@ interface LocalHoldingsContextValue {
   shortCostBasisMap: Map<string, number>;
   /** Record dollars spent opening a short position. Accumulates across top-ups. */
   addShortCostBasis: (indexName: string, dollars: number) => void;
+  /** Cumulative local buy volume per index (dollars). Merges with canister volume for Vol. display. */
+  localVolumeMap: Map<string, number>;
   /** Add units to an index holding. costBasis = dollars spent on this allocation. */
   addHolding: (indexName: string, units: number, costBasis?: number) => void;
   /** Remove all units from an index holding. Resets cost basis and P&L unlock flag. */
@@ -284,6 +287,7 @@ export function LocalHoldingsProvider({
   const [holdingsMap, setHoldingsMap] = useState<LocalHoldingsMap>(new Map());
   const [costBasisMap, setCostBasisMap] = useState<CostBasisMap>(new Map());
   const [shortCostBasisMap, setShortCostBasisMap] = useState<Map<string, number>>(new Map());
+  const [localVolumeMap, setLocalVolumeMap] = useState<Map<string, number>>(new Map());
   const [pnlUnlockedMap, setPnlUnlockedMap] = useState<PnlUnlockedMap>(
     new Map(),
   );
@@ -323,6 +327,16 @@ export function LocalHoldingsProvider({
       if (rawShort) {
         const parsed = JSON.parse(rawShort) as Record<string, number>;
         setShortCostBasisMap(new Map(Object.entries(parsed)));
+      }
+    } catch {
+      // malformed — start empty
+    }
+
+    try {
+      const rawVol = localStorage.getItem(k(userId, LOCAL_VOLUME_SUFFIX));
+      if (rawVol) {
+        const parsed = JSON.parse(rawVol) as Record<string, number>;
+        setLocalVolumeMap(new Map(Object.entries(parsed)));
       }
     } catch {
       // malformed — start empty
@@ -491,6 +505,23 @@ export function LocalHoldingsProvider({
       });
       // Stream #4: record buy-side order flow
       recordOrderFlowEvent(indexName, costBasis ?? 0);
+
+      // Track local volume per index (persisted so Vol. label survives refresh)
+      if (costBasis && costBasis > 0) {
+        setLocalVolumeMap((prev) => {
+          const next = new Map(prev);
+          next.set(indexName, (next.get(indexName) ?? 0) + costBasis);
+          try {
+            localStorage.setItem(
+              k(userId, LOCAL_VOLUME_SUFFIX),
+              JSON.stringify(Object.fromEntries(next)),
+            );
+          } catch {
+            // quota exceeded
+          }
+          return next;
+        });
+      }
     },
     [userId],
   );
@@ -641,6 +672,7 @@ export function LocalHoldingsProvider({
         holdings,
         costBasisMap,
         shortCostBasisMap,
+        localVolumeMap,
         pnlUnlockedMap,
         addHolding,
         addShortCostBasis,

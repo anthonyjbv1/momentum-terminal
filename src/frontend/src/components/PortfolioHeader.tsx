@@ -751,7 +751,14 @@ export function PortfolioHeader({
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          portfolioHistoryRef.current = parsed;
+          // Discard any entries from the old { value, tick } format (no ts field)
+          portfolioHistoryRef.current = parsed.filter(
+            (e: unknown) =>
+              typeof e === "object" &&
+              e !== null &&
+              typeof (e as Record<string, unknown>).ts === "number" &&
+              typeof (e as Record<string, unknown>).value === "number",
+          );
         }
       }
     } catch {

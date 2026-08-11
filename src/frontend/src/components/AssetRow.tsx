@@ -401,7 +401,7 @@ function AssetRowInner({
   } = useWalletContext();
   const { data: allHoldings, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
-  const { clearHolding, redeemPartialHolding } = useLocalHoldings();
+  const { clearHolding, redeemPartialHolding, localVolumeMap } = useLocalHoldings();
 
   // B4: Per-position loyalty tier — each index has its own independent clock
   const { getPositionTier, clearPositionTier } = useLoyalty();
@@ -805,7 +805,7 @@ function AssetRowInner({
         <div className="sm:hidden absolute top-2 right-2 z-10 flex items-center justify-center shrink-0">
           <SentimentArc
             scores={scoreHistoryMap.get(asset.name) ?? []}
-            allocatedCapital={platformVolumeByIndex[asset.name] ?? 0}
+            allocatedCapital={(platformVolumeByIndex[asset.name] ?? 0) + (localVolumeMap.get(asset.name) ?? 0)}
             onClick={() => setShowScoreHistory(true)}
             ariaLabel={`View score history for ${asset.name}`}
             size={60}
@@ -1023,7 +1023,7 @@ function AssetRowInner({
                 >
                   <SentimentArc
                     scores={scoreHistoryMap.get(asset.name) ?? []}
-                    allocatedCapital={platformVolumeByIndex[asset.name] ?? 0}
+                    allocatedCapital={(platformVolumeByIndex[asset.name] ?? 0) + (localVolumeMap.get(asset.name) ?? 0)}
                     onClick={() => setShowScoreHistory(true)}
                     ariaLabel={`View score history for ${asset.name}`}
                   />
