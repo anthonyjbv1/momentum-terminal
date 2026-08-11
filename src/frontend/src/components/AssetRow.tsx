@@ -1256,6 +1256,7 @@ function AssetRowInner({
                   borderRadius: "0.75rem",
                   backgroundColor: "#000000",
                   border: "1px solid #2a2a2a",
+                  fontFamily: "'Inter', system-ui, sans-serif",
                 }}
               >
                 {/* ── Queued Confirmation Panel ── */}
