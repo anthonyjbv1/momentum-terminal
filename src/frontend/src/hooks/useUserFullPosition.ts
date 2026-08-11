@@ -1,6 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import type { FullPositionView } from "../backend";
-import { useActor } from "./useActor";
+import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
+import { useOracleTick } from "../contexts/OracleTickContext";
 
 export interface UserFullPosition {
   longUnits: number;
@@ -11,41 +10,29 @@ export interface UserFullPosition {
   shortMarkToMarket: number;
 }
 
-const REFRESH_INTERVAL_MS = 30_000;
-const STALE_TIME_MS = 10_000;
+const SPREAD = 0.5;
 
 export function useUserFullPosition(assetName: string) {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { shortPositions } = useLocalHoldings();
+  const { finalScores } = useOracleTick();
 
-  return useQuery<UserFullPosition | null>({
-    queryKey: ["userFullPosition", assetName],
-    queryFn: async () => {
-      if (!actor) return null;
-      const result: FullPositionView =
-        await actor.getUserFullPosition(assetName);
-      console.log(
-        "[useUserFullPosition] raw backend response:",
-        JSON.stringify(result),
-      );
-      console.log("[useUserFullPosition] mapped output:", {
-        longUnits: result?.longUnits,
-        longEntryScore: result?.longEntryScore,
-        longMarkToMarket: result?.longMarkToMarketValue,
-        shortUnits: result?.shortUnits,
-        shortEntryScore: result?.shortEntryScore,
-        shortMarkToMarket: result?.shortMarkToMarketValue,
-      });
-      return {
-        longUnits: result.longUnits,
-        longEntryScore: result.longEntryScore,
-        longMarkToMarket: result.longMarkToMarketValue,
-        shortUnits: result.shortUnits,
-        shortEntryScore: result.shortEntryScore,
-        shortMarkToMarket: result.shortMarkToMarketValue,
-      };
-    },
-    enabled: !!actor && !actorFetching && !!assetName,
-    refetchInterval: REFRESH_INTERVAL_MS,
-    staleTime: STALE_TIME_MS,
-  });
+  const short = shortPositions.get(assetName);
+  const currentScore = finalScores.get(assetName) ?? 50;
+
+  // Short mark-to-market: profit when score falls below entry
+  // value = units * (entryScore - currentScore + spread) clamped to 0
+  const shortMTM = short
+    ? Math.max(0, short.units * (short.entryScore - currentScore + SPREAD))
+    : 0;
+
+  const data: UserFullPosition = {
+    longUnits: 0,
+    longEntryScore: 0,
+    longMarkToMarket: 0,
+    shortUnits: short?.units ?? 0,
+    shortEntryScore: short?.entryScore ?? 0,
+    shortMarkToMarket: shortMTM,
+  };
+
+  return { data, isLoading: false, isError: false };
 }

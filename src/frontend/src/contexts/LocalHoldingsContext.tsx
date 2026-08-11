@@ -43,6 +43,7 @@ const ALLOC_100_HOLDINGS_SUFFIX = "sentimentam_100_alloc_holdings_v1";
 const PNL_UNLOCKED_SUFFIX = "sentimentam_pnl_unlocked_v1";
 const KEY_MIGRATION_SUFFIX = "sentimentam_key_migration_v1";
 const SHORT_COST_BASIS_SUFFIX = "sentimentam_short_cost_basis_v1";
+const SHORT_POSITIONS_SUFFIX = "sentimentam_short_positions_v1";
 const LOCAL_VOLUME_SUFFIX = "sentimentam_local_volume_v1";
 
 // ── One-time localStorage key migration ─────────────────────────────────────
@@ -126,6 +127,12 @@ export type LocalHoldingsMap = Map<string, Holding>;
 export type CostBasisMap = Map<string, number>;
 export type PnlUnlockedMap = Map<string, boolean>;
 
+export interface ShortPosition {
+  units: number;
+  entryScore: number;
+  dollars: number;
+}
+
 interface LocalHoldingsContextValue {
   /** All holdings as a [name, Holding][] array — matches backend format */
   holdings: Array<[string, Holding]>;
@@ -144,6 +151,12 @@ interface LocalHoldingsContextValue {
   localVolumeMap: Map<string, number>;
   /** Add dollars to local volume for an index (buy, short, or redeem). */
   addLocalVolume: (indexName: string, dollars: number) => void;
+  /** All open short positions keyed by index name. */
+  shortPositions: Map<string, ShortPosition>;
+  /** Open or add to a short position. */
+  openShort: (indexName: string, units: number, entryScore: number, dollars: number) => void;
+  /** Close a short position entirely. */
+  closeShort: (indexName: string) => void;
   /** Add units to an index holding. costBasis = dollars spent on this allocation. */
   addHolding: (indexName: string, units: number, costBasis?: number) => void;
   /** Remove all units from an index holding. Resets cost basis and P&L unlock flag. */
@@ -290,6 +303,7 @@ export function LocalHoldingsProvider({
   const [costBasisMap, setCostBasisMap] = useState<CostBasisMap>(new Map());
   const [shortCostBasisMap, setShortCostBasisMap] = useState<Map<string, number>>(new Map());
   const [localVolumeMap, setLocalVolumeMap] = useState<Map<string, number>>(new Map());
+  const [shortPositions, setShortPositions] = useState<Map<string, ShortPosition>>(new Map());
   const [pnlUnlockedMap, setPnlUnlockedMap] = useState<PnlUnlockedMap>(
     new Map(),
   );
@@ -339,6 +353,16 @@ export function LocalHoldingsProvider({
       if (rawVol) {
         const parsed = JSON.parse(rawVol) as Record<string, number>;
         setLocalVolumeMap(new Map(Object.entries(parsed)));
+      }
+    } catch {
+      // malformed — start empty
+    }
+
+    try {
+      const rawShorts = localStorage.getItem(k(userId, SHORT_POSITIONS_SUFFIX));
+      if (rawShorts) {
+        const parsed = JSON.parse(rawShorts) as Record<string, ShortPosition>;
+        setShortPositions(new Map(Object.entries(parsed)));
       }
     } catch {
       // malformed — start empty
@@ -484,6 +508,58 @@ export function LocalHoldingsProvider({
       addLocalVolume(indexName, dollars);
     },
     [userId, addLocalVolume],
+  );
+
+  const openShort = useCallback(
+    (indexName: string, units: number, entryScore: number, dollars: number) => {
+      if (!userId || units <= 0) return;
+      setShortPositions((prev) => {
+        const next = new Map(prev);
+        const existing = next.get(indexName);
+        if (existing) {
+          const totalUnits = existing.units + units;
+          const totalDollars = existing.dollars + dollars;
+          next.set(indexName, {
+            units: totalUnits,
+            entryScore: totalDollars / totalUnits, // dollar-weighted avg entry
+            dollars: totalDollars,
+          });
+        } else {
+          next.set(indexName, { units, entryScore, dollars });
+        }
+        try {
+          localStorage.setItem(
+            k(userId, SHORT_POSITIONS_SUFFIX),
+            JSON.stringify(Object.fromEntries(next)),
+          );
+        } catch {
+          // quota exceeded
+        }
+        return next;
+      });
+      addLocalVolume(indexName, dollars);
+    },
+    [userId, addLocalVolume],
+  );
+
+  const closeShort = useCallback(
+    (indexName: string) => {
+      if (!userId) return;
+      setShortPositions((prev) => {
+        const next = new Map(prev);
+        next.delete(indexName);
+        try {
+          localStorage.setItem(
+            k(userId, SHORT_POSITIONS_SUFFIX),
+            JSON.stringify(Object.fromEntries(next)),
+          );
+        } catch {
+          // quota exceeded
+        }
+        return next;
+      });
+    },
+    [userId],
   );
 
   const addHolding = useCallback(
@@ -682,6 +758,9 @@ export function LocalHoldingsProvider({
         shortCostBasisMap,
         localVolumeMap,
         addLocalVolume,
+        shortPositions,
+        openShort,
+        closeShort,
         pnlUnlockedMap,
         addHolding,
         addShortCostBasis,

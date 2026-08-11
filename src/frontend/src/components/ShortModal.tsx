@@ -6,7 +6,6 @@ import { createPortal } from "react-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
 import { useWalletContext } from "../contexts/WalletContext";
-import { useActor } from "../hooks/useActor";
 import { useMomentumTemperature } from "../hooks/useMomentumTemperature";
 
 interface ShortModalProps {
@@ -92,11 +91,10 @@ export function ShortModal({
   const previewRef = useRef<HTMLDivElement>(null);
   const { walletBalance, deductFunds, logSpend } = useWalletContext();
   const { userAccount } = useAuth();
-  const { addShortCostBasis } = useLocalHoldings();
+  const { addShortCostBasis, openShort } = useLocalHoldings();
   const userId = userAccount?.email ?? "";
   const temperature = useMomentumTemperature(assetName, category);
   const queryClient = useQueryClient();
-  const { actor } = useActor();
 
   // Derived limit values — short-specific: cap is shortPositionCap (default 500)
   const userRemainingAllowance = Math.max(
@@ -289,52 +287,19 @@ export function ShortModal({
     // Log short allocation to activity history
     logSpend(parsedAmount, assetName, unitsShorted, buyPrice);
 
-    // ── Backend call: actor.allocateShort(assetName, parsedAmount) ──────────
-    // Same actor invocation pattern as AllocationModal's allocateFunds call.
-    if (!actor) {
-      setErrorMsg("Backend connection unavailable. Please try again.");
+    // ── Local short position — no canister dependency ────────────────────────
+    openShort(assetName, unitsShorted, buyPrice, parsedAmount);
+    addShortCostBasis(assetName, parsedAmount);
+
+    // Invalidate assetPrices so capacity bar updates
+    queryClient.invalidateQueries({ queryKey: ["assetPrices"] });
+
+    setTimeout(() => {
+      setInputValue("");
+      setErrorMsg("");
       setIsProcessing(false);
-      return;
-    }
-
-    actor
-      .allocateShort(assetName, parsedAmount)
-      .then(
-        (
-          result:
-            | { __kind__: "ok"; ok: { unitsOpened: number } }
-            | { __kind__: "err"; err: string },
-        ) => {
-          if (result.__kind__ === "ok") {
-            // Record the cost basis for this short so P&L can be computed
-            addShortCostBasis(assetName, parsedAmount);
-
-            // Invalidate userFullPosition query so the position view refreshes
-            queryClient.invalidateQueries({
-              queryKey: ["userFullPosition", assetName],
-            });
-            // Also invalidate assetPrices so capacity bar updates
-            queryClient.invalidateQueries({ queryKey: ["assetPrices"] });
-
-            // Brief processing delay, then trigger close animation
-            setTimeout(() => {
-              setInputValue("");
-              setErrorMsg("");
-              setIsProcessing(false);
-              setIsVisible(false);
-              // onClose() fires in onAnimationComplete after the exit fade completes
-            }, 600);
-          } else {
-            setErrorMsg(`SHORT FAILED: ${result.err}`);
-            setIsProcessing(false);
-          }
-        },
-      )
-      .catch((err: unknown) => {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        setErrorMsg(`SHORT FAILED: ${message}`);
-        setIsProcessing(false);
-      });
+      setIsVisible(false);
+    }, 600);
   };
 
   if (!shouldRender) return null;
