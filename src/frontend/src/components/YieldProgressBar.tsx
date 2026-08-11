@@ -1,4 +1,4 @@
-import { TrendingDown, TrendingUp } from "lucide-react";
+// lucide icons removed — badges removed per product decision
 import { useEffect } from "react";
 
 interface YieldProgressBarProps {
@@ -47,58 +47,17 @@ export function YieldProgressBar({
   // ── P&L VIEW (after one-way unlock) ────────────────────────────────────────
   if (hasUnlockedPnL) {
     // ── PROFIT ZONE (net profit >= 0) — exact existing green UI, untouched ──
-    if (adjustedProfit >= 0) {
-      return (
-        <div className="mt-2.5 w-full">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className="inline-block w-1.5 h-1.5 rounded-full animate-pulse shrink-0"
-              style={{ backgroundColor: "#4ade80" }}
-            />
-
-            <span className="text-green-400 font-mono font-bold text-xs">
-              +{fmtDollar(adjustedProfit)} (+{roi.toFixed(2)}%)
-            </span>
-
-            <span
-              className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-sm border text-[9px] uppercase tracking-widest font-bold"
-              style={{
-                backgroundColor: "rgba(74,222,128,0.08)",
-                borderColor: "rgba(74,222,128,0.3)",
-                color: "#4ade80",
-              }}
-            >
-              <TrendingUp className="w-2.5 h-2.5" />
-              Profit Zone
-            </span>
-          </div>
-        </div>
-      );
-    }
-
-    // ── DRAWDOWN (net profit < 0) — pulsing dot, red P&L text, and DRAWDOWN badge inline ──
+    const profitColor = adjustedProfit >= 0 ? "#4ade80" : "#f87171";
+    const sign = adjustedProfit >= 0 ? "+" : "-";
     return (
       <div className="mt-2.5 w-full">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
           <span
             className="inline-block w-1.5 h-1.5 rounded-full animate-pulse shrink-0"
-            style={{ backgroundColor: "#ef4444" }}
+            style={{ backgroundColor: profitColor }}
           />
-
-          <span className="text-red-400 font-mono font-bold text-xs">
-            -{fmtDollar(adjustedProfit)} (-{Math.abs(roi).toFixed(2)}%)
-          </span>
-
-          <span
-            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-sm border text-[9px] uppercase tracking-widest font-bold ml-auto"
-            style={{
-              backgroundColor: "rgba(248,113,113,0.08)",
-              borderColor: "rgba(248,113,113,0.3)",
-              color: "#f87171",
-            }}
-          >
-            <TrendingDown className="w-2.5 h-2.5" />
-            Drawdown
+          <span className="font-mono font-bold text-xs" style={{ color: profitColor }}>
+            {sign}{fmtDollar(adjustedProfit)} ({sign}{Math.abs(roi).toFixed(2)}%)
           </span>
         </div>
       </div>

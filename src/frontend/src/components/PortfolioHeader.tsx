@@ -233,9 +233,6 @@ function HoldingRow({
             {INDEX_DISPLAY_NAMES[name] ?? name}
           </button>
           {direction && <DirectionPill direction={direction} />}
-          <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold shrink-0 bg-white/[0.04] text-muted-foreground">
-            {category}
-          </span>
         </div>
 
         {/* Right: score + price + shares + value */}
@@ -290,44 +287,6 @@ function HoldingRow({
         onUnlock={onUnlock}
       />
 
-      {/* Feature I — Utilization bar */}
-      <div className="mt-1.5">
-        <div className="flex items-center justify-between mb-0.5">
-          <span className="text-[9px] font-mono text-muted-foreground uppercase tracking-widest">
-            Pool:{" "}
-            {platformAllocated >= 1000
-              ? `$${(platformAllocated / 1000).toFixed(1)}k`
-              : fmt(platformAllocated)}
-          </span>
-          <span className="text-[9px] font-mono text-muted-foreground">
-            {(utilizationRatio * 100).toFixed(0)}% util
-          </span>
-        </div>
-        <div className="h-[2px] bg-white/10 rounded-full">
-          <div
-            className={`h-full rounded-full transition-all duration-500 ${utilizationBarColor}`}
-            style={{ width: `${utilizationRatio * 100}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Feature A — Sparkline (separator + chart) */}
-      {sparkData.length >= 2 && (
-        <div className="hidden sm:block border-t border-border/20 mt-1 pt-1 opacity-60">
-          <ResponsiveContainer width="100%" height={32}>
-            <LineChart data={sparkData}>
-              <Line
-                type="monotone"
-                dataKey="v"
-                stroke={sparkStroke}
-                strokeWidth={1.5}
-                dot={false}
-                isAnimationActive={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      )}
     </motion.div>
   );
 }
@@ -616,11 +575,6 @@ function IndexSlideOver({
             {selectedIndex}
           </p>
           <div className="flex items-center gap-2 mt-1">
-            <span
-              className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold ${idxCatColors.badge} ${idxCatColors.text}`}
-            >
-              {idxCategory}
-            </span>
             {hasShort && (
               <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold bg-red-950/40 text-red-400">
                 SHORT
@@ -639,11 +593,6 @@ function IndexSlideOver({
             <div className="flex items-center gap-2 mb-3">
               <span className="text-foreground text-sm font-medium leading-tight">
                 {selectedIndex}
-              </span>
-              <span
-                className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold ${idxCatColors.badge} ${idxCatColors.text}`}
-              >
-                {idxCategory}
               </span>
             </div>
 
@@ -769,7 +718,12 @@ export function PortfolioHeader({
   // Portfolio history accumulator — push on each Oracle tick
   useEffect(() => {
     if (totalPortfolioValue <= 0) return;
-    const entry = { value: totalPortfolioValue, ts: Date.now() };
+    const prev = portfolioHistoryRef.current;
+    const last = prev[prev.length - 1];
+    // Always record; skip only exact duplicates within the same minute
+    const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
+    if (sameMinute && last.value === totalPortfolioValue) return;
+    const entry = { value: Math.round(totalPortfolioValue * 100) / 100, ts: Date.now() };
     portfolioHistoryRef.current = [
       ...portfolioHistoryRef.current,
       entry,
