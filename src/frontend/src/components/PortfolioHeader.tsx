@@ -30,19 +30,9 @@ import { DepositModal } from "./DepositModal";
 import { YieldProgressBar } from "./YieldProgressBar";
 
 // ── God-Tier base scores — fallback pricing when backend has no entry ─────────
-const GOD_TIER_BASE_SCORES: Record<string, number> = {
-  "AI Regulation Risk Sentiment": 75.0,
-  "Fed Policy Sentiment": 50.0,
-  "MENA Stability Sentiment": 48.5,
-  "Traditional Values Sentiment": 50.0,
-  "Progressive Values Sentiment": 50.0,
-  "Masculinity Discourse Sentiment": 50.0,
-  "Feminism Wave Sentiment": 50.0,
-  "F1 Constructor Sentiment": 50.0,
-  "NASCAR Racing Sentiment": 50.0,
-  "Obesity Drug Sentiment": 50.0,
-  "Whole Food & Wellness Sentiment": 50.0,
-};
+const GOD_TIER_BASE_SCORES: Record<string, number> = Object.fromEntries(
+  FALLBACK_ASSET_DEFS.map((d) => [d.name, d.baseScore]),
+);
 
 const BASE_SCORE_FALLBACK = 50.0;
 const SPREAD = 0.5;
@@ -617,19 +607,7 @@ export function PortfolioHeader({
   }
 
   // ── Active holdings (units > 0, God-Tier only) ──────────────────────────────
-  const GOD_TIER = new Set([
-    "AI Regulation Risk Sentiment",
-    "Fed Policy Sentiment",
-    "MENA Stability Sentiment",
-    "Traditional Values Sentiment",
-    "Progressive Values Sentiment",
-    "Masculinity Discourse Sentiment",
-    "Feminism Wave Sentiment",
-    "F1 Constructor Sentiment",
-    "NASCAR Racing Sentiment",
-    "Obesity Drug Sentiment",
-    "Whole Food & Wellness Sentiment",
-  ]);
+  const GOD_TIER = new Set(FALLBACK_ASSET_DEFS.map((d) => d.name));
 
   const activeHoldings: Array<{ name: string; holding: Holding }> = [];
   let holdingsTotal = 0;
