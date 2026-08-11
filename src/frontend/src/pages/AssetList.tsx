@@ -31,94 +31,13 @@ const FALLBACK_ASSETS: AssetPriceWithCapacity[] = FALLBACK_ASSET_DEFS.map((def) 
 
 // ─── Asset Registry ────────────────────────────────────────────────────────────────────────────────────
 // Full registry kept intact — filtering applied at render layer only.
-export const allAssets = [
-  // Macro
-  {
-    id: "fed-policy-index",
-    name: "Fed Policy Sentiment",
-    category: "MACRO",
-    baseScore: 50.0,
-    subLabel: "MACRO NARRATIVE",
-  },
-
-  // Geopolitical
-  {
-    id: "geopolitical-mena",
-    name: "MENA Stability Sentiment",
-    category: "GEOPOLITICAL",
-    baseScore: 48.5,
-    subLabel: "GEOPOLITICAL NARRATIVE",
-  },
-  {
-    id: "ai-tech-regulation-index",
-    name: "AI Regulation Risk Sentiment",
-    category: "TECHNOLOGY",
-    baseScore: 75.0,
-    subLabel: "TECHNOLOGY NARRATIVE",
-  },
-
-  // Cultural
-  {
-    id: "traditional-values-narrative-index",
-    name: "Traditional Values Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    subLabel: "CULTURAL NARRATIVE",
-  },
-  {
-    id: "progressive-values-narrative-index",
-    name: "Progressive Values Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    subLabel: "CULTURAL NARRATIVE",
-  },
-  {
-    id: "masculinity-discourse-sentiment",
-    name: "Masculinity Discourse Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    subLabel: "CULTURAL NARRATIVE",
-  },
-  {
-    id: "feminism-wave-sentiment",
-    name: "Feminism Wave Sentiment",
-    category: "CULTURAL",
-    baseScore: 50.0,
-    subLabel: "CULTURAL NARRATIVE",
-  },
-
-  // Sports
-  {
-    id: "f1-constructor-sentiment",
-    name: "F1 Constructor Sentiment",
-    category: "SPORTS",
-    baseScore: 50.0,
-    subLabel: "SPORTS NARRATIVE",
-  },
-  {
-    id: "nascar-racing-sentiment",
-    name: "NASCAR Racing Sentiment",
-    category: "SPORTS",
-    baseScore: 50.0,
-    subLabel: "SPORTS NARRATIVE",
-  },
-
-  // Health
-  {
-    id: "obesity-drug-sentiment",
-    name: "Obesity Drug Sentiment",
-    category: "HEALTH",
-    baseScore: 50.0,
-    subLabel: "HEALTH NARRATIVE",
-  },
-  {
-    id: "whole-food-wellness-sentiment",
-    name: "Whole Food & Wellness Sentiment",
-    category: "HEALTH",
-    baseScore: 50.0,
-    subLabel: "HEALTH NARRATIVE",
-  },
-];
+export const allAssets = FALLBACK_ASSET_DEFS.map((def) => ({
+  id: def.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+  name: def.name,
+  category: def.category,
+  baseScore: def.baseScore,
+  subLabel: `${def.category} NARRATIVE`,
+}));
 
 export type AssetEntry = (typeof allAssets)[number];
 
