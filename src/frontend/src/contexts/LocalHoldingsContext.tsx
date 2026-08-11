@@ -274,18 +274,25 @@ function loadFromStorage(userId: string): {
   }
 }
 
+// Fixed key the oracle pipeline reads (no userId prefix — pipeline has no auth context)
+const PIPELINE_ALLOCATION_KEY = "sentimentam_local_holdings_v5";
+
 function saveToStorage(
   userId: string,
   map: LocalHoldingsMap,
   costBasisMap: CostBasisMap,
 ): void {
+  const serialized = serialize(map, costBasisMap);
   try {
-    localStorage.setItem(
-      k(userId, HOLDINGS_STORAGE_SUFFIX),
-      serialize(map, costBasisMap),
-    );
+    localStorage.setItem(k(userId, HOLDINGS_STORAGE_SUFFIX), serialized);
   } catch {
     // ignore storage errors
+  }
+  // Mirror to the fixed key so the oracle pipeline can read live allocation ratios
+  try {
+    localStorage.setItem(PIPELINE_ALLOCATION_KEY, serialized);
+  } catch {
+    // ignore
   }
 }
 
