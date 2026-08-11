@@ -11,6 +11,7 @@ import {
   LineChart,
   ResponsiveContainer,
   Tooltip,
+  XAxis,
   YAxis,
 } from "recharts";
 import { useAuth } from "../contexts/AuthContext";
@@ -731,7 +732,7 @@ export function PortfolioHeader({
   const [sortMode, setSortMode] = useState<
     "default" | "newest" | "oldest" | "capital" | "pct_change"
   >("default");
-  const [timeRange, setTimeRange] = useState<"1H" | "6H" | "ALL">("1H");
+  const [timeRange, setTimeRange] = useState<"LIVE" | "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL">("1D");
   const [scrubbedValue, setScrubbedValue] = useState<number | null>(null);
 
   const PORTFOLIO_HISTORY_KEY = userId
@@ -773,7 +774,7 @@ export function PortfolioHeader({
     portfolioHistoryRef.current = [
       ...portfolioHistoryRef.current,
       entry,
-    ].slice(-2880); // 48h at 1 tick/min
+    ].slice(-525600); // up to 1Y at 1 tick/min
     if (PORTFOLIO_HISTORY_KEY) {
       try {
         localStorage.setItem(
@@ -911,8 +912,17 @@ export function PortfolioHeader({
   const filteredHistory = useMemo(() => {
     const all = portfolioHistoryRef.current;
     const now = Date.now();
-    if (timeRange === "1H") return all.filter((p) => p.ts >= now - 60 * 60 * 1000);
-    if (timeRange === "6H") return all.filter((p) => p.ts >= now - 6 * 60 * 60 * 1000);
+    const MS = (h: number) => h * 60 * 60 * 1000;
+    if (timeRange === "LIVE") return all.filter((p) => p.ts >= now - MS(0.5));
+    if (timeRange === "1D")   return all.filter((p) => p.ts >= now - MS(24));
+    if (timeRange === "1W")   return all.filter((p) => p.ts >= now - MS(24 * 7));
+    if (timeRange === "1M")   return all.filter((p) => p.ts >= now - MS(24 * 30));
+    if (timeRange === "3M")   return all.filter((p) => p.ts >= now - MS(24 * 90));
+    if (timeRange === "YTD") {
+      const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
+      return all.filter((p) => p.ts >= jan1);
+    }
+    if (timeRange === "1Y")   return all.filter((p) => p.ts >= now - MS(24 * 365));
     return all;
   }, [timeRange, tickCount]);
 
@@ -1186,121 +1196,158 @@ export function PortfolioHeader({
         </div>
 
         {/* Scrubable Portfolio Chart */}
-        <div className="px-4 pb-4 pt-3 border-b border-border/30">
-          {/* Delta indicator */}
-          {filteredHistory.length >= 2 &&
-            (() => {
-              const first = filteredHistory[0].value;
-              const current = scrubbedValue ?? totalPortfolioValue;
-              const delta = current - first;
-              const pct = first > 0 ? (delta / first) * 100 : 0;
-              const isPos = delta >= 0;
-              return (
-                <div
-                  className={`text-xs font-mono mb-2 ${isPos ? "text-green-400" : "text-red-400"}`}
-                >
-                  {isPos ? "+" : ""}
-                  {new Intl.NumberFormat("en-US", {
-                    style: "currency",
-                    currency: "USD",
-                  }).format(delta)}{" "}
-                  ({isPos ? "▲" : "▼"} {Math.abs(pct).toFixed(2)}%)
-                </div>
-              );
-            })()}
-
-          {/* Time range tabs */}
-          <div className="flex gap-1 mb-3">
-            {(["1H", "6H", "ALL"] as const).map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                data-ocid={`portfolio.chart.range.${tab.toLowerCase()}`}
-                onClick={() => setTimeRange(tab)}
-                className={
-                  timeRange === tab
-                    ? "bg-white/10 text-white rounded-full px-3 py-0.5 text-xs font-semibold"
-                    : "text-muted-foreground text-xs px-3 py-0.5 cursor-pointer hover:text-white transition-colors rounded-full"
-                }
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
+        <div className="px-4 pb-2 pt-3 border-b border-border/30">
           {/* Chart area */}
           {filteredHistory.length >= 2 ? (
-            <div className="h-[120px] sm:h-[140px]">
-              {(() => {
-                const chartFirst = filteredHistory[0].value;
-                const chartLast = filteredHistory[filteredHistory.length - 1].value;
-                const chartUp = chartLast >= chartFirst;
-                const chartColor = chartUp ? "#4ade80" : "#f87171";
-                return (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={filteredHistory}
-                  margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
-                  onMouseMove={(e: {
-                    activePayload?: Array<{ value: number }>;
-                  }) => {
-                    if (e?.activePayload && e.activePayload.length > 0) {
-                      setScrubbedValue(e.activePayload[0].value);
-                    }
-                  }}
-                  onMouseLeave={() => setScrubbedValue(null)}
-                >
-                  <defs>
-                    <linearGradient
-                      id="portfolioChartGradient"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.15} />
-                      <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <YAxis domain={["dataMin", "dataMax"]} hide />
-                  <Tooltip
-                    cursor={{
-                      stroke: chartColor,
-                      strokeWidth: 1,
-                      strokeOpacity: 0.5,
-                    }}
-                    content={({ active, payload }) => {
-                      if (!active || !payload || !payload.length) return null;
-                      const point = payload[0].payload as { value: number; ts: number };
-                      const time = new Date(point.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                      return (
-                        <div className="bg-card border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground flex flex-col gap-0.5">
-                          <span className="text-muted-foreground text-[10px]">{time}</span>
-                          <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[0].value as number)}</span>
-                        </div>
-                      );
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke={chartColor}
-                    strokeWidth={1.5}
-                    fill="url(#portfolioChartGradient)"
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            (() => {
+              const chartFirst = filteredHistory[0].value;
+              const chartLast = filteredHistory[filteredHistory.length - 1].value;
+              const displayVal = scrubbedValue ?? totalPortfolioValue;
+              const delta = displayVal - chartFirst;
+              const pct = chartFirst > 0 ? (delta / chartFirst) * 100 : 0;
+              const isPos = delta >= 0;
+              const chartColor = chartLast >= chartFirst ? "#4ade80" : "#f87171";
+              const fmtLabel = (ts: number) => {
+                const d = new Date(ts);
+                if (timeRange === "LIVE" || timeRange === "1D") {
+                  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                }
+                if (timeRange === "1W") {
+                  return d.toLocaleDateString([], { weekday: "short" });
+                }
+                return d.toLocaleDateString([], { month: "short", day: "numeric" });
+              };
+              // Thin out data for longer ranges to keep chart snappy
+              const thinned = (() => {
+                const h = filteredHistory;
+                if (h.length <= 300) return h;
+                const step = Math.ceil(h.length / 300);
+                return h.filter((_, i) => i % step === 0 || i === h.length - 1);
+              })();
+              // X-axis tick positions (evenly spaced from thinned data)
+              const xTicks = (() => {
+                if (thinned.length < 2) return [];
+                const count = 4;
+                const indices = Array.from({ length: count }, (_, i) =>
+                  Math.round((i / (count - 1)) * (thinned.length - 1))
                 );
-              })()}
-            </div>
+                return indices.map((i) => thinned[i].ts);
+              })();
+              return (
+                <div>
+                  {/* Delta row */}
+                  <div className={`text-xs font-mono mb-3 ${isPos ? "text-green-400" : "text-red-400"}`}>
+                    {isPos ? "+" : ""}
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(delta)}{" "}
+                    <span className="opacity-75">({isPos ? "+" : ""}{pct.toFixed(2)}%)</span>
+                    {scrubbedValue !== null && (
+                      <span className="text-muted-foreground font-normal ml-2">
+                        {new Date((filteredHistory.find(p => p.value === scrubbedValue)?.ts ?? Date.now())).toLocaleDateString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Chart */}
+                  <div className="h-[160px] sm:h-[180px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart
+                        data={thinned}
+                        margin={{ top: 4, right: 0, left: 0, bottom: 0 }}
+                        onMouseMove={(e: { activePayload?: Array<{ value: number }> }) => {
+                          if (e?.activePayload && e.activePayload.length > 0) {
+                            setScrubbedValue(e.activePayload[0].value);
+                          }
+                        }}
+                        onMouseLeave={() => setScrubbedValue(null)}
+                      >
+                        <defs>
+                          <linearGradient id="portfolioChartGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={chartColor} stopOpacity={0.18} />
+                            <stop offset="100%" stopColor={chartColor} stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <XAxis
+                          dataKey="ts"
+                          type="number"
+                          domain={["dataMin", "dataMax"]}
+                          ticks={xTicks}
+                          tickFormatter={fmtLabel}
+                          tick={{ fill: "#64748b", fontSize: 9, fontFamily: "monospace" }}
+                          axisLine={false}
+                          tickLine={false}
+                          interval="preserveStartEnd"
+                        />
+                        <YAxis domain={["dataMin - 1", "dataMax + 1"]} hide />
+                        <Tooltip
+                          cursor={{ stroke: chartColor, strokeWidth: 1, strokeDasharray: "3 3", strokeOpacity: 0.6 }}
+                          content={({ active, payload }) => {
+                            if (!active || !payload || !payload.length) return null;
+                            const point = payload[0].payload as { value: number; ts: number };
+                            return (
+                              <div className="bg-card border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground flex flex-col gap-0.5">
+                                <span className="text-muted-foreground text-[10px]">{fmtLabel(point.ts)}</span>
+                                <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(point.value)}</span>
+                              </div>
+                            );
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="value"
+                          stroke={chartColor}
+                          strokeWidth={2}
+                          fill="url(#portfolioChartGradient)"
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Time range tabs — below chart, Robinhood style */}
+                  <div className="flex justify-between mt-2 mb-1 border-t border-border/20 pt-2">
+                    {(["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        data-ocid={`portfolio.chart.range.${tab.toLowerCase()}`}
+                        onClick={() => setTimeRange(tab)}
+                        className={
+                          timeRange === tab
+                            ? "text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 bg-white/10 transition-all"
+                            : "text-muted-foreground text-[10px] font-medium px-1.5 py-0.5 rounded hover:text-white transition-colors cursor-pointer"
+                        }
+                      >
+                        {tab}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()
           ) : (
-            <div className="h-[120px] sm:h-[140px] flex flex-col items-center justify-center gap-2">
-              <div className="h-[1px] w-full bg-white/10" />
-              <span className="text-muted-foreground text-xs">
-                Accumulating data...
-              </span>
+            <div>
+              <div className="h-[160px] sm:h-[180px] flex flex-col items-center justify-center gap-2">
+                <div className="h-[1px] w-full bg-white/10" />
+                <span className="text-muted-foreground text-xs">Accumulating data...</span>
+              </div>
+              {/* Still show tabs even when no data */}
+              <div className="flex justify-between mt-2 mb-1 border-t border-border/20 pt-2">
+                {(["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setTimeRange(tab)}
+                    className={
+                      timeRange === tab
+                        ? "text-white text-[10px] font-bold px-1.5 py-0.5 rounded border border-white/20 bg-white/10"
+                        : "text-muted-foreground text-[10px] font-medium px-1.5 py-0.5 rounded hover:text-white transition-colors cursor-pointer"
+                    }
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
