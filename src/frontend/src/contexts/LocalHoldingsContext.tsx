@@ -39,8 +39,6 @@ const HOLDINGS_VERSION_SUFFIX = "sentimentam_local_holdings_v4";
 const HOLDINGS_STORAGE_SUFFIX = "sentimentam_local_holdings_v5";
 const HOLDINGS_SEEDED_SUFFIX = "sentimentam_holdings_seeded_v6";
 const ALLOC_100_HOLDINGS_SUFFIX = "sentimentam_100_alloc_holdings_v1";
-const AI_ALLOC_100_HOLDINGS_SUFFIX =
-  "sentimentam_ai_tech_alloc_100_holdings_v1";
 // Separate key so we never wipe unlock state when bumping holdings version
 const PNL_UNLOCKED_SUFFIX = "sentimentam_pnl_unlocked_v1";
 const KEY_MIGRATION_SUFFIX = "sentimentam_key_migration_v1";
@@ -102,16 +100,16 @@ function k(userId: string, suffix: string): string {
 }
 
 const ALLOC_100_SEEDS: { name: string; price: number }[] = [
-  { name: "AI & Tech Regulation Sentiment Index", price: 75.0 },
-  { name: "Fed Policy Sentiment Index", price: 50.0 },
-  { name: "MENA Stability Sentiment Index", price: 48.5 },
+  { name: "AI Regulation Risk Sentiment", price: 75.0 },
+  { name: "Fed Policy Sentiment", price: 50.0 },
+  { name: "MENA Stability Sentiment", price: 48.5 },
 ];
 
 // ── Seed prices (must match WalletContext GOLDEN_5_SEEDS) ─────────────────────
 const GOLDEN_5_SEEDS: { name: string; buyPrice: number }[] = [
-  { name: "AI & Tech Regulation Sentiment Index", buyPrice: 73.0 },
-  { name: "Fed Policy Sentiment Index", buyPrice: 48.0 },
-  { name: "MENA Stability Sentiment Index", buyPrice: 46.5 },
+  { name: "AI Regulation Risk Sentiment", buyPrice: 73.0 },
+  { name: "Fed Policy Sentiment", buyPrice: 48.0 },
+  { name: "MENA Stability Sentiment", buyPrice: 46.5 },
 ];
 
 const GOLDEN_5_SEED_PRICE_MAP: Record<string, number> = Object.fromEntries(
@@ -412,59 +410,6 @@ export function LocalHoldingsProvider({
     localStorage.setItem(k(userId, ALLOC_100_HOLDINGS_SUFFIX), "true");
   }, [userId, isLoading]);
 
-  // Seed $100 allocation specifically for AI & Tech Regulation Sentiment Index at base score price (75.0).
-  const aiAllocRef = useRef(false);
-  useEffect(() => {
-    if (!userId) return;
-    if (isLoading) return;
-    if (aiAllocRef.current) return;
-    if (
-      localStorage.getItem(k(userId, AI_ALLOC_100_HOLDINGS_SUFFIX)) === "true"
-    ) {
-      aiAllocRef.current = true;
-      return;
-    }
-
-    aiAllocRef.current = true;
-    const AI_INDEX_NAME = "AI & Tech Regulation Sentiment Index";
-    const AI_BASE_PRICE = 75.0;
-    const units = Number.parseFloat((100 / AI_BASE_PRICE).toFixed(4));
-    const nowNs = BigInt(Date.now()) * BigInt(1_000_000);
-
-    setHoldingsMap((prev) => {
-      const next = new Map(prev);
-      const nextCostBasis = new Map<string, number>();
-      setCostBasisMap((prevCB) => {
-        for (const [k2, v] of prevCB) nextCostBasis.set(k2, v);
-        return prevCB;
-      });
-
-      const existing = next.get(AI_INDEX_NAME);
-      if (existing && existing.units > 0) {
-        next.set(AI_INDEX_NAME, {
-          ...existing,
-          units: existing.units + units,
-        });
-      } else {
-        next.set(AI_INDEX_NAME, {
-          units,
-          accruedYield: 0,
-          yieldStartTime: nowNs,
-          allocationTimestamp: nowNs,
-          assetName: AI_INDEX_NAME,
-        });
-      }
-
-      const existingCB = nextCostBasis.get(AI_INDEX_NAME) ?? 0;
-      nextCostBasis.set(AI_INDEX_NAME, existingCB + 100);
-
-      saveToStorage(userId, next, nextCostBasis);
-      setCostBasisMap(nextCostBasis);
-      return next;
-    });
-
-    localStorage.setItem(k(userId, AI_ALLOC_100_HOLDINGS_SUFFIX), "true");
-  }, [userId, isLoading]);
 
   const addHolding = useCallback(
     (indexName: string, units: number, costBasis?: number) => {
