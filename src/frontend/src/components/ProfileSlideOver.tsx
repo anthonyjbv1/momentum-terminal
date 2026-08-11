@@ -173,8 +173,10 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
   // Local holdings (same source as PortfolioHeader) for live total portfolio value
   const { data: localHoldingsData } = useLocalHoldingsQuery();
   const { finalScores } = useOracleTick();
-  const { costBasisMap } = useLocalHoldings();
+  const { costBasisMap, shortPositions } = useLocalHoldings();
   void costBasisMap;
+
+  const SPREAD = 0.5;
 
   // Compute portfolio value using live Oracle prices (same logic as PortfolioHeader)
   const redeemPriceMap: Record<string, number> = {};
@@ -192,12 +194,28 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
   }
 
   let holdingsTotal = 0;
+  let positionCount = 0;
   if (localHoldingsData) {
     for (const [name, holding] of localHoldingsData) {
       if (holding.units > 0) {
         const redeemPrice = redeemPriceMap[name] ?? 0;
         holdingsTotal += (holding.units + holding.accruedYield) * redeemPrice;
+        positionCount++;
       }
+    }
+  }
+
+  // Short positions MTM (same formula as useUserFullPosition)
+  let shortHoldingsTotal = 0;
+  for (const [name, short] of shortPositions) {
+    if (short.entryScore > 0) {
+      const currentScore = finalScores.get(name) ?? short.entryScore;
+      const mtm = Math.max(
+        0,
+        short.dollars + ((short.entryScore - currentScore) / short.entryScore) * short.dollars,
+      );
+      shortHoldingsTotal += mtm;
+      positionCount++;
     }
   }
 
@@ -218,9 +236,9 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
   }
 
   // Use local wallet balance (from WalletContext) as it reflects deposits immediately
-  const cash =
-    localWalletBalance > 0 ? localWalletBalance : (walletBalance ?? 0);
-  const totalPortfolioValue = cash + holdingsTotal;
+  const cash = localWalletBalance > 0 ? localWalletBalance : (walletBalance ?? 0);
+  const totalPortfolioValue = cash + holdingsTotal + shortHoldingsTotal;
+  const deployedValue = holdingsTotal + shortHoldingsTotal;
   const {
     formatted: dailyChangeFormatted,
     isPositive: dailyPos,
@@ -431,49 +449,32 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
                 </div>
               </div>
 
-              {/* ── Buying Power Card ── */}
+              {/* ── Buying Power Card — tap anywhere to deposit ── */}
               <div className="px-4 pb-3">
-                <div
-                  className="rounded-2xl p-4"
+                <button
+                  type="button"
+                  onClick={() => setIsDepositOpen(true)}
+                  className="w-full rounded-2xl p-4 text-left transition-colors duration-150"
                   style={{
                     backgroundColor: "#141414",
                     border: "1px solid #222222",
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "#1a1a1a";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "#141414";
+                  }}
                 >
-                  {/* Row: BUYING POWER label + Add Funds button */}
-                  <div className="flex items-center justify-between mb-3">
-                    <p
-                      className="text-[11px] uppercase tracking-widest font-semibold"
-                      style={{
-                        color: "oklch(0.48 0.008 240)",
-                        letterSpacing: "0.12em",
-                      }}
-                    >
-                      Buying Power
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setIsDepositOpen(true)}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-150"
-                      style={{
-                        backgroundColor: "oklch(0.28 0.12 145)",
-                        color: "oklch(0.72 0.20 145)",
-                        border: "1.5px solid oklch(0.45 0.16 145)",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          "oklch(0.34 0.14 145)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          "oklch(0.28 0.12 145)";
-                      }}
-                    >
-                      <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-                      Add Funds
-                    </button>
-                  </div>
-                  {/* Large balance */}
+                  <p
+                    className="text-[11px] uppercase tracking-widest font-semibold mb-3"
+                    style={{
+                      color: "oklch(0.48 0.008 240)",
+                      letterSpacing: "0.12em",
+                    }}
+                  >
+                    Buying Power
+                  </p>
                   <p
                     className="text-[38px] font-bold tracking-tight leading-none"
                     style={{
@@ -489,7 +490,7 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
                   >
                     Tap to deposit funds instantly
                   </p>
-                </div>
+                </button>
               </div>
 
               {/* ── Wallet Balance Card ── */}
