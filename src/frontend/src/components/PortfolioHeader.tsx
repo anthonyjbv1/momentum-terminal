@@ -734,21 +734,50 @@ export function PortfolioHeader({
   const [timeRange, setTimeRange] = useState<"1H" | "6H" | "ALL">("1H");
   const [scrubbedValue, setScrubbedValue] = useState<number | null>(null);
 
-  // Portfolio value history ref — populated on each tick
-  const portfolioHistoryRef = useRef<Array<{ value: number; tick: number }>>(
-    [],
-  );
+  const PORTFOLIO_HISTORY_KEY = userId
+    ? `mt_portfolio_value_history_v1_${userId}`
+    : null;
 
-  // Portfolio history accumulator — push on each tick
-  // Portfolio history accumulator — push on each tick
+  // Portfolio value history ref — persisted to localStorage
+  const portfolioHistoryRef = useRef<Array<{ value: number; ts: number }>>([]);
+  const portfolioHistoryLoadedRef = useRef(false);
+
+  // Restore history from localStorage on first mount for this user
   useEffect(() => {
-    if (totalPortfolioValue > 0) {
-      portfolioHistoryRef.current = [
-        ...portfolioHistoryRef.current,
-        { value: totalPortfolioValue, tick: tickCount },
-      ].slice(-720);
+    if (!PORTFOLIO_HISTORY_KEY || portfolioHistoryLoadedRef.current) return;
+    portfolioHistoryLoadedRef.current = true;
+    try {
+      const raw = localStorage.getItem(PORTFOLIO_HISTORY_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          portfolioHistoryRef.current = parsed;
+        }
+      }
+    } catch {
+      // malformed — start empty
     }
-  }, [tickCount]);
+  }, [PORTFOLIO_HISTORY_KEY]);
+
+  // Portfolio history accumulator — push on each Oracle tick
+  useEffect(() => {
+    if (totalPortfolioValue <= 0) return;
+    const entry = { value: totalPortfolioValue, ts: Date.now() };
+    portfolioHistoryRef.current = [
+      ...portfolioHistoryRef.current,
+      entry,
+    ].slice(-2880); // 48h at 1 tick/min
+    if (PORTFOLIO_HISTORY_KEY) {
+      try {
+        localStorage.setItem(
+          PORTFOLIO_HISTORY_KEY,
+          JSON.stringify(portfolioHistoryRef.current),
+        );
+      } catch {
+        // quota exceeded — skip
+      }
+    }
+  }, [tickCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLoading = holdingsLoading || pricesLoading;
 
@@ -870,12 +899,13 @@ export function PortfolioHeader({
   const cash = localCashBalance;
   const totalPortfolioValue = cash + holdingsTotal + shortHoldingsTotal;
 
-  // Filtered chart history based on selected time range
+  // Filtered chart history based on selected time range (real wall-clock time)
   // biome-ignore lint/correctness/useExhaustiveDependencies: tickCount triggers recompute on each tick
   const filteredHistory = useMemo(() => {
     const all = portfolioHistoryRef.current;
-    if (timeRange === "1H") return all.slice(-120);
-    if (timeRange === "6H") return all.slice(-720);
+    const now = Date.now();
+    if (timeRange === "1H") return all.filter((p) => p.ts >= now - 60 * 60 * 1000);
+    if (timeRange === "6H") return all.filter((p) => p.ts >= now - 6 * 60 * 60 * 1000);
     return all;
   }, [timeRange, tickCount]);
 
@@ -1194,6 +1224,12 @@ export function PortfolioHeader({
           {/* Chart area */}
           {filteredHistory.length >= 2 ? (
             <div className="h-[120px] sm:h-[140px]">
+              {(() => {
+                const chartFirst = filteredHistory[0].value;
+                const chartLast = filteredHistory[filteredHistory.length - 1].value;
+                const chartUp = chartLast >= chartFirst;
+                const chartColor = chartUp ? "#4ade80" : "#f87171";
+                return (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={filteredHistory}
@@ -1215,29 +1251,25 @@ export function PortfolioHeader({
                       x2="0"
                       y2="1"
                     >
-                      <stop
-                        offset="5%"
-                        stopColor="#4ade80"
-                        stopOpacity={0.15}
-                      />
-                      <stop offset="95%" stopColor="#4ade80" stopOpacity={0} />
+                      <stop offset="5%" stopColor={chartColor} stopOpacity={0.15} />
+                      <stop offset="95%" stopColor={chartColor} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <YAxis domain={["dataMin", "dataMax"]} hide />
                   <Tooltip
                     cursor={{
-                      stroke: "#4ade80",
+                      stroke: chartColor,
                       strokeWidth: 1,
                       strokeOpacity: 0.5,
                     }}
                     content={({ active, payload }) => {
                       if (!active || !payload || !payload.length) return null;
+                      const point = payload[0].payload as { value: number; ts: number };
+                      const time = new Date(point.ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
                       return (
-                        <div className="bg-card border border-border rounded px-2 py-1 text-[11px] font-mono text-foreground">
-                          {new Intl.NumberFormat("en-US", {
-                            style: "currency",
-                            currency: "USD",
-                          }).format(payload[0].value as number)}
+                        <div className="bg-card border border-border rounded px-2 py-1.5 text-[11px] font-mono text-foreground flex flex-col gap-0.5">
+                          <span className="text-muted-foreground text-[10px]">{time}</span>
+                          <span>{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(payload[0].value as number)}</span>
                         </div>
                       );
                     }}
@@ -1245,7 +1277,7 @@ export function PortfolioHeader({
                   <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="#4ade80"
+                    stroke={chartColor}
                     strokeWidth={1.5}
                     fill="url(#portfolioChartGradient)"
                     dot={false}
@@ -1253,6 +1285,8 @@ export function PortfolioHeader({
                   />
                 </AreaChart>
               </ResponsiveContainer>
+                );
+              })()}
             </div>
           ) : (
             <div className="h-[120px] sm:h-[140px] flex flex-col items-center justify-center gap-2">
