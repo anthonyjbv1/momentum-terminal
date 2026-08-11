@@ -643,8 +643,7 @@ export function ProfilePage() {
   const setHfKeyMutation = useSetHuggingFaceKey();
   const finnhubKeyStatusQuery = useFinnhubKeyStatus();
   const setFinnhubKeyMutation = useSetFinnhubKey();
-  const { costBasisMap } = useLocalHoldings();
-  void costBasisMap;
+  const { costBasisMap, shortPositions } = useLocalHoldings();
 
   const {
     tier: loyaltyTier,
@@ -1797,8 +1796,25 @@ export function ProfilePage() {
       },
       0,
     );
-    const totalValue = buyingPower + holdingsTotal;
-    const activePositions = costBasisMap.size;
+    const shortHoldingsTotal = Array.from(shortPositions.entries()).reduce(
+      (sum, [indexId, short]) => {
+        const currentScore = finalScores.get(indexId) ?? short.entryScore;
+        const mtm =
+          short.entryScore > 0
+            ? Math.max(
+                0,
+                short.dollars +
+                  ((short.entryScore - currentScore) / short.entryScore) *
+                    short.dollars,
+              )
+            : 0;
+        return sum + mtm;
+      },
+      0,
+    );
+    const deployedValue = holdingsTotal + shortHoldingsTotal;
+    const totalValue = buyingPower + deployedValue;
+    const activePositions = costBasisMap.size + shortPositions.size;
     // ─────────────────────────────────────────────────────────────────
 
     const finbertEntryCount = (() => {
@@ -1930,7 +1946,7 @@ export function ProfilePage() {
                 className="text-sm font-mono font-semibold mt-0.5"
                 style={{ color: "#ffffff" }}
               >
-                {fmt(holdingsTotal)}
+                {fmt(deployedValue)}
               </p>
             </div>
             <div className="flex flex-col">

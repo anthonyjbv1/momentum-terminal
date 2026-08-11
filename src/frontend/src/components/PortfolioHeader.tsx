@@ -1178,7 +1178,7 @@ export function PortfolioHeader({
             const delta = hasData ? displayVal - chartFirst : 0;
             const pct   = chartFirst > 0 ? (delta / chartFirst) * 100 : 0;
             const isPos = delta >= 0;
-            const chartColor = chartLast >= chartFirst ? "#22c55e" : "#ef4444";
+            const chartColor = chartLast >= chartFirst ? "#4ade80" : "#f87171";
             const fmtTs = (ts: number) => {
               const d = new Date(ts);
               if (timeRange === "LIVE" || timeRange === "1D")
@@ -1219,7 +1219,7 @@ export function PortfolioHeader({
               <div>
                 {/* Delta row — updates while scrubbing */}
                 {hasData && (
-                  <div className="text-xs font-mono mb-3 flex items-center gap-1.5" style={{ color: isPos ? "#22c55e" : "#ef4444" }}>
+                  <div className="text-xs font-mono mb-3 flex items-center gap-1.5" style={{ color: isPos ? "#4ade80" : "#f87171" }}>
                     <span>
                       {isPos ? "+" : ""}
                       {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(delta)}

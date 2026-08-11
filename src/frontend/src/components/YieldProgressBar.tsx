@@ -31,7 +31,7 @@ export function YieldProgressBar({
       maximumFractionDigits: 2,
     })}`;
 
-  const profitColor = rawProfit >= 0 ? "#22c55e" : "#ef4444";
+  const profitColor = rawProfit >= 0 ? "#4ade80" : "#f87171";
   const sign = rawProfit >= 0 ? "+" : "-";
 
   return (
