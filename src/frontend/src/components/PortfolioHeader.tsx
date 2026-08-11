@@ -1369,7 +1369,7 @@ export function PortfolioHeader({
                   Invested Value
                 </span>
                 <span className="text-primary font-mono text-xs font-semibold">
-                  {fmt(holdingsTotal)}
+                  {fmt(holdingsTotal + shortHoldingsTotal)}
                 </span>
               </div>
             </div>
