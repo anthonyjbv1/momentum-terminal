@@ -142,6 +142,8 @@ interface LocalHoldingsContextValue {
   addShortCostBasis: (indexName: string, dollars: number) => void;
   /** Cumulative local buy volume per index (dollars). Merges with canister volume for Vol. display. */
   localVolumeMap: Map<string, number>;
+  /** Add dollars to local volume for an index (buy, short, or redeem). */
+  addLocalVolume: (indexName: string, dollars: number) => void;
   /** Add units to an index holding. costBasis = dollars spent on this allocation. */
   addHolding: (indexName: string, units: number, costBasis?: number) => void;
   /** Remove all units from an index holding. Resets cost basis and P&L unlock flag. */
@@ -443,6 +445,26 @@ export function LocalHoldingsProvider({
   }, [userId, isLoading]);
 
 
+  const addLocalVolume = useCallback(
+    (indexName: string, dollars: number) => {
+      if (!userId || dollars <= 0) return;
+      setLocalVolumeMap((prev) => {
+        const next = new Map(prev);
+        next.set(indexName, (next.get(indexName) ?? 0) + dollars);
+        try {
+          localStorage.setItem(
+            k(userId, LOCAL_VOLUME_SUFFIX),
+            JSON.stringify(Object.fromEntries(next)),
+          );
+        } catch {
+          // quota exceeded
+        }
+        return next;
+      });
+    },
+    [userId],
+  );
+
   const addShortCostBasis = useCallback(
     (indexName: string, dollars: number) => {
       if (!userId || dollars <= 0) return;
@@ -459,8 +481,9 @@ export function LocalHoldingsProvider({
         }
         return next;
       });
+      addLocalVolume(indexName, dollars);
     },
-    [userId],
+    [userId, addLocalVolume],
   );
 
   const addHolding = useCallback(
@@ -506,24 +529,9 @@ export function LocalHoldingsProvider({
       // Stream #4: record buy-side order flow
       recordOrderFlowEvent(indexName, costBasis ?? 0);
 
-      // Track local volume per index (persisted so Vol. label survives refresh)
-      if (costBasis && costBasis > 0) {
-        setLocalVolumeMap((prev) => {
-          const next = new Map(prev);
-          next.set(indexName, (next.get(indexName) ?? 0) + costBasis);
-          try {
-            localStorage.setItem(
-              k(userId, LOCAL_VOLUME_SUFFIX),
-              JSON.stringify(Object.fromEntries(next)),
-            );
-          } catch {
-            // quota exceeded
-          }
-          return next;
-        });
-      }
+      if (costBasis && costBasis > 0) addLocalVolume(indexName, costBasis);
     },
-    [userId],
+    [userId], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   /**
@@ -673,6 +681,7 @@ export function LocalHoldingsProvider({
         costBasisMap,
         shortCostBasisMap,
         localVolumeMap,
+        addLocalVolume,
         pnlUnlockedMap,
         addHolding,
         addShortCostBasis,

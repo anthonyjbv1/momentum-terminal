@@ -401,7 +401,7 @@ function AssetRowInner({
   } = useWalletContext();
   const { data: allHoldings, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
-  const { clearHolding, redeemPartialHolding, localVolumeMap } = useLocalHoldings();
+  const { clearHolding, redeemPartialHolding, localVolumeMap, addLocalVolume } = useLocalHoldings();
 
   // B4: Per-position loyalty tier — each index has its own independent clock
   const { getPositionTier, clearPositionTier } = useLoyalty();
@@ -637,12 +637,14 @@ function AssetRowInner({
       clearPositionTier(asset.name);
       addFunds(estimatedNet);
       logCredit(estimatedNet, asset.name);
+      addLocalVolume(asset.name, estimatedNet);
     } else {
       // Partial redemption — uses LMSR-computed redeemPrice directly
       const estimatedNet = unitsToRedeem * asset.redeemPrice;
       redeemPartialHolding(asset.name, unitsToRedeem);
       addFunds(estimatedNet);
       logCredit(estimatedNet, asset.name);
+      addLocalVolume(asset.name, estimatedNet);
       // Loyalty streak is NOT reset on partial redemption — position continues
     }
 
