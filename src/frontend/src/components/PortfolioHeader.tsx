@@ -510,6 +510,199 @@ function ShortTotalCollector({
   return null;
 }
 
+function IndexSlideOver({
+  selectedIndex,
+  onClose,
+  finalScores,
+  costBasisMap,
+  shortCostBasisMap,
+  holdingsData,
+  totalPortfolioValue,
+  activityHistory,
+  todayMs,
+}: {
+  selectedIndex: string;
+  onClose: () => void;
+  finalScores: Map<string, number>;
+  costBasisMap: Map<string, number>;
+  shortCostBasisMap: Map<string, number>;
+  holdingsData: Array<[string, Holding]> | undefined;
+  totalPortfolioValue: number;
+  activityHistory: { source: string; timestamp: number; type: string; amount: number }[];
+  todayMs: number;
+}) {
+  const { data: position } = useUserFullPosition(selectedIndex);
+
+  const indexHolding = holdingsData?.find(([n]) => n === selectedIndex)?.[1];
+  const rawScore =
+    finalScores.get(selectedIndex) ??
+    GOD_TIER_BASE_SCORES[selectedIndex] ??
+    BASE_SCORE_FALLBACK;
+  const liveRedeemPriceIdx = Math.max(0.01, rawScore - SPREAD);
+
+  const longUnits = position?.longUnits ?? (indexHolding?.units ?? 0);
+  const longAccrued = indexHolding?.accruedYield ?? 0;
+  const shortUnits = position?.shortUnits ?? 0;
+  const shortMarkToMarket = position?.shortMarkToMarket ?? 0;
+
+  const hasShort = shortUnits > 0;
+  const hasLong = longUnits > 0;
+
+  // Long stats
+  const longLiveValue = (longUnits + longAccrued) * liveRedeemPriceIdx;
+  const longBasis = costBasisMap.get(selectedIndex) ?? 0;
+
+  // Short stats
+  const shortBasis = shortCostBasisMap.get(selectedIndex) ?? 0;
+  const shortUnrealizedPnL = shortMarkToMarket - shortBasis;
+
+  // Combined display values — prefer short when only short exists
+  const displayUnits = hasLong ? longUnits + longAccrued : shortUnits;
+  const displayValue = hasLong ? longLiveValue : shortMarkToMarket;
+  const displayBasis = hasLong ? longBasis : shortBasis;
+  const unrealizedReturn = hasLong ? longLiveValue - longBasis : shortUnrealizedPnL;
+  const unrealizedReturnPct =
+    displayBasis > 0 ? (unrealizedReturn / displayBasis) * 100 : 0;
+  const avgCostIdx = displayUnits > 0 ? displayBasis / displayUnits : 0;
+  const portfolioPctIdx =
+    totalPortfolioValue > 0 ? (displayValue / totalPortfolioValue) * 100 : 0;
+
+  const idxCategory = getCategoryForName(selectedIndex);
+  const idxCatColors = CATEGORY_COLORS[idxCategory] ?? CATEGORY_COLORS.MACRO;
+
+  const todayActivityIdx = activityHistory.filter(
+    (e) => e.source === selectedIndex && e.timestamp >= todayMs,
+  );
+  const todayReturnIdx =
+    todayActivityIdx.reduce((sum, e) => {
+      if (e.type === "Credit") return sum + e.amount;
+      if (e.type === "Spend") return sum - e.amount;
+      return sum;
+    }, 0) + unrealizedReturn;
+
+  return (
+    <>
+      <motion.div
+        className="fixed inset-0 bg-black/60 z-40"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+      />
+      <motion.div
+        className="fixed right-0 top-0 h-full z-50 bg-[#0a0a0a] border-l border-border flex flex-col w-full sm:w-80"
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        data-ocid="portfolio.index-slide-over"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
+            Position Detail
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-muted-foreground hover:text-white transition-colors"
+            data-ocid="portfolio.index-slide-over.close_button"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="px-4 py-3 border-b border-border">
+          <p className="text-[13px] font-semibold text-white leading-tight">
+            {selectedIndex}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span
+              className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold ${idxCatColors.badge} ${idxCatColors.text}`}
+            >
+              {idxCategory}
+            </span>
+            {hasShort && (
+              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold bg-red-950/40 text-red-400">
+                SHORT
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <motion.div
+            className="rounded-sm border border-border/50 bg-white/[0.02] p-3"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-foreground text-sm font-medium leading-tight">
+                {selectedIndex}
+              </span>
+              <span
+                className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold ${idxCatColors.badge} ${idxCatColors.text}`}
+              >
+                {idxCategory}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
+                  Today's Return
+                </p>
+                <p
+                  className={`font-mono text-[12px] font-semibold ${
+                    todayReturnIdx >= 0 ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {fmtPnL(todayReturnIdx)}
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
+                  Unrealized P&amp;L
+                </p>
+                <p
+                  className={`font-mono text-[12px] font-semibold ${
+                    unrealizedReturn >= 0 ? "text-green-400" : "text-red-400"
+                  }`}
+                >
+                  {fmtPnL(unrealizedReturn)}{" "}
+                  <span className="text-[10px] opacity-75">
+                    ({unrealizedReturnPct.toFixed(1)}%)
+                  </span>
+                </p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
+                  Avg Cost
+                </p>
+                <p className="font-mono text-[12px] font-semibold text-foreground">
+                  {fmt(avgCostIdx)}
+                </p>
+                <p className="text-[10px] text-muted-foreground">per share</p>
+              </div>
+              <div>
+                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
+                  % of Portfolio
+                </p>
+                <p className="font-mono text-[12px] font-semibold text-foreground">
+                  {portfolioPctIdx.toFixed(1)}%
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {fmt(displayValue)} of {fmt(totalPortfolioValue)}
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
 export function PortfolioHeader({
   onTabChange,
 }: {
@@ -1193,174 +1386,19 @@ export function PortfolioHeader({
 
       {/* Index Position Detail Slide-Over */}
       <AnimatePresence>
-        {selectedIndex &&
-          (() => {
-            const indexHolding = holdingsData?.find(
-              ([n]) => n === selectedIndex,
-            )?.[1];
-            const rawScore =
-              finalScores.get(selectedIndex) ??
-              GOD_TIER_BASE_SCORES[selectedIndex] ??
-              BASE_SCORE_FALLBACK;
-            const liveRedeemPriceIdx = Math.max(0.01, rawScore - SPREAD);
-            const liveUnitsIdx =
-              (indexHolding?.units ?? 0) + (indexHolding?.accruedYield ?? 0);
-            const liveValueIdx = liveUnitsIdx * liveRedeemPriceIdx;
-            const basisIdx = costBasisMap.get(selectedIndex) ?? 0;
-            const unrealizedReturn = liveValueIdx - basisIdx;
-            const unrealizedReturnPct =
-              basisIdx > 0 ? ((liveValueIdx - basisIdx) / basisIdx) * 100 : 0;
-            const avgCostIdx = liveUnitsIdx > 0 ? basisIdx / liveUnitsIdx : 0;
-            const portfolioPctIdx =
-              totalPortfolioValue > 0
-                ? (liveValueIdx / totalPortfolioValue) * 100
-                : 0;
-            const idxCategory = getCategoryForName(selectedIndex);
-            const idxCatColors =
-              CATEGORY_COLORS[idxCategory] ?? CATEGORY_COLORS.MACRO;
-
-            // Today's return from activity history
-            const todayActivityIdx = activityHistory.filter(
-              (e) => e.source === selectedIndex && e.timestamp >= todayMs,
-            );
-            const todayReturnIdx =
-              todayActivityIdx.reduce((sum, e) => {
-                if (e.type === "Credit") return sum + e.amount;
-                if (e.type === "Spend") return sum - e.amount;
-                return sum;
-              }, 0) +
-              (liveValueIdx - basisIdx);
-
-            return (
-              <>
-                {/* Backdrop */}
-                <motion.div
-                  className="fixed inset-0 bg-black/60 z-40"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setSelectedIndex(null)}
-                />
-                {/* Panel */}
-                <motion.div
-                  className="fixed right-0 top-0 h-full z-50 bg-[#0a0a0a] border-l border-border flex flex-col w-full sm:w-80"
-                  initial={{ x: "100%" }}
-                  animate={{ x: 0 }}
-                  exit={{ x: "100%" }}
-                  transition={{ type: "spring", damping: 30, stiffness: 300 }}
-                  data-ocid="portfolio.index-slide-over"
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
-                      Position Detail
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedIndex(null)}
-                      className="text-muted-foreground hover:text-white transition-colors"
-                      data-ocid="portfolio.index-slide-over.close_button"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  {/* Index name + category */}
-                  <div className="px-4 py-3 border-b border-border">
-                    <p className="text-[13px] font-semibold text-white leading-tight">
-                      {selectedIndex}
-                    </p>
-                    <span className="inline-block mt-1.5 text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold bg-white/[0.04] text-muted-foreground">
-                      {idxCategory}
-                    </span>
-                  </div>
-
-                  {/* Stats card */}
-                  <div className="flex-1 overflow-y-auto px-4 py-4">
-                    <motion.div
-                      className="rounded-sm border border-border/50 bg-white/[0.02] p-3"
-                      initial={{ opacity: 0, x: 16 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.25, ease: "easeOut" }}
-                    >
-                      {/* Name + category badge at top of card */}
-                      <div className="flex items-center gap-2 mb-3">
-                        <span className="text-foreground text-sm font-medium leading-tight">
-                          {selectedIndex}
-                        </span>
-                        <span
-                          className={`text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold ${idxCatColors.badge} ${idxCatColors.text}`}
-                        >
-                          {idxCategory}
-                        </span>
-                      </div>
-
-                      {/* 2×2 data grid */}
-                      <div className="grid grid-cols-2 gap-3">
-                        {/* Today's Return */}
-                        <div>
-                          <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                            Today's Return
-                          </p>
-                          <p
-                            className={`font-mono text-[12px] font-semibold ${
-                              todayReturnIdx >= 0
-                                ? "text-green-400"
-                                : "text-red-400"
-                            }`}
-                          >
-                            {fmtPnL(todayReturnIdx)}
-                          </p>
-                        </div>
-                        {/* Unrealized Return */}
-                        <div>
-                          <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                            Unrealized P&amp;L
-                          </p>
-                          <p
-                            className={`font-mono text-[12px] font-semibold ${
-                              unrealizedReturn >= 0
-                                ? "text-green-400"
-                                : "text-red-400"
-                            }`}
-                          >
-                            {fmtPnL(unrealizedReturn)}{" "}
-                            <span className="text-[10px] opacity-75">
-                              ({unrealizedReturnPct.toFixed(1)}%)
-                            </span>
-                          </p>
-                        </div>
-                        {/* Avg Cost */}
-                        <div>
-                          <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                            Avg Cost
-                          </p>
-                          <p className="font-mono text-[12px] font-semibold text-foreground">
-                            {fmt(avgCostIdx)}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            per share
-                          </p>
-                        </div>
-                        {/* % of Portfolio */}
-                        <div>
-                          <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                            % of Portfolio
-                          </p>
-                          <p className="font-mono text-[12px] font-semibold text-foreground">
-                            {portfolioPctIdx.toFixed(1)}%
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {fmt(liveValueIdx)} of {fmt(totalPortfolioValue)}
-                          </p>
-                        </div>
-                      </div>
-                    </motion.div>
-                  </div>
-                </motion.div>
-              </>
-            );
-          })()}
+        {selectedIndex && (
+          <IndexSlideOver
+            selectedIndex={selectedIndex}
+            onClose={() => setSelectedIndex(null)}
+            finalScores={finalScores}
+            costBasisMap={costBasisMap}
+            shortCostBasisMap={shortCostBasisMap}
+            holdingsData={holdingsData}
+            totalPortfolioValue={totalPortfolioValue}
+            activityHistory={activityHistory}
+            todayMs={todayMs}
+          />
+        )}
       </AnimatePresence>
 
       {/* Feature D — Category Slide-Over */}
