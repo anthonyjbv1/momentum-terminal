@@ -1322,7 +1322,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     // scoreHistoryRef is a module-level ref — no re-render triggered.
     for (const [indexName, score] of output.finalScores.entries()) {
       const existing = scoreHistoryRef.current.get(indexName) ?? [];
-      scoreHistoryRef.current.set(indexName, [...existing, score].slice(-15));
+      scoreHistoryRef.current.set(indexName, [...existing, score].slice(-720));
     }
     } catch (err) {
       console.error("[OracleTick] ERROR:", err);
