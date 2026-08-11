@@ -97,8 +97,30 @@ export interface SentimentLogEntry {
   scores: Record<ActiveIndex, number>;
 }
 
+const SENTIMENT_LOG_STORAGE_KEY = "mt_sentiment_log_v1";
+
+function saveSentimentLog(): void {
+  try {
+    localStorage.setItem(SENTIMENT_LOG_STORAGE_KEY, JSON.stringify(sentimentLog));
+  } catch {
+    // localStorage quota exceeded — skip silently
+  }
+}
+
+function loadSentimentLog(): SentimentLogEntry[] {
+  try {
+    const raw = localStorage.getItem(SENTIMENT_LOG_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed as SentimentLogEntry[];
+  } catch {
+    return [];
+  }
+}
+
 /** In-memory rolling log of hourly sentiment snapshots. */
-const sentimentLog: SentimentLogEntry[] = [];
+const sentimentLog: SentimentLogEntry[] = loadSentimentLog();
 
 /** Cached β values — updated daily (or on demand). */
 const cachedBetas: Record<string, number> = { ...THEORY_PRIORS };
@@ -157,6 +179,8 @@ export function logHourlyScores(scores: Partial<Record<string, number>>): void {
   if (sentimentLog.length > MAX_HISTORY_ENTRIES) {
     sentimentLog.splice(0, sentimentLog.length - MAX_HISTORY_ENTRIES);
   }
+
+  saveSentimentLog();
 }
 
 /**
