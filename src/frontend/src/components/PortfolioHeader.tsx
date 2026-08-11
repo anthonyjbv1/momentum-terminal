@@ -952,15 +952,21 @@ export function PortfolioHeader({
           (finalScores.get(b.name) ??
             GOD_TIER_BASE_SCORES[b.name] ??
             BASE_SCORE_FALLBACK) - SPREAD;
-        const aVal = a.holding.units * Math.max(0.01, aScore);
-        const bVal = b.holding.units * Math.max(0.01, bScore);
+        const aVal =
+          a.holding.units > 0
+            ? a.holding.units * Math.max(0.01, aScore)
+            : (shortCostBasisMap.get(a.name) ?? 0);
+        const bVal =
+          b.holding.units > 0
+            ? b.holding.units * Math.max(0.01, bScore)
+            : (shortCostBasisMap.get(b.name) ?? 0);
         return bVal - aVal;
       });
     }
     if (sortMode === "pct_change") {
       return arr.sort((a, b) => {
-        const aLocked = pnlUnlockedMap.get(a.name) !== true;
-        const bLocked = pnlUnlockedMap.get(b.name) !== true;
+        const aLocked = pnlUnlockedMap.get(a.name) !== true && (shortCostBasisMap.get(a.name) ?? 0) === 0;
+        const bLocked = pnlUnlockedMap.get(b.name) !== true && (shortCostBasisMap.get(b.name) ?? 0) === 0;
         if (aLocked && bLocked) return 0;
         if (aLocked) return 1;
         if (bLocked) return -1;
@@ -972,17 +978,27 @@ export function PortfolioHeader({
           (finalScores.get(b.name) ??
             GOD_TIER_BASE_SCORES[b.name] ??
             BASE_SCORE_FALLBACK) - SPREAD;
-        const aVal = a.holding.units * Math.max(0.01, aScore);
-        const bVal = b.holding.units * Math.max(0.01, bScore);
-        const aCost = costBasisMap.get(a.name) ?? 0;
-        const bCost = costBasisMap.get(b.name) ?? 0;
+        const aVal =
+          a.holding.units > 0
+            ? a.holding.units * Math.max(0.01, aScore)
+            : (shortCostBasisMap.get(a.name) ?? 0);
+        const bVal =
+          b.holding.units > 0
+            ? b.holding.units * Math.max(0.01, bScore)
+            : (shortCostBasisMap.get(b.name) ?? 0);
+        const aCost = a.holding.units > 0
+          ? (costBasisMap.get(a.name) ?? 0)
+          : (shortCostBasisMap.get(a.name) ?? 0);
+        const bCost = b.holding.units > 0
+          ? (costBasisMap.get(b.name) ?? 0)
+          : (shortCostBasisMap.get(b.name) ?? 0);
         const aPct = aCost > 0 ? (aVal - aCost) / aCost : 0;
         const bPct = bCost > 0 ? (bVal - bCost) / bCost : 0;
         return bPct - aPct;
       });
     }
     return arr;
-  }, [filteredHoldings, sortMode, finalScores, costBasisMap, pnlUnlockedMap]);
+  }, [filteredHoldings, sortMode, finalScores, costBasisMap, shortCostBasisMap, pnlUnlockedMap]);
 
   // ── Feature D — Slide-over holding detail data ────────────────────────────────
   const today = new Date();
