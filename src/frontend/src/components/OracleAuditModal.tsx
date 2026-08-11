@@ -104,6 +104,12 @@ function ConfidenceRing({
   const progress = Math.min(100, Math.max(0, score));
   const dashOffset = CIRCUMFERENCE * (1 - progress / 100);
 
+  const [animatedOffset, setAnimatedOffset] = useState(CIRCUMFERENCE);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setAnimatedOffset(dashOffset));
+    return () => cancelAnimationFrame(id);
+  }, [dashOffset]);
+
   // Derive color and label from tier + dominantDirection
   let color: string;
   let glowColor: string;
@@ -184,7 +190,7 @@ function ConfidenceRing({
             strokeWidth={STROKE}
             strokeLinecap="round"
             strokeDasharray={CIRCUMFERENCE}
-            strokeDashoffset={dashOffset}
+            strokeDashoffset={animatedOffset}
             style={{
               transition: "stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)",
               filter: `drop-shadow(0 0 4px ${glowColor})`,
@@ -995,8 +1001,8 @@ function UnifiedTickEntry({
         <div
           className="flex-col sm:flex-row px-[10px] py-[8px] sm:px-[12px] sm:py-[10px]"
           style={{
-            background: "#111",
-            border: "1px solid rgba(255,255,255,0.07)",
+            background: "#000000",
+            border: "1px solid #2a2a2a",
             borderRadius: "8px",
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: "0.68rem",
@@ -2090,7 +2096,9 @@ export default function OracleAuditModal({
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(0, 0, 0, 0.92)",
+              background: "rgba(0, 0, 0, 0.80)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
               zIndex: 0,
             }}
           />
@@ -2103,11 +2111,10 @@ export default function OracleAuditModal({
               width: "100%",
               maxWidth: "520px",
               maxHeight: "88vh",
-              background: "#0d0d0d",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "#000000",
+              border: "1px solid #2a2a2a",
               borderRadius: "16px",
-              boxShadow:
-                "0 25px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -2122,7 +2129,7 @@ export default function OracleAuditModal({
                 alignItems: "center",
                 justifyContent: "space-between",
                 flexShrink: 0,
-                background: "#0d0d0d",
+                background: "#000000",
               }}
             >
               <h2
@@ -2225,7 +2232,7 @@ export default function OracleAuditModal({
                     position: "relative",
                     borderRadius: "12px",
                     border: "1px solid rgba(255,255,255,0.08)",
-                    background: "#111111",
+                    background: "#000000",
                     padding: "20px 16px",
                     marginBottom: "12px",
                     display: "flex",
@@ -2322,7 +2329,7 @@ export default function OracleAuditModal({
                   style={{
                     borderRadius: "10px",
                     border: "1px solid rgba(255,255,255,0.1)",
-                    background: "#161616",
+                    background: "#000000",
                     padding: "16px",
                     marginBottom: "16px",
                   }}
@@ -3125,8 +3132,8 @@ export default function OracleAuditModal({
             width: "280px",
             maxHeight: "60vh",
             overflowY: "auto",
-            background: "#1c1c1e",
-            border: "1px solid rgba(255,255,255,0.15)",
+            background: "#000000",
+            border: "1px solid #2a2a2a",
             borderRadius: "12px",
             padding: "20px",
             fontFamily: "'Inter', system-ui, sans-serif",

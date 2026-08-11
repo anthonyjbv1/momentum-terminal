@@ -19,10 +19,10 @@ export function useUserFullPosition(assetName: string) {
   const short = shortPositions.get(assetName);
   const currentScore = finalScores.get(assetName) ?? 50;
 
-  // Short mark-to-market: profit when score falls below entry
-  // value = units * (entryScore - currentScore + spread) clamped to 0
-  const shortMTM = short
-    ? Math.max(0, short.units * (short.entryScore - currentScore + SPREAD))
+  // Short MTM: dollar-based. P&L = percent move from entry * dollars invested.
+  // Profit when score falls, loss when it rises, capped at full loss.
+  const shortMTM = short && short.entryScore > 0
+    ? Math.max(0, short.dollars + ((short.entryScore - currentScore) / short.entryScore) * short.dollars)
     : 0;
 
   const data: UserFullPosition = {
