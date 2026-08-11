@@ -214,8 +214,7 @@ function HoldingRow({
   return (
     <motion.div
       key={name}
-      className="group flex flex-col py-1.5 px-2 sm:py-2 sm:px-3 rounded-sm bg-white/[0.02] border border-border/50 border-l-2 transition-all duration-150 hover:bg-white/[0.04] hover:border-border/80"
-      style={{ borderLeftColor }}
+      className="group flex flex-col py-1.5 px-2 sm:py-2 sm:px-3 rounded-sm bg-white/[0.02] border border-border/50 transition-all duration-150 hover:bg-white/[0.04] hover:border-border/80"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut", delay: index * 0.06 }}
@@ -272,7 +271,7 @@ function HoldingRow({
             <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
               Value
             </p>
-            <p className="text-primary font-mono text-[11px] sm:text-[15px] sm:font-semibold">
+            <p className="text-muted-foreground font-mono text-[11px] sm:text-[15px] sm:font-semibold">
               {fmt(liveValue)}
             </p>
           </div>
@@ -583,69 +582,90 @@ function IndexSlideOver({
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4">
-          <motion.div
-            className="rounded-sm border border-border/50 bg-white/[0.02] p-3"
-            initial={{ opacity: 0, x: 16 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-foreground text-sm font-medium leading-tight">
-                {selectedIndex}
-              </span>
-            </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+          {/* Long position block */}
+          {hasLong && (
+            <motion.div
+              className="rounded-sm border border-border/50 bg-white/[0.02] p-3"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut" }}
+            >
+              <p className="text-[9px] uppercase tracking-widest text-green-400 font-semibold mb-2">High (Long)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Current Value</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(longLiveValue)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Cost Basis</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(longBasis)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Unrealized P&amp;L</p>
+                  <p className={`font-mono text-[12px] font-semibold ${longLiveValue - longBasis >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {fmtPnL(longLiveValue - longBasis)}
+                    {longBasis > 0 && <span className="text-[10px] opacity-75"> ({(((longLiveValue - longBasis) / longBasis) * 100).toFixed(1)}%)</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Today's Return</p>
+                  <p className={`font-mono text-[12px] font-semibold ${todayReturnIdx >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {fmtPnL(todayReturnIdx)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Shares</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{(longUnits + longAccrued).toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">% of Portfolio</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">
+                    {totalPortfolioValue > 0 ? ((longLiveValue / totalPortfolioValue) * 100).toFixed(1) : "0.0"}%
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                  Today's Return
-                </p>
-                <p
-                  className={`font-mono text-[12px] font-semibold ${
-                    todayReturnIdx >= 0 ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {fmtPnL(todayReturnIdx)}
-                </p>
+          {/* Short position block */}
+          {hasShort && (
+            <motion.div
+              className="rounded-sm border border-red-900/30 bg-red-950/10 p-3"
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, ease: "easeOut", delay: hasLong ? 0.05 : 0 }}
+            >
+              <p className="text-[9px] uppercase tracking-widest text-red-400 font-semibold mb-2">Low (Short)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Current Value</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(shortMarkToMarket)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Cost Basis</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(shortBasis)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Unrealized P&amp;L</p>
+                  <p className={`font-mono text-[12px] font-semibold ${shortUnrealizedPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
+                    {fmtPnL(shortUnrealizedPnL)}
+                    {shortBasis > 0 && <span className="text-[10px] opacity-75"> ({((shortUnrealizedPnL / shortBasis) * 100).toFixed(1)}%)</span>}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Units Short</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">{shortUnits.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">% of Portfolio</p>
+                  <p className="font-mono text-[12px] font-semibold text-foreground">
+                    {totalPortfolioValue > 0 ? ((shortMarkToMarket / totalPortfolioValue) * 100).toFixed(1) : "0.0"}%
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                  Unrealized P&amp;L
-                </p>
-                <p
-                  className={`font-mono text-[12px] font-semibold ${
-                    unrealizedReturn >= 0 ? "text-green-400" : "text-red-400"
-                  }`}
-                >
-                  {fmtPnL(unrealizedReturn)}{" "}
-                  <span className="text-[10px] opacity-75">
-                    ({unrealizedReturnPct.toFixed(1)}%)
-                  </span>
-                </p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                  Avg Cost
-                </p>
-                <p className="font-mono text-[12px] font-semibold text-foreground">
-                  {fmt(avgCostIdx)}
-                </p>
-                <p className="text-[10px] text-muted-foreground">per share</p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">
-                  % of Portfolio
-                </p>
-                <p className="font-mono text-[12px] font-semibold text-foreground">
-                  {portfolioPctIdx.toFixed(1)}%
-                </p>
-                <p className="text-[10px] text-muted-foreground">
-                  {fmt(displayValue)} of {fmt(totalPortfolioValue)}
-                </p>
-              </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          )}
         </div>
       </motion.div>
     </>

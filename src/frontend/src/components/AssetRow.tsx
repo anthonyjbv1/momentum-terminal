@@ -551,10 +551,16 @@ function AssetRowInner({
     if (redeemDirection === "short") {
       // Close short locally — no canister dependency
       const short = shortPositions.get(asset.name);
-      if (!short || short.units <= 0) return;
+      if (!short || short.units <= 0) {
+        // No local short entry — stale/orphaned position, nothing to close
+        setShowRedeemConfirm(false);
+        return;
+      }
       const currentScore = finalScores.get(asset.name) ?? asset.baseScore;
-      const SPREAD = 0.5;
-      const shortMTM = Math.max(0, short.units * (short.entryScore - currentScore + SPREAD));
+      // Dollar-based MTM (same formula as useUserFullPosition)
+      const shortMTM = short.entryScore > 0
+        ? Math.max(0, short.dollars + ((short.entryScore - currentScore) / short.entryScore) * short.dollars)
+        : 0;
       closeShort(asset.name);
       addFunds(shortMTM);
       logCredit(shortMTM, asset.name);
@@ -764,10 +770,13 @@ function AssetRowInner({
   // pure short (unitsOwned === 0) is not permanently disabled in dollar mode.
   // FIX 3d: keep the confirm button disabled while the short entry score has
   // no valid nonzero value (shortEntryScoreValid declared near line 487).
+  // For short direction: disabled only if we HAVE a short position but entryScore is invalid.
+  // If shortPositions has no entry (orphaned/pre-fix), allow button so the handler can clear gracefully.
+  const shortHasEntry = shortPositions.has(asset.name);
   const isRedeemButtonDisabled =
-    (redeemDirection === "short" && !shortEntryScoreValid) ||
+    (redeemDirection === "short" && shortHasEntry && !shortEntryScoreValid) ||
     !!redeemUnitsError ||
-    redeemUnits <= 0;
+    (redeemDirection !== "short" && redeemUnits <= 0);
 
   return (
     <TooltipProvider delayDuration={200}>

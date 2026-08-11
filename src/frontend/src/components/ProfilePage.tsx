@@ -2003,45 +2003,29 @@ export function ProfilePage() {
           />
         </motion.div>
 
-        {/* Buying Power Card */}
-        <motion.div
-          className="rounded-2xl p-4"
+        {/* Buying Power Card — tap anywhere to deposit */}
+        <motion.button
+          type="button"
+          onClick={() => setIsDepositOpen(true)}
+          data-ocid="profile_page.add_funds"
+          className="w-full rounded-2xl p-4 text-left transition-colors duration-150"
           style={{ backgroundColor: "#141414", border: "1px solid #222222" }}
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: "easeOut", delay: 0.16 }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#1a1a1a";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#141414";
+          }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <p
-              className="text-[11px] uppercase tracking-widest font-semibold"
-              style={{
-                color: "oklch(0.48 0.008 240)",
-                letterSpacing: "0.12em",
-              }}
-            >
-              Buying Power
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsDepositOpen(true)}
-              data-ocid="profile_page.add_funds"
-              className="flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-semibold transition-all duration-150"
-              style={{
-                backgroundColor: "oklch(0.28 0.12 145)",
-                color: "oklch(0.72 0.20 145)",
-                border: "1.5px solid oklch(0.45 0.16 145)",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = "oklch(0.34 0.14 145)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = "oklch(0.28 0.12 145)";
-              }}
-            >
-              <Plus className="w-3.5 h-3.5" strokeWidth={2.5} />
-              Add Funds
-            </button>
-          </div>
+          <p
+            className="text-[11px] uppercase tracking-widest font-semibold mb-3"
+            style={{ color: "oklch(0.48 0.008 240)", letterSpacing: "0.12em" }}
+          >
+            Buying Power
+          </p>
           <p
             className="text-2xl font-mono font-bold tracking-tight mt-1 mb-3"
             style={{ color: "#ffffff" }}
@@ -2054,13 +2038,10 @@ export function ProfilePage() {
                   : (walletBalance ?? 0),
             )}
           </p>
-          <p
-            className="text-[13px] mt-2"
-            style={{ color: "oklch(0.48 0.008 240)" }}
-          >
+          <p className="text-[13px] mt-2" style={{ color: "oklch(0.48 0.008 240)" }}>
             Tap to deposit funds instantly
           </p>
-        </motion.div>
+        </motion.button>
 
         {/* Consolidated nav card — Activity, Tax Center, Legal — CHANGE 2A */}
         <motion.div
