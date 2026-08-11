@@ -220,7 +220,7 @@ function ConfidenceRing({
               letterSpacing: "-0.02em",
             }}
           >
-            {Math.min(95, score)}
+            {score}
           </span>
           <span
             style={{
@@ -1509,7 +1509,7 @@ function RadarSpider({
           key={`grid-${gridLevels[i]}`}
           d={d}
           fill="none"
-          stroke="rgba(255,255,255,0.07)"
+          stroke="rgba(255,255,255,0.15)"
           strokeWidth={1}
           strokeDasharray={i === 3 ? "none" : "3 3"}
         />
@@ -1523,7 +1523,7 @@ function RadarSpider({
           y1={cy}
           x2={ex}
           y2={ey}
-          stroke="rgba(255,255,255,0.10)"
+          stroke="rgba(255,255,255,0.18)"
           strokeWidth={1}
         />
       ))}
@@ -1534,10 +1534,10 @@ function RadarSpider({
           key={w.color}
           d={w.path}
           fill={w.color}
-          fillOpacity={0.45}
+          fillOpacity={0.75}
           stroke={w.color}
-          strokeWidth={1}
-          strokeOpacity={0.85}
+          strokeWidth={1.5}
+          strokeOpacity={1}
           strokeLinejoin="round"
           style={{ transition: "d 0.35s cubic-bezier(0.4,0,0.2,1)" }}
         />
