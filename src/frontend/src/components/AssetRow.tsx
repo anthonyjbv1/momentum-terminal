@@ -401,14 +401,14 @@ function AssetRowInner({
   } = useWalletContext();
   const { data: allHoldings, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
-  const { clearHolding, redeemPartialHolding, localVolumeMap, addLocalVolume } = useLocalHoldings();
+  const { clearHolding, redeemPartialHolding, localVolumeMap, addLocalVolume, shortPositions, closeShort } = useLocalHoldings();
 
   // B4: Per-position loyalty tier — each index has its own independent clock
   const { getPositionTier, clearPositionTier } = useLoyalty();
   const positionTier = getPositionTier(asset.name);
 
   const { isCrisisMode, crisisTriggerIndices } = useCrisisRegime();
-  const { activePreemptions, scoreHistoryMap, platformVolumeByIndex } =
+  const { activePreemptions, scoreHistoryMap, platformVolumeByIndex, finalScores } =
     useOracleTick();
   const activePreemption = useMemo(() => {
     const p = activePreemptions.get(asset.name);
@@ -475,15 +475,6 @@ function AssetRowInner({
   const shortUnits = fullPosition?.shortUnits ?? 0;
   const hasAnyPosition = longUnits > 0 || shortUnits > 0 || unitsOwned > 0;
   const hasBothPositions = (longUnits > 0 || unitsOwned > 0) && shortUnits > 0;
-  console.log("[AssetRow]", asset.name, {
-    longUnits,
-    shortUnits,
-    shortEntryScore: fullPosition?.shortEntryScore,
-    shortMarkToMarket: fullPosition?.shortMarkToMarket,
-    unitsOwned,
-    hasAnyPosition,
-    hasBothPositions,
-  });
   const rawShortEntryScore = fullPosition?.shortEntryScore ?? 0;
   const shortEntryScore =
     rawShortEntryScore > 0 ? rawShortEntryScore : asset.baseScore;
@@ -543,7 +534,7 @@ function AssetRowInner({
     !isAtCapacity &&
     !isUserAtPositionLimit &&
     !showHaltBanner;
-  const canRedeem = unitsOwned > 0;
+  const canRedeem = unitsOwned > 0 || shortUnits > 0;
 
   const handleAllocateClick = () => {
     if (!canAllocate) return;
@@ -558,24 +549,17 @@ function AssetRowInner({
     // in the inline redeem modal. Bypasses all long-path queue/utilization
     // logic — short redemptions settle directly against the backend.
     if (redeemDirection === "short") {
-      if (!actor) return;
-      const unitsToRedeem = activeRedeemUnits;
-      actor
-        .redeemShort(asset.name, unitsToRedeem)
-        .then(
-          (
-            result:
-              | { __kind__: "ok"; ok: unknown }
-              | { __kind__: "err"; err: string },
-          ) => {
-            if (result.__kind__ === "ok") {
-              setShowRedeemConfirm(false);
-            }
-          },
-        )
-        .catch(() => {
-          // Silent fail — modal stays open so the user can retry.
-        });
+      // Close short locally — no canister dependency
+      const short = shortPositions.get(asset.name);
+      if (!short || short.units <= 0) return;
+      const currentScore = finalScores.get(asset.name) ?? asset.baseScore;
+      const SPREAD = 0.5;
+      const shortMTM = Math.max(0, short.units * (short.entryScore - currentScore + SPREAD));
+      closeShort(asset.name);
+      addFunds(shortMTM);
+      logCredit(shortMTM, asset.name);
+      addLocalVolume(asset.name, shortMTM);
+      setShowRedeemConfirm(false);
       return;
     }
 
@@ -973,11 +957,7 @@ function AssetRowInner({
                     {asset.buyPrice.toFixed(2)}
                   </p>
                   <p
-                    className={`font-mono text-[10px] mt-0.5 transition-colors ${
-                      asset.isVolatilitySpread
-                        ? "text-orange-400/80"
-                        : "text-muted-foreground"
-                    }`}
+                    className="font-mono text-[10px] mt-0.5 text-muted-foreground"
                   >
                     +{activeSpread.toFixed(2)} spread
                   </p>
@@ -1005,11 +985,7 @@ function AssetRowInner({
                     {asset.redeemPrice.toFixed(2)}
                   </p>
                   <p
-                    className={`font-mono text-[10px] mt-0.5 transition-colors ${
-                      asset.isVolatilitySpread
-                        ? "text-orange-400/80"
-                        : "text-muted-foreground"
-                    }`}
+                    className="font-mono text-[10px] mt-0.5 text-muted-foreground"
                   >
                     −{activeSpread.toFixed(2)} spread
                   </p>
@@ -1093,7 +1069,13 @@ function AssetRowInner({
                       <button
                         type="button"
                         onClick={() => {
-                          if (canRedeem) setShowRedeemConfirm(true);
+                          if (!canRedeem) return;
+                          if (unitsOwned > 0) {
+                            setRedeemDirection("long");
+                          } else {
+                            setRedeemDirection("short");
+                          }
+                          setShowRedeemConfirm(true);
                         }}
                         disabled={!canRedeem}
                         aria-disabled={!canRedeem}
@@ -1452,7 +1434,7 @@ function AssetRowInner({
                         padding: "0 0 0.5rem 0",
                       }}
                     >
-                      {hasBothPositions && (
+                      {(hasBothPositions || shortUnits > 0) && (
                         <div
                           style={{
                             margin: "0 1.25rem 1rem 1.25rem",

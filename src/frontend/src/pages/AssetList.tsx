@@ -47,21 +47,35 @@ export const subLabelMap: Map<string, string> = new Map(
   allAssets.map((a) => [a.name, a.subLabel]),
 );
 
+function computeDynamicSpread(currentAllocated: number, effectiveCapacity: number): number {
+  const BASE_SPREAD = 0.5;
+  const MAX_SPREAD = 1.5;
+  if (effectiveCapacity <= 0) return BASE_SPREAD;
+  const utilization = Math.min(1, currentAllocated / effectiveCapacity);
+  return Number.parseFloat((BASE_SPREAD + (MAX_SPREAD - BASE_SPREAD) * utilization).toFixed(2));
+}
+
 function buildSyntheticAsset(entry: {
   name: string;
   category: string;
   baseScore: number;
+  currentAllocated?: number;
 }): AssetPriceWithCapacity {
-  const spread = 0.5;
+  const def = FALLBACK_ASSET_DEFS.find((d) => d.name === entry.name);
+  const maxAllocation = def?.maxAllocation ?? 100_000.0;
+  const volatilityBuffer = def?.volatilityBuffer ?? 0.1;
+  const effectiveCapacity = maxAllocation * (1 - volatilityBuffer);
+  const allocated = entry.currentAllocated ?? 0;
+  const spread = computeDynamicSpread(allocated, effectiveCapacity);
   return computeCapacity({
     name: entry.name,
     category: entry.category,
     baseScore: entry.baseScore,
     buyPrice: entry.baseScore + spread,
     redeemPrice: entry.baseScore - spread,
-    maxAllocation: 100_000.0,
-    volatilityBuffer: 0.1,
-    currentAllocated: 0,
+    maxAllocation,
+    volatilityBuffer,
+    currentAllocated: allocated,
   });
 }
 

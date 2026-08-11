@@ -129,9 +129,6 @@ export function useAssetPrices() {
     const timeout = setTimeout(() => {
       const existing = queryClient.getQueryData(["assetPrices"]);
       if (!existing || (existing as unknown[]).length === 0) {
-        console.warn(
-          "[useAssetPrices] Actor not ready after 3s — seeding from FALLBACK_ASSET_DEFS",
-        );
         queryClient.setQueryData(["assetPrices"], buildFallbackAssets());
       }
     }, 3000);
@@ -168,26 +165,14 @@ export function useAssetPrices() {
       // static FALLBACK_ASSETS values.
       const ACTIVE_INDICES = FALLBACK_ASSET_DEFS.map((d) => d.name);
       const missingCount = ACTIVE_INDICES.filter((name) => !result.find((r) => r.name === name)).length;
-      console.log("[useAssetPrices] Phase 2 — missing from canister:", missingCount, "indexes to append");
       for (const indexName of ACTIVE_INDICES) {
         if (!result.find((r) => r.name === indexName)) {
           const fallback = FALLBACK_ASSET_DEFS.find(
             (a) => a.name === indexName,
           );
 
-          // Score priority for backend-absent indices:
-          //   1. OracleTickContext finalScore — if defined and > 0
-          //   2. fallback.baseScore (fallbackAssets.ts) — if > 0
-          //   3. 50.0 — absolute last-resort floor, never 0.0
           if (fallback) {
             const oracleScore = finalScores.get(indexName);
-
-            if (oracleScore === undefined) {
-              console.warn(
-                `[useAssetPrices] No Oracle score yet for "${indexName}". ` +
-                  `Using fallback baseScore: ${fallback.baseScore}`,
-              );
-            }
 
             const resolvedBase =
               oracleScore !== undefined && oracleScore > 0
@@ -203,18 +188,27 @@ export function useAssetPrices() {
             // applies a static BASE_SPREAD (reduced by loyalty tier) only — no
             // LMSR override, no crisis override, no circuit-breaker re-pricing.
             const MINIMUM_SPREAD = 0.1;
+            const MAX_SPREAD = 1.5;
             const loyaltyReduction = tier?.spreadReduction ?? 0;
+
+            // Compute currentAllocated first so spread can widen with utilization
+            const localUnits = localHoldingsMap[indexName]?.units ?? 0;
+            const effectiveCapacity = fallback.maxAllocation * (1 - fallback.volatilityBuffer);
+            // Rough allocated estimate using base score before spread is known
+            const currentAllocated = localUnits * (base - MINIMUM_SPREAD);
+
+            // Dynamic spread: widens linearly from BASE_SPREAD to MAX_SPREAD as utilization rises
+            const utilization = effectiveCapacity > 0 ? Math.min(1, currentAllocated / effectiveCapacity) : 0;
+            const dynamicSpread = BASE_SPREAD + (MAX_SPREAD - BASE_SPREAD) * utilization;
             const fallbackSpread = Math.max(
               MINIMUM_SPREAD,
-              BASE_SPREAD - loyaltyReduction,
+              dynamicSpread - loyaltyReduction,
             );
             const fallbackBuyPrice = roundTo2(base + fallbackSpread);
             let fallbackRedeemPrice = roundTo2(base - fallbackSpread);
             if (fallbackRedeemPrice < 0) fallbackRedeemPrice = 0.01;
 
-            const localUnits = localHoldingsMap[indexName]?.units ?? 0;
             const redeemForCapacity = fallbackRedeemPrice;
-            const currentAllocated = localUnits * redeemForCapacity;
 
             result.push(
               computeCapacity({
@@ -232,7 +226,6 @@ export function useAssetPrices() {
         }
       }
 
-      console.log("[useAssetPrices] Phase 2 complete — final result:", result.length, "assets");
       return result;
       // ─────────────────────────────────────────────────────────────────────
     },
