@@ -573,7 +573,7 @@ export function AllocationModal({
                       marginBottom: "0.25rem",
                     }}
                   >
-                    Your Allowance
+                    High Limit
                   </div>
                   <div
                     style={{

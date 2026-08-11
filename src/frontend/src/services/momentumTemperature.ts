@@ -105,7 +105,7 @@ function buildDisplayStrings(
   switch (state) {
     case "HOT":
       return {
-        label: "\uD83D\uDD25 HOT",
+        label: "HOT",
         description:
           effectiveDuration.min === 0
             ? "Narrative spike detected. Elevated activity in progress."
@@ -113,7 +113,7 @@ function buildDisplayStrings(
       };
     case "WARM":
       return {
-        label: "\uD83D\uDCC8 WARM",
+        label: "WARM",
         description:
           effectiveDuration.min === 0
             ? "Above-average narrative activity detected."
@@ -121,7 +121,7 @@ function buildDisplayStrings(
       };
     case "NORMAL":
       return {
-        label: "\u2796 NORMAL",
+        label: "NORMAL",
         description:
           "Baseline narrative conditions. No significant spike detected. Theta decay is the dominant force \u2014 conviction-based entry.",
       };
