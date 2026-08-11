@@ -344,6 +344,7 @@ function PositionRows({
   holding,
   redeemPrice,
   costBasis,
+  shortCostBasis,
   hasUnlockedPnL,
   onUnlock,
   index,
@@ -355,6 +356,7 @@ function PositionRows({
   holding: Holding;
   redeemPrice: number;
   costBasis: number;
+  shortCostBasis: number;
   hasUnlockedPnL: boolean;
   onUnlock: () => void;
   index: number;
@@ -413,8 +415,8 @@ function PositionRows({
         name={name}
         holding={holding}
         redeemPrice={redeemPrice}
-        costBasis={costBasis}
-        hasUnlockedPnL={hasUnlockedPnL}
+        costBasis={shortCostBasis}
+        hasUnlockedPnL={shortCostBasis > 0}
         onUnlock={onUnlock}
         index={index}
         category={category}
@@ -523,7 +525,7 @@ export function PortfolioHeader({
   const { data: holdingsData, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
   const { data: assetPrices, isLoading: pricesLoading } = useAssetPrices();
-  const { costBasisMap, pnlUnlockedMap, unlockPnL } = useLocalHoldings();
+  const { costBasisMap, shortCostBasisMap, pnlUnlockedMap, unlockPnL } = useLocalHoldings();
   const { finalScores, platformAllocatedByIndex, tickCount } = useOracleTick();
 
   const [isDepositOpen, setIsDepositOpen] = useState(false);
@@ -1158,6 +1160,7 @@ export function PortfolioHeader({
                   holding={holding}
                   redeemPrice={redeemPriceMap[name] ?? 0}
                   costBasis={costBasisMap.get(name) ?? 0}
+                  shortCostBasis={shortCostBasisMap.get(name) ?? 0}
                   hasUnlockedPnL={pnlUnlockedMap.get(name) === true}
                   onUnlock={makeUnlockHandler(name)}
                   index={index}

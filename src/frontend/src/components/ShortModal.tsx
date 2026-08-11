@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
 import { useWalletContext } from "../contexts/WalletContext";
 import { useActor } from "../hooks/useActor";
 import { useMomentumTemperature } from "../hooks/useMomentumTemperature";
@@ -91,6 +92,7 @@ export function ShortModal({
   const previewRef = useRef<HTMLDivElement>(null);
   const { walletBalance, deductFunds, logSpend } = useWalletContext();
   const { userAccount } = useAuth();
+  const { addShortCostBasis } = useLocalHoldings();
   const userId = userAccount?.email ?? "";
   const temperature = useMomentumTemperature(assetName, category);
   const queryClient = useQueryClient();
@@ -304,6 +306,9 @@ export function ShortModal({
             | { __kind__: "err"; err: string },
         ) => {
           if (result.__kind__ === "ok") {
+            // Record the cost basis for this short so P&L can be computed
+            addShortCostBasis(assetName, parsedAmount);
+
             // Invalidate userFullPosition query so the position view refreshes
             queryClient.invalidateQueries({
               queryKey: ["userFullPosition", assetName],

@@ -42,6 +42,7 @@ const ALLOC_100_HOLDINGS_SUFFIX = "sentimentam_100_alloc_holdings_v1";
 // Separate key so we never wipe unlock state when bumping holdings version
 const PNL_UNLOCKED_SUFFIX = "sentimentam_pnl_unlocked_v1";
 const KEY_MIGRATION_SUFFIX = "sentimentam_key_migration_v1";
+const SHORT_COST_BASIS_SUFFIX = "sentimentam_short_cost_basis_v1";
 
 // ── One-time localStorage key migration ─────────────────────────────────────
 // Renames the original 3 engine keys (which carried an 'Index' suffix) to
@@ -134,6 +135,10 @@ interface LocalHoldingsContextValue {
    * Resets to false when the position is fully closed (units → 0).
    */
   pnlUnlockedMap: PnlUnlockedMap;
+  /** Total dollars paid per short position. Key = index name. */
+  shortCostBasisMap: Map<string, number>;
+  /** Record dollars spent opening a short position. Accumulates across top-ups. */
+  addShortCostBasis: (indexName: string, dollars: number) => void;
   /** Add units to an index holding. costBasis = dollars spent on this allocation. */
   addHolding: (indexName: string, units: number, costBasis?: number) => void;
   /** Remove all units from an index holding. Resets cost basis and P&L unlock flag. */
@@ -278,6 +283,7 @@ export function LocalHoldingsProvider({
 
   const [holdingsMap, setHoldingsMap] = useState<LocalHoldingsMap>(new Map());
   const [costBasisMap, setCostBasisMap] = useState<CostBasisMap>(new Map());
+  const [shortCostBasisMap, setShortCostBasisMap] = useState<Map<string, number>>(new Map());
   const [pnlUnlockedMap, setPnlUnlockedMap] = useState<PnlUnlockedMap>(
     new Map(),
   );
@@ -310,6 +316,18 @@ export function LocalHoldingsProvider({
     setHoldingsMap(loaded);
     setCostBasisMap(loadedCostBasis);
     setPnlUnlockedMap(loadPnlUnlocked(userId));
+
+    // Load persisted short cost basis map
+    try {
+      const rawShort = localStorage.getItem(k(userId, SHORT_COST_BASIS_SUFFIX));
+      if (rawShort) {
+        const parsed = JSON.parse(rawShort) as Record<string, number>;
+        setShortCostBasisMap(new Map(Object.entries(parsed)));
+      }
+    } catch {
+      // malformed — start empty
+    }
+
     setIsLoading(false);
   }, [userId]);
 
@@ -410,6 +428,26 @@ export function LocalHoldingsProvider({
     localStorage.setItem(k(userId, ALLOC_100_HOLDINGS_SUFFIX), "true");
   }, [userId, isLoading]);
 
+
+  const addShortCostBasis = useCallback(
+    (indexName: string, dollars: number) => {
+      if (!userId || dollars <= 0) return;
+      setShortCostBasisMap((prev) => {
+        const next = new Map(prev);
+        next.set(indexName, (next.get(indexName) ?? 0) + dollars);
+        try {
+          localStorage.setItem(
+            k(userId, SHORT_COST_BASIS_SUFFIX),
+            JSON.stringify(Object.fromEntries(next)),
+          );
+        } catch {
+          // quota exceeded — skip
+        }
+        return next;
+      });
+    },
+    [userId],
+  );
 
   const addHolding = useCallback(
     (indexName: string, units: number, costBasis?: number) => {
@@ -602,8 +640,10 @@ export function LocalHoldingsProvider({
       value={{
         holdings,
         costBasisMap,
+        shortCostBasisMap,
         pnlUnlockedMap,
         addHolding,
+        addShortCostBasis,
         clearHolding,
         redeemPartialHolding,
         unlockPnL,
