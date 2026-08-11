@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { BarChart2, TrendingDown, TrendingUp, Wallet, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   Area,
   AreaChart,
@@ -464,14 +464,16 @@ function ShortTotalAggregator({
   holdings: Array<{ name: string; holding: Holding }>;
   onShortTotal: (total: number) => void;
 }) {
-  // Collect short MTM per holding via a single child per holding so the hook
-  // is called unconditionally at the top level of each child.
+  // Per-instance map so short totals never bleed across user sessions.
+  const totalsRef = useRef(new Map<string, number>());
+
   return (
     <div className="hidden" aria-hidden="true">
       {holdings.map(({ name }) => (
         <ShortTotalCollector
           key={name}
           name={name}
+          totalsRef={totalsRef}
           onShortTotal={onShortTotal}
         />
       ))}
@@ -479,29 +481,29 @@ function ShortTotalAggregator({
   );
 }
 
-const shortTotalsRef = new Map<string, number>();
-
 function ShortTotalCollector({
   name,
+  totalsRef,
   onShortTotal,
 }: {
   name: string;
+  totalsRef: RefObject<Map<string, number>>;
   onShortTotal: (total: number) => void;
 }) {
   const { data: position } = useUserFullPosition(name);
   const shortMTM = position?.shortMarkToMarket ?? 0;
 
   useEffect(() => {
-    shortTotalsRef.set(name, shortMTM);
-    const total = Array.from(shortTotalsRef.values()).reduce(
+    totalsRef.current.set(name, shortMTM);
+    const total = Array.from(totalsRef.current.values()).reduce(
       (sum, v) => sum + v,
       0,
     );
     onShortTotal(total);
     return () => {
-      // Do not clear on unmount to keep the aggregate stable across re-renders.
+      totalsRef.current.delete(name);
     };
-  }, [name, shortMTM, onShortTotal]);
+  }, [name, shortMTM, onShortTotal, totalsRef]);
 
   return null;
 }
