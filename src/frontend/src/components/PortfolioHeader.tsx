@@ -231,7 +231,7 @@ function HoldingRow({
         background: cardBg,
         border: `1px solid ${cardBorder}`,
         padding: "0.875rem 1rem",
-        fontFamily: "'Inter', system-ui, sans-serif",
+        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
         cursor: "pointer",
       }}
       onClick={() => onSelectIndex?.(name)}
@@ -578,16 +578,16 @@ function IndexSlideOver({
         onClick={onClose}
       />
       <motion.div
-        className="fixed right-0 top-0 z-50 flex flex-col w-full sm:w-96"
-        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif" }}
+        className="fixed right-0 top-0 z-50 w-full sm:w-96"
+        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", display: "flex", flexDirection: "column", overflow: "hidden" }}
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         data-ocid="portfolio.index-slide-over"
       >
-        {/* ── Sticky Header ── */}
-        <div style={{ position: "sticky", top: 0, background: "#0a0a0a", borderBottom: "1px solid #1e1e1e", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 10, flexShrink: 0 }}>
+        {/* ── Header (not sticky — it's outside the scroll area) ── */}
+        <div style={{ background: "#0a0a0a", borderBottom: "1px solid #1e1e1e", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div>
             <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.25rem" }}>
               Position Detail
@@ -638,7 +638,7 @@ function IndexSlideOver({
         </div>
 
         {/* ── Scrollable Body ── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1rem", minHeight: 0 }}>
 
           {/* ── P&L Hero ── */}
           <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>

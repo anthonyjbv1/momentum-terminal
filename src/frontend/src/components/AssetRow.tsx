@@ -1256,7 +1256,7 @@ function AssetRowInner({
                   borderRadius: "0.75rem",
                   backgroundColor: "#000000",
                   border: "1px solid #2a2a2a",
-                  fontFamily: "'Inter', system-ui, sans-serif",
+                  fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
                 }}
               >
                 {/* ── Queued Confirmation Panel ── */}
@@ -1753,9 +1753,6 @@ function AssetRowInner({
                                   const parsed = Number.parseFloat(val.replace(/,/g, "")) || 0;
                                   const units = effectiveRedeemPrice > 0 ? Math.max(0, Math.min(maxRedeemUnits, Math.floor(parsed / effectiveRedeemPrice))) : 0;
                                   setRedeemUnits(units);
-                                  if (parsed > 0 && units < 1) {
-                                    setRedeemUnitsError(`Minimum is 1 share (~$${effectiveRedeemPrice.toFixed(2)})`);
-                                  }
                                 }
                               }}
                               style={{
@@ -1794,17 +1791,13 @@ function AssetRowInner({
                                   setRedeemUnitsError(`Cannot exceed your balance of ${maxRedeemUnits} shares`);
                                   return;
                                 }
-                                if (parsed < 1) {
-                                  setRedeemUnitsError("Minimum redemption is 1 share");
-                                  return;
-                                }
                                 setRedeemUnits(parsed);
                               }}
                               onBlur={(e) => {
                                 const parsed = Number.parseInt(e.target.value, 10);
                                 const clamped = Number.isNaN(parsed)
                                   ? maxRedeemUnits
-                                  : Math.max(1, Math.min(maxRedeemUnits, parsed));
+                                  : Math.max(0, Math.min(maxRedeemUnits, parsed));
                                 setRedeemUnits(clamped);
                                 setRedeemUnitsRaw(String(clamped));
                                 setRedeemUnitsError("");
