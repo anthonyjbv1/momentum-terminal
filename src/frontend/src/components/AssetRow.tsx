@@ -366,7 +366,7 @@ function PreemptionBadge({
         padding: "1px 6px",
         borderRadius: "4px",
         fontSize: "0.6rem",
-        fontFamily: "'JetBrains Mono', monospace",
+        
         fontWeight: 700,
         letterSpacing: "0.04em",
         textTransform: "uppercase",
@@ -1297,7 +1297,7 @@ function AssetRowInner({
                             fontWeight: 700,
                             letterSpacing: "0.14em",
                             textTransform: "uppercase",
-                            fontFamily: "monospace",
+                            
                             margin: 0,
                             marginBottom: "0.5rem",
                           }}
@@ -1329,7 +1329,7 @@ function AssetRowInner({
                           style={{
                             color: "#6b6b6b",
                             fontSize: "0.6875rem",
-                            fontFamily: "monospace",
+                            
                           }}
                         >
                           Queue position:{" "}
@@ -1362,7 +1362,7 @@ function AssetRowInner({
                           fontSize: "0.875rem",
                           fontWeight: 600,
                           cursor: "pointer",
-                          fontFamily: "monospace",
+                          
                           letterSpacing: "0.05em",
                           textTransform: "uppercase",
                         }}
@@ -1391,19 +1391,17 @@ function AssetRowInner({
                       <h2
                         style={{
                           color: "#ffffff",
-                          fontSize: "1rem",
+                          fontSize: "1.25rem",
                           fontWeight: 700,
                           letterSpacing: "-0.01em",
                           margin: 0,
-                          textTransform: "uppercase",
-                          fontFamily: "monospace",
                         }}
                       >
                         {hasBothPositions
-                          ? "CLOSE POSITION"
+                          ? "Close Position"
                           : redeemDirection === "short"
-                            ? "CLOSE SHORT POSITION"
-                            : "PARTIAL REDEMPTION"}
+                            ? "Close Short Position"
+                            : "Partial Redemption"}
                       </h2>
                       <button
                         type="button"
@@ -1523,7 +1521,7 @@ function AssetRowInner({
                                 <span
                                   style={{
                                     color: "#ffffff",
-                                    fontFamily: "monospace",
+                                    
                                     fontWeight: 600,
                                   }}
                                 >
@@ -1540,7 +1538,7 @@ function AssetRowInner({
                                 <span
                                   style={{
                                     color: "#ffffff",
-                                    fontFamily: "monospace",
+                                    
                                     fontWeight: 600,
                                   }}
                                 >
@@ -1560,7 +1558,7 @@ function AssetRowInner({
                                 <span
                                   style={{
                                     color: "#ffffff",
-                                    fontFamily: "monospace",
+                                    
                                     fontWeight: 600,
                                   }}
                                 >
@@ -1616,7 +1614,7 @@ function AssetRowInner({
                                   color: "#6b6b6b",
                                   fontSize: "1.5rem",
                                   fontWeight: 600,
-                                  fontFamily: "monospace",
+                                  
                                   letterSpacing: "-0.02em",
                                 }}
                               >
@@ -1636,7 +1634,7 @@ function AssetRowInner({
                                 color: payout === 0 ? "#6b6b6b" : "#ffffff",
                                 fontSize: "2rem",
                                 fontWeight: 700,
-                                fontFamily: "monospace",
+                                
                                 letterSpacing: "-0.02em",
                               }}
                             >
@@ -1648,7 +1646,7 @@ function AssetRowInner({
                           style={{
                             color: "#6b6b6b",
                             fontSize: "0.6875rem",
-                            fontFamily: "monospace",
+                            
                           }}
                         >
                           exit spread: {effectiveExitSpread.toFixed(2)} pts
@@ -1737,10 +1735,10 @@ function AssetRowInner({
                               background: "none",
                               border: "none",
                               outline: "none",
-                              color: redeemDirection === "short" ? "#f87171" : "#ffffff",
-                              fontSize: "1.25rem",
-                              fontWeight: 300,
-                              fontFamily: "monospace",
+                              color: redeemDirection === "short" ? "#f87171" : (redeemUnitsRaw ? "#ffffff" : "#4a4a4a"),
+                              fontSize: "2.25rem",
+                              fontWeight: 700,
+                              caretColor: redeemDirection === "short" ? "#f87171" : "oklch(0.72 0.18 145)",
                               width: "100%",
                             }}
                           />
@@ -1750,7 +1748,7 @@ function AssetRowInner({
                           style={{
                             color: "#6b6b6b",
                             fontSize: "0.6875rem",
-                            fontFamily: "monospace",
+                            
                             marginTop: "0.375rem",
                             marginBottom: 0,
                           }}
@@ -1767,7 +1765,7 @@ function AssetRowInner({
                             style={{
                               color: "#f87171",
                               fontSize: "0.6875rem",
-                              fontFamily: "monospace",
+                              
                               marginTop: "0.25rem",
                               marginBottom: 0,
                             }}
@@ -1863,7 +1861,7 @@ function AssetRowInner({
                                       style={{
                                         color: "#ffffff",
                                         fontSize: "0.8125rem",
-                                        fontFamily: "monospace",
+                                        
                                         fontWeight: 600,
                                         letterSpacing: "-0.01em",
                                       }}
@@ -1876,7 +1874,7 @@ function AssetRowInner({
                                       style={{
                                         color: PLATFORM_GREEN_REDEEM,
                                         fontSize: "0.6rem",
-                                        fontFamily: "monospace",
+                                        
                                         fontWeight: 500,
                                       }}
                                     >
@@ -1974,7 +1972,7 @@ function AssetRowInner({
                                       style={{
                                         color: "#ffffff",
                                         fontSize: "0.8125rem",
-                                        fontFamily: "monospace",
+                                        
                                         fontWeight: 600,
                                         letterSpacing: "-0.01em",
                                       }}
@@ -1987,7 +1985,7 @@ function AssetRowInner({
                                       style={{
                                         color: PLATFORM_GREEN_REDEEM,
                                         fontSize: "0.6rem",
-                                        fontFamily: "monospace",
+                                        
                                         fontWeight: 500,
                                       }}
                                     >
@@ -2053,9 +2051,6 @@ function AssetRowInner({
                           fontSize: "0.875rem",
                           fontWeight: 600,
                           cursor: "pointer",
-                          fontFamily: "monospace",
-                          letterSpacing: "0.05em",
-                          textTransform: "uppercase",
                         }}
                       >
                         Cancel
@@ -2069,21 +2064,18 @@ function AssetRowInner({
                           width: "100%",
                           padding: "0.875rem",
                           borderRadius: "0.5rem",
-                          border: "1px solid rgba(239,68,68,0.5)",
-                          backgroundColor: "rgba(239,68,68,0.15)",
-                          color: "#f87171",
+                          backgroundColor: isRedeemButtonDisabled ? "#1a1a1a" : (redeemDirection === "short" ? "rgba(239,68,68,0.15)" : "oklch(0.52 0.17 145)"),
+                          border: isRedeemButtonDisabled ? "none" : (redeemDirection === "short" ? "1px solid rgba(239,68,68,0.5)" : "none"),
+                          color: isRedeemButtonDisabled ? "#4a4a4a" : (redeemDirection === "short" ? "#f87171" : "#ffffff"),
                           fontSize: "0.875rem",
                           fontWeight: 600,
-                          fontFamily: "monospace",
-                          letterSpacing: "0.05em",
-                          textTransform: "uppercase",
                           opacity: isRedeemButtonDisabled ? 0.4 : 1,
                           cursor: isRedeemButtonDisabled
                             ? "not-allowed"
                             : "pointer",
                         }}
                       >
-                        REDEEM
+                        {isRedeemButtonDisabled ? "Enter an Amount" : (redeemDirection === "short" ? `Close Short · ${redeemUnitsRaw} shares` : `Confirm Redemption · ${redeemUnitsRaw} shares`)}
                       </button>
                     </div>
                   </>

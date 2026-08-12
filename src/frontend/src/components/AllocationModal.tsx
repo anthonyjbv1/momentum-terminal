@@ -405,12 +405,10 @@ export function AllocationModal({
               <h2
                 style={{
                   color: "#ffffff",
-                  fontSize: "1.125rem",
+                  fontSize: "1.25rem",
                   fontWeight: 700,
                   letterSpacing: "-0.01em",
                   margin: 0,
-                  textTransform: "uppercase",
-                  fontFamily: "monospace",
                 }}
               >
                 {assetName}
@@ -473,7 +471,7 @@ export function AllocationModal({
                   <span
                     style={{
                       fontSize: "0.75rem",
-                      fontFamily: "monospace",
+                      
                       fontWeight: 600,
                       color:
                         temperature.state === "HOT"
@@ -541,7 +539,7 @@ export function AllocationModal({
                           : "#ffffff",
                       fontSize: "0.875rem",
                       fontWeight: 600,
-                      fontFamily: "monospace",
+                      
                     }}
                   >
                     $
@@ -585,7 +583,7 @@ export function AllocationModal({
                           : "#ffffff",
                       fontSize: "0.875rem",
                       fontWeight: 600,
-                      fontFamily: "monospace",
+                      
                     }}
                   >
                     $
@@ -636,7 +634,7 @@ export function AllocationModal({
                         fontSize: "0.75rem",
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontFamily: "monospace",
+                        
                         letterSpacing: "0.03em",
                         transition: "all 0.15s ease",
                       }}
@@ -665,14 +663,9 @@ export function AllocationModal({
                   {allocInputMode === "dollar" && (
                     <span
                       style={{
-                        color:
-                          parsedAmount > 0
-                            ? isInsufficient
-                              ? "#ef4444"
-                              : "#ffffff"
-                            : "#8E8E93",
-                        fontSize: "1.5rem",
+                        fontSize: "1.875rem",
                         fontWeight: 300,
+                        color: parsedAmount > 0 ? (isInsufficient ? "#ef4444" : "#4a4a4a") : "#4a4a4a",
                       }}
                     >
                       $
@@ -696,11 +689,11 @@ export function AllocationModal({
                       background: "none",
                       border: "none",
                       outline: "none",
-                      color: isInsufficient ? "#ef4444" : "#ffffff",
-                      fontSize: "1.5rem",
-                      fontWeight: 300,
+                      color: isInsufficient ? "#ef4444" : (parsedAmount > 0 ? "#ffffff" : "#4a4a4a"),
+                      fontSize: "2.25rem",
+                      fontWeight: 700,
                       width: "100%",
-                      fontFamily: "monospace",
+                      caretColor: "oklch(0.72 0.18 145)",
                     }}
                   />
                 </div>
@@ -781,7 +774,7 @@ export function AllocationModal({
                   style={{
                     color: "#ffffff",
                     fontSize: "0.75rem",
-                    fontFamily: "monospace",
+                    
                     fontWeight: 500,
                   }}
                 >
@@ -808,7 +801,7 @@ export function AllocationModal({
                       style={{
                         color: "#6b6b6b",
                         fontSize: "0.6875rem",
-                        fontFamily: "monospace",
+                        
                       }}
                     >
                       {allocInputMode === "dollar" ? (
@@ -927,7 +920,7 @@ export function AllocationModal({
                               style={{
                                 color: "#ffffff",
                                 fontSize: "0.8125rem",
-                                fontFamily: "monospace",
+                                
                                 fontWeight: 600,
                                 letterSpacing: "-0.01em",
                               }}
@@ -938,7 +931,7 @@ export function AllocationModal({
                               style={{
                                 color: PLATFORM_GREEN,
                                 fontSize: "0.6rem",
-                                fontFamily: "monospace",
+                                
                                 fontWeight: 500,
                               }}
                             >
@@ -1011,8 +1004,6 @@ export function AllocationModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "0.5rem",
-                  fontFamily: "monospace",
-                  letterSpacing: "0.05em",
                 }}
               >
                 {isProcessing && <Loader2 size={14} className="animate-spin" />}
