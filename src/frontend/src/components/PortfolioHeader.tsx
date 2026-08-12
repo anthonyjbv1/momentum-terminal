@@ -498,7 +498,7 @@ function IndexSlideOver({
     BASE_SCORE_FALLBACK;
   const liveRedeemPriceIdx = Math.max(0.01, rawScore - SPREAD);
 
-  const longUnits = position?.longUnits ?? (indexHolding?.units ?? 0);
+  const longUnits = indexHolding?.units ?? 0;
   const longAccrued = indexHolding?.accruedYield ?? 0;
   const shortUnits = position?.shortUnits ?? 0;
   const shortMarkToMarket = position?.shortMarkToMarket ?? 0;
@@ -538,6 +538,14 @@ function IndexSlideOver({
       return sum;
     }, 0) + unrealizedReturn;
 
+  const recentActivity = activityHistory
+    .filter((e) => e.source === selectedIndex)
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 3);
+
+  const scoreValue = finalScores.get(selectedIndex) ?? GOD_TIER_BASE_SCORES[selectedIndex] ?? BASE_SCORE_FALLBACK;
+  const scoreIsHigh = scoreValue >= 50;
+
   return (
     <>
       <motion.div
@@ -548,124 +556,219 @@ function IndexSlideOver({
         onClick={onClose}
       />
       <motion.div
-        className="fixed right-0 top-0 h-full z-50 bg-[#0a0a0a] border-l border-border flex flex-col w-full sm:w-80"
+        className="fixed right-0 top-0 h-full z-50 flex flex-col w-full sm:w-96"
+        style={{ background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif" }}
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
         data-ocid="portfolio.index-slide-over"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">
-            Position Detail
-          </p>
+        {/* ── Sticky Header ── */}
+        <div style={{ position: "sticky", top: 0, background: "#0a0a0a", borderBottom: "1px solid #1e1e1e", padding: "1rem 1.25rem", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 10, flexShrink: 0 }}>
+          <div>
+            <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.25rem" }}>
+              Position Detail
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              <h2 style={{ color: "#ffffff", fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>
+                {selectedIndex}
+              </h2>
+              {/* Score badge */}
+              <span style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "2px 8px",
+                borderRadius: "9999px",
+                fontSize: "0.75rem",
+                fontWeight: 600,
+                backgroundColor: scoreIsHigh ? "rgba(34,197,94,0.12)" : "rgba(239,68,68,0.12)",
+                border: `1px solid ${scoreIsHigh ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+                color: scoreIsHigh ? "#4ade80" : "#f87171",
+              }}>
+                {scoreValue.toFixed(1)}
+              </span>
+            </div>
+            <div style={{ display: "flex", gap: "0.375rem", marginTop: "0.375rem" }}>
+              {hasLong && (
+                <span style={{ fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", backgroundColor: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }}>
+                  HIGH
+                </span>
+              )}
+              {hasShort && (
+                <span style={{ fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 700, padding: "2px 6px", borderRadius: "4px", backgroundColor: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.3)", color: "#f87171" }}>
+                  LOW
+                </span>
+              )}
+              <span style={{ fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 600, padding: "2px 6px", borderRadius: "4px", backgroundColor: `rgba(0,0,0,0.3)`, border: "1px solid #2a2a2a", color: idxCatColors.text.replace("text-", "") }}>
+                {idxCategory}
+              </span>
+            </div>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-muted-foreground hover:text-white transition-colors"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#6b6b6b", padding: "0.375rem", display: "flex", alignItems: "center", justifyContent: "center" }}
             data-ocid="portfolio.index-slide-over.close_button"
           >
-            <X size={16} />
+            <X size={18} />
           </button>
         </div>
 
-        <div className="px-4 py-3 border-b border-border">
-          <p className="text-[13px] font-semibold text-white leading-tight">
-            {selectedIndex}
-          </p>
-          <div className="flex items-center gap-2 mt-1">
-            {hasShort && (
-              <span className="text-[9px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-semibold bg-red-950/40 text-red-400">
-                SHORT
-              </span>
-            )}
-          </div>
-        </div>
+        {/* ── Scrollable Body ── */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
 
-        <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-          {/* Long position block */}
+          {/* ── P&L Hero ── */}
+          <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
+            <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.5rem" }}>
+              Unrealized P&amp;L
+            </p>
+            <p style={{ fontSize: "2rem", fontWeight: 700, letterSpacing: "-0.03em", color: unrealizedReturn >= 0 ? "#4ade80" : "#f87171", margin: 0 }}>
+              {fmtPnL(unrealizedReturn)}
+            </p>
+            <p style={{ color: "#6b6b6b", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+              {unrealizedReturnPct >= 0 ? "+" : ""}{unrealizedReturnPct.toFixed(2)}% · Basis {fmt(displayBasis)}
+            </p>
+          </div>
+
+          {/* ── Long position card ── */}
           {hasLong && (
             <motion.div
-              className="rounded-sm border border-border/50 bg-white/[0.02] p-3"
+              style={{ borderRadius: "0.75rem", background: "rgba(5,46,22,0.3)", border: "1px solid rgba(22,101,52,0.3)", padding: "1rem" }}
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.25, ease: "easeOut" }}
             >
-              <p className="text-[9px] uppercase tracking-widest text-green-400 font-semibold mb-2">High (Long)</p>
-              <div className="grid grid-cols-2 gap-3">
+              <p style={{ color: "#4ade80", fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.75rem" }}>
+                High (Long)
+              </p>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#ffffff", marginBottom: "0.75rem" }}>
+                {fmt(longLiveValue)}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Current Value</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(longLiveValue)}</p>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Cost Basis</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>{fmt(longBasis)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Cost Basis</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(longBasis)}</p>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Shares</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>{(longUnits + longAccrued).toFixed(4)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Unrealized P&amp;L</p>
-                  <p className={`font-mono text-[12px] font-semibold ${longLiveValue - longBasis >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {fmtPnL(longLiveValue - longBasis)}
-                    {longBasis > 0 && <span className="text-[10px] opacity-75"> ({(((longLiveValue - longBasis) / longBasis) * 100).toFixed(1)}%)</span>}
-                  </p>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Avg Cost/Share</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>{fmt(avgCostIdx)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Today's Return</p>
-                  <p className={`font-mono text-[12px] font-semibold ${todayReturnIdx >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {fmtPnL(todayReturnIdx)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Shares</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{(longUnits + longAccrued).toFixed(4)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">% of Portfolio</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>% of Portfolio</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>
                     {totalPortfolioValue > 0 ? ((longLiveValue / totalPortfolioValue) * 100).toFixed(1) : "0.0"}%
+                  </p>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Unrealized P&amp;L</p>
+                  <p style={{ fontSize: "0.875rem", fontWeight: 700, color: longLiveValue - longBasis >= 0 ? "#4ade80" : "#f87171" }}>
+                    {fmtPnL(longLiveValue - longBasis)}
+                    {longBasis > 0 && <span style={{ fontSize: "0.75rem", opacity: 0.75, fontWeight: 400 }}> ({(((longLiveValue - longBasis) / longBasis) * 100).toFixed(1)}%)</span>}
                   </p>
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* Short position block */}
+          {/* ── Short position card ── */}
           {hasShort && (
             <motion.div
-              className="rounded-sm border border-red-900/30 bg-red-950/10 p-3"
+              style={{ borderRadius: "0.75rem", background: "rgba(69,10,10,0.3)", border: "1px solid rgba(127,29,29,0.3)", padding: "1rem" }}
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.25, ease: "easeOut", delay: hasLong ? 0.05 : 0 }}
             >
-              <p className="text-[9px] uppercase tracking-widest text-red-400 font-semibold mb-2">Low (Short)</p>
-              <div className="grid grid-cols-2 gap-3">
+              <p style={{ color: "#f87171", fontSize: "0.6875rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "0.75rem" }}>
+                Low (Short)
+              </p>
+              <p style={{ fontSize: "1.75rem", fontWeight: 700, letterSpacing: "-0.03em", color: "#ffffff", marginBottom: "0.75rem" }}>
+                {fmt(shortMarkToMarket)}
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Current Value</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(shortMarkToMarket)}</p>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Cost Basis</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>{fmt(shortBasis)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Cost Basis</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{fmt(shortBasis)}</p>
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Units Short</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>{shortUnits.toFixed(4)}</p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Unrealized P&amp;L</p>
-                  <p className={`font-mono text-[12px] font-semibold ${shortUnrealizedPnL >= 0 ? "text-green-400" : "text-red-400"}`}>
-                    {fmtPnL(shortUnrealizedPnL)}
-                    {shortBasis > 0 && <span className="text-[10px] opacity-75"> ({((shortUnrealizedPnL / shortBasis) * 100).toFixed(1)}%)</span>}
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>% of Portfolio</p>
+                  <p style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>
+                    {totalPortfolioValue > 0 ? ((shortMarkToMarket / totalPortfolioValue) * 100).toFixed(1) : "0.0"}%
                   </p>
                 </div>
                 <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">Units Short</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">{shortUnits.toFixed(4)}</p>
-                </div>
-                <div>
-                  <p className="text-[9px] uppercase tracking-widest text-muted-foreground mb-0.5">% of Portfolio</p>
-                  <p className="font-mono text-[12px] font-semibold text-foreground">
-                    {totalPortfolioValue > 0 ? ((shortMarkToMarket / totalPortfolioValue) * 100).toFixed(1) : "0.0"}%
+                  <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Unrealized P&amp;L</p>
+                  <p style={{ fontSize: "0.875rem", fontWeight: 700, color: shortUnrealizedPnL >= 0 ? "#4ade80" : "#f87171" }}>
+                    {fmtPnL(shortUnrealizedPnL)}
+                    {shortBasis > 0 && <span style={{ fontSize: "0.75rem", opacity: 0.75, fontWeight: 400 }}> ({((shortUnrealizedPnL / shortBasis) * 100).toFixed(1)}%)</span>}
                   </p>
                 </div>
               </div>
             </motion.div>
           )}
+
+          {/* ── Oracle Score ── */}
+          <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
+            <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.5rem" }}>
+              Oracle Score
+            </p>
+            <p style={{ fontSize: "2.5rem", fontWeight: 700, letterSpacing: "-0.04em", color: scoreIsHigh ? "#4ade80" : "#f87171", margin: 0 }}>
+              {scoreValue.toFixed(1)}
+            </p>
+            <div style={{ marginTop: "0.625rem", height: "4px", borderRadius: "9999px", background: "#1e1e1e", overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${Math.min(100, scoreValue)}%`, borderRadius: "9999px", background: scoreIsHigh ? "#4ade80" : "#f87171", transition: "width 0.5s ease" }} />
+            </div>
+            <p style={{ color: "#6b6b6b", fontSize: "0.75rem", marginTop: "0.375rem" }}>
+              {scoreIsHigh ? "Bullish momentum" : "Bearish momentum"} · {idxCategory}
+            </p>
+          </div>
+
+          {/* ── Recent Activity ── */}
+          <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
+            <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.75rem" }}>
+              Recent Activity
+            </p>
+            {recentActivity.length === 0 ? (
+              <p style={{ color: "#6b6b6b", fontSize: "0.8125rem" }}>No recent activity.</p>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}>
+                {recentActivity.map((e) => (
+                  <div key={e.timestamp} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{
+                        fontSize: "0.625rem",
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        backgroundColor: e.type === "Credit" ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                        border: `1px solid ${e.type === "Credit" ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
+                        color: e.type === "Credit" ? "#4ade80" : "#f87171",
+                      }}>
+                        {e.type}
+                      </span>
+                      <span style={{ color: "#6b6b6b", fontSize: "0.75rem" }}>
+                        {new Date(e.timestamp).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </span>
+                    </div>
+                    <span style={{ color: "#ffffff", fontSize: "0.875rem", fontWeight: 600 }}>
+                      {e.type === "Credit" ? "+" : "-"}{fmt(e.amount)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       </motion.div>
     </>

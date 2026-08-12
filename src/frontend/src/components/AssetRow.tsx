@@ -1429,7 +1429,7 @@ function AssetRowInner({
                         padding: "0 0 0.5rem 0",
                       }}
                     >
-                      {(hasBothPositions || shortUnits > 0) && (
+                      {hasBothPositions && (
                         <div
                           style={{
                             margin: "0 1.25rem 1rem 1.25rem",
@@ -1514,8 +1514,11 @@ function AssetRowInner({
                             margin: 0,
                           }}
                         >
-                          {redeemDirection !== "short" &&
-                            (isFullRedeemSelected ? (
+                          {redeemDirection === "short" ? (
+                            <>
+                              Closing this short position will return your mark-to-market value to your wallet.
+                            </>
+                          ) : isFullRedeemSelected ? (
                               <>
                                 Redeeming this position will reset your current{" "}
                                 <span
@@ -1567,7 +1570,7 @@ function AssetRowInner({
                                 shares. Your remaining position will keep its
                                 loyalty tier clock.
                               </>
-                            ))}
+                            )}
                         </p>
                       </div>
 
@@ -1605,8 +1608,7 @@ function AssetRowInner({
                           // short entry score resolves to a nonzero value.
                           if (
                             redeemDirection === "short" &&
-                            (!shortEntryScoreValid ||
-                              shortPartialRedeemNet === null)
+                            shortPartialRedeemNet === null
                           ) {
                             return (
                               <span

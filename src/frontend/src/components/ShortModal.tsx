@@ -371,6 +371,7 @@ export function ShortModal({
               borderRadius: "0.75rem",
               backgroundColor: MODAL_BG,
               border: "1px solid #2a2a2a",
+              fontFamily: "'Inter', system-ui, sans-serif",
             }}
           >
             {/* ── Sticky Header: always visible, close button never scrolls away ── */}
@@ -391,12 +392,10 @@ export function ShortModal({
               <h2
                 style={{
                   color: "#ffffff",
-                  fontSize: "1.125rem",
+                  fontSize: "1.25rem",
                   fontWeight: 700,
                   letterSpacing: "-0.01em",
                   margin: 0,
-                  textTransform: "uppercase",
-                  fontFamily: "monospace",
                 }}
               >
                 {assetName}
@@ -459,7 +458,6 @@ export function ShortModal({
                   <span
                     style={{
                       fontSize: "0.75rem",
-                      fontFamily: "monospace",
                       fontWeight: 600,
                       color:
                         temperature.state === "HOT"
@@ -527,7 +525,6 @@ export function ShortModal({
                           : "#ffffff",
                       fontSize: "0.875rem",
                       fontWeight: 600,
-                      fontFamily: "monospace",
                     }}
                   >
                     $
@@ -571,7 +568,6 @@ export function ShortModal({
                           : "#ffffff",
                       fontSize: "0.875rem",
                       fontWeight: 600,
-                      fontFamily: "monospace",
                     }}
                   >
                     $
@@ -622,7 +618,6 @@ export function ShortModal({
                         fontSize: "0.75rem",
                         fontWeight: 600,
                         cursor: "pointer",
-                        fontFamily: "monospace",
                         letterSpacing: "0.03em",
                         transition: "all 0.15s ease",
                       }}
@@ -651,13 +646,8 @@ export function ShortModal({
                   {allocInputMode === "dollar" && (
                     <span
                       style={{
-                        color:
-                          parsedAmount > 0
-                            ? isInsufficient
-                              ? "#ef4444"
-                              : "#ffffff"
-                            : "#8E8E93",
-                        fontSize: "1.5rem",
+                        color: parsedAmount > 0 ? (isInsufficient ? "#ef4444" : "#4a4a4a") : "#4a4a4a",
+                        fontSize: "1.875rem",
                         fontWeight: 300,
                       }}
                     >
@@ -682,11 +672,11 @@ export function ShortModal({
                       background: "none",
                       border: "none",
                       outline: "none",
-                      color: isInsufficient ? "#ef4444" : "#ffffff",
-                      fontSize: "1.5rem",
-                      fontWeight: 300,
+                      color: isInsufficient ? "#ef4444" : (parsedAmount > 0 ? "#ffffff" : "#4a4a4a"),
+                      fontSize: "2.25rem",
+                      fontWeight: 700,
+                      caretColor: "#f87171",
                       width: "100%",
-                      fontFamily: "monospace",
                     }}
                   />
                 </div>
@@ -767,7 +757,6 @@ export function ShortModal({
                   style={{
                     color: "#ffffff",
                     fontSize: "0.75rem",
-                    fontFamily: "monospace",
                     fontWeight: 500,
                   }}
                 >
@@ -794,7 +783,6 @@ export function ShortModal({
                       style={{
                         color: "#6b6b6b",
                         fontSize: "0.6875rem",
-                        fontFamily: "monospace",
                       }}
                     >
                       {allocInputMode === "dollar" ? (
@@ -909,7 +897,6 @@ export function ShortModal({
                               style={{
                                 color: "#ffffff",
                                 fontSize: "0.8125rem",
-                                fontFamily: "monospace",
                                 fontWeight: 600,
                                 letterSpacing: "-0.01em",
                               }}
@@ -920,7 +907,6 @@ export function ShortModal({
                               style={{
                                 color: PLATFORM_GREEN,
                                 fontSize: "0.6rem",
-                                fontFamily: "monospace",
                                 fontWeight: 500,
                               }}
                             >
@@ -992,8 +978,6 @@ export function ShortModal({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: "0.5rem",
-                  fontFamily: "monospace",
-                  letterSpacing: "0.05em",
                 }}
               >
                 {isProcessing && <Loader2 size={14} className="animate-spin" />}
@@ -1009,13 +993,7 @@ export function ShortModal({
                         ? "Insufficient Funds"
                         : isProcessing
                           ? "Processing..."
-                          : `Confirm Short · $${parsedAmount.toLocaleString(
-                              "en-US",
-                              {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              },
-                            )}`}
+                          : `Confirm Low · $${parsedAmount.toFixed(2)}`}
               </button>
             </div>
           </div>
