@@ -643,7 +643,7 @@ export function ProfilePage() {
   const setHfKeyMutation = useSetHuggingFaceKey();
   const finnhubKeyStatusQuery = useFinnhubKeyStatus();
   const setFinnhubKeyMutation = useSetFinnhubKey();
-  const { costBasisMap, shortPositions } = useLocalHoldings();
+  const { costBasisMap, shortPositions, holdings } = useLocalHoldings();
 
   const {
     tier: loyaltyTier,
@@ -1794,10 +1794,13 @@ export function ProfilePage() {
   // ── MAIN VIEW ────────────────────────────────────────────────────────────────
   if (activeView === "main") {
     // ── Portfolio snapshot — derived inline, not extracted ──────────────
-    const holdingsTotal = Array.from(costBasisMap.entries()).reduce(
-      (sum, [indexId, basis]) => {
-        const score = finalScores.get(indexId) ?? 100;
-        return sum + basis * (score / 100);
+    const SPREAD = 0.5;
+    const holdingsTotal = holdings.reduce(
+      (sum, [indexId, holding]) => {
+        if (holding.units <= 0) return sum;
+        const rawScore = finalScores.get(indexId) ?? 0;
+        const livePrice = Math.max(0.01, rawScore - SPREAD);
+        return sum + (holding.units + holding.accruedYield) * livePrice;
       },
       0,
     );

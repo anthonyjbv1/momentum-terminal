@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { CreateAccountForm } from "./CreateAccountForm";
+import { MomentumLogoMark } from "./Layout";
 import { PasswordResetForm } from "./PasswordResetForm";
 import { SignInForm } from "./SignInForm";
 
@@ -28,14 +29,12 @@ export function AuthGateway() {
       >
         {/* Top: wordmark */}
         <div>
-          <div className="flex items-center gap-2 mb-12">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-            <span
-              className="text-[10px] uppercase tracking-widest font-bold"
-              style={{ color: "rgba(255,255,255,0.3)", fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              MOMENTUM TERMINAL
-            </span>
+          <div className="flex items-center gap-2.5 mb-12">
+            <MomentumLogoMark />
+            <div className="flex flex-col leading-none">
+              <span className="text-white font-bold text-sm tracking-tight">Momentum</span>
+              <span className="text-[9px] uppercase tracking-widest font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>Terminal</span>
+            </div>
           </div>
 
           <h1
@@ -91,14 +90,12 @@ export function AuthGateway() {
       {/* ── Right panel — auth form ── */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-10 overflow-y-auto">
         {/* Mobile wordmark */}
-        <div className="lg:hidden flex items-center gap-2 mb-8">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-          <span
-            className="text-[10px] uppercase tracking-widest font-bold"
-            style={{ color: "rgba(255,255,255,0.4)", fontFamily: "'JetBrains Mono', monospace" }}
-          >
-            MOMENTUM TERMINAL
-          </span>
+        <div className="lg:hidden flex items-center gap-2.5 mb-8">
+          <MomentumLogoMark />
+          <div className="flex flex-col leading-none">
+            <span className="text-white font-bold text-sm tracking-tight">Momentum</span>
+            <span className="text-[9px] uppercase tracking-widest font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>Terminal</span>
+          </div>
         </div>
 
         <div className="w-full max-w-sm">
@@ -128,7 +125,7 @@ export function AuthGateway() {
                   Create account
                 </h2>
                 <p className="text-xs" style={{ color: "rgba(255,255,255,0.35)" }}>
-                  Start trading sentiment indexes with a clean slate.
+                  Start trading narratives.
                 </p>
               </>
             )}

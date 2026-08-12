@@ -30,7 +30,7 @@ export interface LayoutProps {
 }
 
 /** Momentum logo mark — two elliptical loops at ±35°, rounded caps, white on black, central diamond */
-function MomentumLogoMark() {
+export function MomentumLogoMark() {
   return (
     <svg
       role="img"

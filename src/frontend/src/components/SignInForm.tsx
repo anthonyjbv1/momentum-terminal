@@ -268,8 +268,8 @@ export function SignInForm({
         type="submit"
         className="w-full py-2.5 rounded-sm font-semibold text-sm tracking-wide transition-all duration-150 hover:brightness-110 active:scale-[0.98]"
         style={{
-          backgroundColor: "var(--primary)",
-          color: "oklch(0.10 0.008 240)",
+          backgroundColor: "#ffffff",
+          color: "#000000",
           marginTop: "2px",
         }}
       >
