@@ -268,13 +268,11 @@ function HoldingRow({
       {/* Value + P&L row */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
         <div>
-          <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, marginBottom: "0.125rem" }}>Value</p>
           <p style={{ color: "#ffffff", fontSize: "1.375rem", fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>
             {fmt(liveValue)}
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, marginBottom: "0.125rem" }}>P&amp;L</p>
           <p style={{ color: pnlColor, fontSize: "0.9375rem", fontWeight: 700, margin: 0 }}>
             {isUp ? "+" : ""}{fmt(pnl)}
           </p>
@@ -286,20 +284,11 @@ function HoldingRow({
         </div>
       </div>
 
-      {/* Bottom: shares + basis */}
+      {/* Bottom: shares + basis — values only, no labels */}
       <div style={{ display: "flex", gap: "1.25rem", marginTop: "0.625rem", paddingTop: "0.5rem", borderTop: `1px solid ${direction === "LOW" ? "rgba(127,29,29,0.2)" : "rgba(22,101,52,0.2)"}` }}>
-        <div>
-          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Shares</p>
-          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{effectiveUnits.toFixed(4)}</p>
-        </div>
-        <div>
-          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Basis</p>
-          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{fmt(costBasis)}</p>
-        </div>
-        <div>
-          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Price</p>
-          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{liveRedeemPrice.toFixed(2)}</p>
-        </div>
+        <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{effectiveUnits.toFixed(4)} shares</p>
+        <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>basis {fmt(costBasis)}</p>
+        <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{liveRedeemPrice.toFixed(2)}</p>
       </div>
 
       <YieldProgressBar
@@ -1328,7 +1317,7 @@ export function PortfolioHeader({
                     type="button"
                     data-ocid={`portfolio.chart.range.${tab.toLowerCase()}`}
                     onClick={() => setTimeRange(tab)}
-                    className={`font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                    className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded transition-all cursor-pointer ${
                       timeRange === tab
                         ? "text-white bg-white/10 border border-white/20"
                         : "text-muted-foreground hover:text-white"
@@ -1344,13 +1333,13 @@ export function PortfolioHeader({
               <div>
                 {/* Delta row — updates while scrubbing */}
                 {hasData && (
-                  <div className="text-xs font-mono mb-3 flex items-center gap-1.5" style={{ color: isPos ? "#4ade80" : "#f87171" }}>
+                  <div className="text-[11px] font-medium mb-3 flex items-center gap-1.5" style={{ color: isPos ? "#4ade80" : "#f87171" }}>
                     <span>
                       {isPos ? "+" : ""}
                       {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(delta)}
                     </span>
                     <span className="opacity-70">({isPos ? "+" : ""}{pct.toFixed(2)}%)</span>
-                    <span className="text-muted-foreground font-normal text-[10px] ml-1">{timeRange}</span>
+                    <span className="text-muted-foreground font-normal text-[10px] uppercase tracking-wider ml-1">{timeRange}</span>
                   </div>
                 )}
 
@@ -1439,7 +1428,7 @@ export function PortfolioHeader({
           {/* Feature F — Sort Controls */}
           {filteredHoldings.length > 0 && (
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground shrink-0">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">
                 Sort
               </span>
               <div className="flex items-center gap-1 overflow-x-auto">
@@ -1457,7 +1446,7 @@ export function PortfolioHeader({
                     type="button"
                     onClick={() => setSortMode(id)}
                     data-ocid={`portfolio.sort.${id}`}
-                    className={`text-[10px] px-2 py-0.5 rounded-sm cursor-pointer transition-colors whitespace-nowrap ${
+                    className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded-sm cursor-pointer transition-colors whitespace-nowrap ${
                       sortMode === id
                         ? "bg-white/10 border border-border text-foreground"
                         : "text-muted-foreground hover:text-foreground"
