@@ -988,118 +988,108 @@ function AssetRowInner({
                 </div>
               </div>
 
-              {/* Action buttons — arc is now shared absolute top-right */}
-              <div className="flex items-center gap-3 shrink-0">
-                {/* ── Desktop button row: HIGH / LOW + conditional REDEEM ── */}
-                <div className="hidden sm:flex flex-col gap-1">
-                  <div className="flex flex-row gap-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          onClick={() => setIsAllocationModalOpen(true)}
-                          disabled={!canAllocate}
-                          aria-disabled={!canAllocate}
-                          className={`relative inline-flex items-center justify-center gap-1.5 w-[68px] h-10 px-3 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md border-0 transition-all duration-150 ${
-                            showHaltBanner
-                              ? "bg-muted/20 text-red-400 opacity-50 cursor-not-allowed"
-                              : isAtCapacity || isUserAtPositionLimit
-                                ? "bg-muted/20 text-muted-foreground opacity-50 cursor-not-allowed"
-                                : "bg-green-500/15 text-green-500 hover:bg-green-500 hover:text-white active:scale-95"
-                          }`}
-                        >
-                          {showHaltBanner ? (
-                            <span className="font-bold text-red-400 text-[10px]">HALT</span>
-                          ) : isAtCapacity || isUserAtPositionLimit ? (
-                            <Lock className="w-3 h-3" />
-                          ) : (
-                            "HIGH"
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      {allocateTooltip && (
-                        <TooltipContent side="left" className="text-xs max-w-[200px]">
-                          {allocateTooltip}
-                        </TooltipContent>
-                      )}
-                    </Tooltip>
-                    <button
-                      type="button"
-                      onClick={() => setIsShortModalOpen(true)}
-                      className="relative inline-flex items-center justify-center gap-1.5 w-[68px] h-10 px-3 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
-                    >
-                      LOW
-                    </button>
-                  </div>
-                  {hasAnyPosition && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (longUnits > 0) {
-                          setRedeemDirection("long");
-                        } else {
-                          setRedeemDirection("short");
-                        }
-                        setShowRedeemConfirm(true);
-                      }}
-                      className="w-full h-9 rounded-md text-xs font-semibold tracking-wider uppercase bg-zinc-800/60 text-zinc-400 border-0 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all duration-150 active:scale-95"
-                    >
-                      REDEEM
-                    </button>
-                  )}
-                </div>
-
-                {/* ── Mobile-only button row (sm:hidden) ──
-                    Static HIGH / LOW labels. HIGH opens AllocationModal,
-                    LOW opens ShortModal. Zero style changes — reuses the
-                    same className as the existing Allocate/Redeem fallback
-                    styles. Below it, a conditional REDEEM button appears
-                    only when the user holds any position (long or short). */}
-                <div className="sm:hidden flex flex-col gap-1 flex-1">
-                  <div className="flex flex-row gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsAllocationModalOpen(true)}
-                      className="relative inline-flex items-center justify-center gap-1.5 w-36 h-10 px-4 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-green-500/15 text-green-500 border-0 hover:bg-green-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md font-semibold"
-                      data-ocid="asset.high_button"
-                    >
-                      HIGH
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIsShortModalOpen(true)}
-                      className="relative inline-flex items-center justify-center gap-1.5 w-36 h-10 px-4 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md font-semibold"
-                      data-ocid="asset.low_button"
-                    >
-                      LOW
-                    </button>
-                  </div>
-                  {hasAnyPosition && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (hasBothPositions) {
-                          setRedeemDirection("long");
-                        } else if (longUnits > 0) {
-                          setRedeemDirection("long");
-                        } else {
-                          setRedeemDirection("short");
-                        }
-                        setShowRedeemConfirm(true);
-                      }}
-                      className="w-full h-9 rounded-md text-xs font-semibold tracking-wider uppercase bg-zinc-800/60 text-zinc-400 border-0 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all duration-150 active:scale-95"
-                      data-ocid="asset.redeem_button"
-                    >
-                      REDEEM
-                    </button>
-                  )}
-                </div>
-              </div>
-              {/* end: arc + buttons group */}
             </div>
             {/* end: inner price columns */}
           </div>
           {/* end: outer price columns */}
+
+          {/* Mobile-only button row (sm:hidden) */}
+          <div className="sm:hidden flex flex-col gap-1 flex-1 self-end">
+            <div className="flex flex-row gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAllocationModalOpen(true)}
+                className="relative inline-flex items-center justify-center gap-1.5 w-36 h-10 px-4 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-green-500/15 text-green-500 border-0 hover:bg-green-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
+                data-ocid="asset.high_button"
+              >
+                HIGH
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsShortModalOpen(true)}
+                className="relative inline-flex items-center justify-center gap-1.5 w-36 h-10 px-4 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
+                data-ocid="asset.low_button"
+              >
+                LOW
+              </button>
+            </div>
+            {hasAnyPosition && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (hasBothPositions) {
+                    setRedeemDirection("long");
+                  } else if (longUnits > 0) {
+                    setRedeemDirection("long");
+                  } else {
+                    setRedeemDirection("short");
+                  }
+                  setShowRedeemConfirm(true);
+                }}
+                className="w-full h-9 rounded-md text-xs font-semibold tracking-wider uppercase bg-zinc-800/60 text-zinc-400 border-0 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all duration-150 active:scale-95"
+                data-ocid="asset.redeem_button"
+              >
+                REDEEM
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Desktop button row — below prices, clear of arc ── */}
+        <div className="hidden sm:flex flex-row items-center gap-2 px-6 pb-4">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={() => setIsAllocationModalOpen(true)}
+                disabled={!canAllocate}
+                aria-disabled={!canAllocate}
+                className={`relative inline-flex items-center justify-center gap-1.5 h-9 px-6 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md border-0 transition-all duration-150 ${
+                  showHaltBanner
+                    ? "bg-muted/20 text-red-400 opacity-50 cursor-not-allowed"
+                    : isAtCapacity || isUserAtPositionLimit
+                      ? "bg-muted/20 text-muted-foreground opacity-50 cursor-not-allowed"
+                      : "bg-green-500/15 text-green-500 hover:bg-green-500 hover:text-white active:scale-95"
+                }`}
+              >
+                {showHaltBanner ? (
+                  <span className="font-bold text-red-400 text-[10px]">HALTED</span>
+                ) : isAtCapacity || isUserAtPositionLimit ? (
+                  <><Lock className="w-3 h-3" /><span>Limit</span></>
+                ) : (
+                  "HIGH"
+                )}
+              </button>
+            </TooltipTrigger>
+            {allocateTooltip && (
+              <TooltipContent side="top" className="text-xs max-w-[200px]">
+                {allocateTooltip}
+              </TooltipContent>
+            )}
+          </Tooltip>
+          <button
+            type="button"
+            onClick={() => setIsShortModalOpen(true)}
+            className="relative inline-flex items-center justify-center gap-1.5 h-9 px-6 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
+          >
+            LOW
+          </button>
+          {hasAnyPosition && (
+            <button
+              type="button"
+              onClick={() => {
+                if (longUnits > 0) {
+                  setRedeemDirection("long");
+                } else {
+                  setRedeemDirection("short");
+                }
+                setShowRedeemConfirm(true);
+              }}
+              className="relative inline-flex items-center justify-center h-9 px-6 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md bg-zinc-800/60 text-zinc-400 border-0 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all duration-150 active:scale-95"
+            >
+              REDEEM
+            </button>
+          )}
         </div>
 
         {/* Score History Modal */}
