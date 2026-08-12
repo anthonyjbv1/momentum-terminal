@@ -1000,18 +1000,46 @@ export function PortfolioHeader({
     const all = portfolioHistoryRef.current;
     const now = Date.now();
     const MS = (h: number) => h * 60 * 60 * 1000;
-    if (timeRange === "LIVE") return all.filter((p) => p.ts >= now - MS(0.5));
-    if (timeRange === "1D")   return all.filter((p) => p.ts >= now - MS(24));
-    if (timeRange === "1W")   return all.filter((p) => p.ts >= now - MS(24 * 7));
-    if (timeRange === "1M")   return all.filter((p) => p.ts >= now - MS(24 * 30));
-    if (timeRange === "3M")   return all.filter((p) => p.ts >= now - MS(24 * 90));
-    if (timeRange === "YTD") {
-      const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
-      return all.filter((p) => p.ts >= jan1);
+    const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
+    const sliceFor = (tab: string) => {
+      if (tab === "LIVE") return all.filter((p) => p.ts >= now - MS(0.5));
+      if (tab === "1D")   return all.filter((p) => p.ts >= now - MS(24));
+      if (tab === "1W")   return all.filter((p) => p.ts >= now - MS(24 * 7));
+      if (tab === "1M")   return all.filter((p) => p.ts >= now - MS(24 * 30));
+      if (tab === "3M")   return all.filter((p) => p.ts >= now - MS(24 * 90));
+      if (tab === "YTD")  return all.filter((p) => p.ts >= jan1);
+      if (tab === "1Y")   return all.filter((p) => p.ts >= now - MS(24 * 365));
+      return all;
+    };
+    const FALLBACK_ORDER = ["ALL", "1Y", "3M", "1M", "YTD", "1W", "1D", "LIVE"] as const;
+    const idx = FALLBACK_ORDER.indexOf(timeRange as typeof FALLBACK_ORDER[number]);
+    const fallbacks = idx >= 0 ? FALLBACK_ORDER.slice(idx) : [timeRange];
+    for (const tab of fallbacks) {
+      const slice = sliceFor(tab);
+      if (slice.length >= 5) {
+        if (tab !== timeRange) console.log(`[chart] ${timeRange} has <5 pts, falling back to ${tab}`);
+        return slice;
+      }
     }
-    if (timeRange === "1Y")   return all.filter((p) => p.ts >= now - MS(24 * 365));
-    return all;
+    return sliceFor(timeRange); // best effort — fewer than 5 in all windows
   }, [timeRange, tickCount]);
+
+  // If fewer than 10 real points, interpolate 2 synthetic points between each pair for a smoother line
+  // biome-ignore lint/correctness/useExhaustiveDependencies: depends on filteredHistory
+  const smoothedHistory = useMemo(() => {
+    if (filteredHistory.length >= 10) return filteredHistory;
+    if (filteredHistory.length < 2) return filteredHistory;
+    const out: Array<{ value: number; ts: number; synthetic?: true }> = [];
+    for (let i = 0; i < filteredHistory.length - 1; i++) {
+      const a = filteredHistory[i];
+      const b = filteredHistory[i + 1];
+      out.push(a);
+      out.push({ value: a.value + (b.value - a.value) / 3,       ts: a.ts + Math.round((b.ts - a.ts) / 3),       synthetic: true });
+      out.push({ value: a.value + (b.value - a.value) * (2 / 3), ts: a.ts + Math.round((b.ts - a.ts) * (2 / 3)), synthetic: true });
+    }
+    out.push(filteredHistory[filteredHistory.length - 1]);
+    return out;
+  }, [filteredHistory]);
 
   const handleDeposit = (amount: number) => {
     depositFunds(amount);
@@ -1286,8 +1314,9 @@ export function PortfolioHeader({
         <div className="px-4 pb-2 pt-3 border-b border-border/30">
           {(() => {
             const hasData = filteredHistory.length >= 2;
-            const chartFirst = hasData ? filteredHistory[0].value : 0;
-            const chartLast  = hasData ? filteredHistory[filteredHistory.length - 1].value : 0;
+            const realPoints = filteredHistory.filter((p) => !(p as { synthetic?: boolean }).synthetic);
+            const chartFirst = hasData ? realPoints[0].value : 0;
+            const chartLast  = hasData ? realPoints[realPoints.length - 1].value : 0;
             const displayVal = scrubbedValue ?? totalPortfolioValue;
             const delta = hasData ? displayVal - chartFirst : 0;
             const pct   = chartFirst > 0 ? (delta / chartFirst) * 100 : 0;
@@ -1303,9 +1332,9 @@ export function PortfolioHeader({
             };
             // Thin to ≤400 points for performance
             const thinned = (() => {
-              if (filteredHistory.length <= 400) return filteredHistory;
-              const step = Math.ceil(filteredHistory.length / 400);
-              return filteredHistory.filter((_, i) => i % step === 0 || i === filteredHistory.length - 1);
+              if (smoothedHistory.length <= 400) return smoothedHistory;
+              const step = Math.ceil(smoothedHistory.length / 400);
+              return smoothedHistory.filter((_, i) => i % step === 0 || i === smoothedHistory.length - 1);
             })();
 
             const TIME_TABS = ["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
