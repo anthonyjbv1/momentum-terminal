@@ -1921,42 +1921,8 @@ export function ProfilePage() {
             {fmt(totalValue)}
           </p>
 
-          {/* Three stat columns */}
+          {/* Single stat — Available buying power */}
           <div className="flex gap-4">
-            <div className="flex flex-col">
-              <p
-                className="text-[10px] uppercase tracking-widest font-semibold"
-                style={{
-                  color: "oklch(0.48 0.008 240)",
-                  letterSpacing: "0.10em",
-                }}
-              >
-                Positions
-              </p>
-              <p
-                className="text-sm font-mono font-semibold mt-0.5"
-                style={{ color: "#ffffff" }}
-              >
-                {activePositions}
-              </p>
-            </div>
-            <div className="flex flex-col">
-              <p
-                className="text-[10px] uppercase tracking-widest font-semibold"
-                style={{
-                  color: "oklch(0.48 0.008 240)",
-                  letterSpacing: "0.10em",
-                }}
-              >
-                Deployed
-              </p>
-              <p
-                className="text-sm font-mono font-semibold mt-0.5"
-                style={{ color: "#ffffff" }}
-              >
-                {fmt(deployedValue)}
-              </p>
-            </div>
             <div className="flex flex-col">
               <p
                 className="text-[10px] uppercase tracking-widest font-semibold"

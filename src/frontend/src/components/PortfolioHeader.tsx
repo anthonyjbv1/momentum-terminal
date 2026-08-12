@@ -801,7 +801,7 @@ export function PortfolioHeader({
   const { data: holdingsData, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
   const { data: assetPrices, isLoading: pricesLoading } = useAssetPrices();
-  const { costBasisMap, shortCostBasisMap, pnlUnlockedMap, unlockPnL } = useLocalHoldings();
+  const { costBasisMap, shortCostBasisMap, pnlUnlockedMap, unlockPnL, shortPositions } = useLocalHoldings();
   const { finalScores, platformAllocatedByIndex, tickCount } = useOracleTick();
 
   const [isDepositOpen, setIsDepositOpen] = useState(false);
@@ -945,6 +945,22 @@ export function PortfolioHeader({
         holdingsTotal += (holding.units + holding.accruedYield) * livePrice;
         activeHoldings.push({ name, holding });
       }
+    }
+  }
+
+  // Include indexes where user has only a short (LOW) position — these have
+  // no long units so they're absent from holdingsData but must still render.
+  const longNames = new Set(activeHoldings.map((h) => h.name));
+  for (const [name] of shortPositions) {
+    if (!longNames.has(name)) {
+      const EMPTY_HOLDING: Holding = {
+        units: 0,
+        accruedYield: 0,
+        yieldStartTime: BigInt(0),
+        allocationTimestamp: BigInt(0),
+        assetName: name,
+      };
+      activeHoldings.push({ name, holding: EMPTY_HOLDING });
     }
   }
 
