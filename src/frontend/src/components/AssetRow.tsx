@@ -784,7 +784,7 @@ function AssetRowInner({
         className="group relative flex flex-col gap-0 border border-[#1e1e1e] rounded-2xl bg-[#111111] transition-colors duration-150 hover:bg-[#161616] hover:border-[#2a2a2a] mb-3 w-full max-w-full"
         style={{ transform: "translateZ(0)" }}
       >
-        <div className="sm:hidden absolute top-2 right-2 z-10 flex items-center justify-center shrink-0">
+        <div className="absolute top-2 right-2 z-10 flex items-center justify-center shrink-0">
           <SentimentArc
             scores={scoreHistoryMap.get(asset.name) ?? []}
             allocatedCapital={(platformVolumeByIndex[asset.name] ?? 0) + (localVolumeMap.get(asset.name) ?? 0)}
@@ -988,115 +988,65 @@ function AssetRowInner({
                 </div>
               </div>
 
-              {/* Sentiment Arc + Action buttons — grouped as one right-side unit */}
+              {/* Action buttons — arc is now shared absolute top-right */}
               <div className="flex items-center gap-3 shrink-0">
-                {/* Desktop Sentiment Arc */}
-                <div
-                  className="hidden sm:flex items-center justify-center shrink-0"
-                  data-ocid="sentiment-arc"
-                >
-                  <SentimentArc
-                    scores={scoreHistoryMap.get(asset.name) ?? []}
-                    allocatedCapital={(platformVolumeByIndex[asset.name] ?? 0) + (localVolumeMap.get(asset.name) ?? 0)}
-                    onClick={() => setShowScoreHistory(true)}
-                    ariaLabel={`View score history for ${asset.name}`}
-                  />
-                </div>
-
-                {/* Action buttons */}
-                {/* ── Desktop button row (hidden on mobile) ──
-                    Preserved exactly as the original shared row — dynamic
-                    Allocate/Redeem labels with HALTED/Capacity/Position Limit
-                    variants and original onClick handlers. Only the wrapper
-                    gains `hidden sm:flex` so it renders on desktop only. */}
-                <div className="hidden sm:flex flex-row gap-2 sm:flex-col">
-                  {/* Allocate button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={handleAllocateClick}
-                        disabled={!canAllocate}
-                        aria-disabled={!canAllocate}
-                        className={`
-                        relative inline-flex items-center justify-center gap-1.5
-                        w-36 h-10
-                        px-4 py-2 text-xs font-semibold tracking-wider uppercase
-                        focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring
-                        ${
-                          showHaltBanner
-                            ? "bg-muted/20 text-red-400 border-0 opacity-50 cursor-not-allowed grayscale active:scale-100"
-                            : isAtCapacity || isUserAtPositionLimit
-                              ? "bg-muted/20 text-muted-foreground border-0 opacity-50 cursor-not-allowed active:scale-100"
-                              : "bg-green-500/15 text-green-500 border-0 hover:bg-green-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md font-semibold"
-                        }
-                      `}
-                      >
-                        {showHaltBanner ? (
-                          <span className="font-bold text-red-400">HALTED</span>
-                        ) : isAtCapacity ? (
-                          <>
+                {/* ── Desktop button row: HIGH / LOW + conditional REDEEM ── */}
+                <div className="hidden sm:flex flex-col gap-1">
+                  <div className="flex flex-row gap-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => setIsAllocationModalOpen(true)}
+                          disabled={!canAllocate}
+                          aria-disabled={!canAllocate}
+                          className={`relative inline-flex items-center justify-center gap-1.5 w-[68px] h-10 px-3 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md border-0 transition-all duration-150 ${
+                            showHaltBanner
+                              ? "bg-muted/20 text-red-400 opacity-50 cursor-not-allowed"
+                              : isAtCapacity || isUserAtPositionLimit
+                                ? "bg-muted/20 text-muted-foreground opacity-50 cursor-not-allowed"
+                                : "bg-green-500/15 text-green-500 hover:bg-green-500 hover:text-white active:scale-95"
+                          }`}
+                        >
+                          {showHaltBanner ? (
+                            <span className="font-bold text-red-400 text-[10px]">HALT</span>
+                          ) : isAtCapacity || isUserAtPositionLimit ? (
                             <Lock className="w-3 h-3" />
-                            <span>Capacity Reached</span>
-                          </>
-                        ) : isUserAtPositionLimit ? (
-                          <>
-                            <Lock className="w-3 h-3" />
-                            <span>Position Limit</span>
-                          </>
-                        ) : (
-                          "Allocate"
-                        )}
-                      </button>
-                    </TooltipTrigger>
-                    {allocateTooltip && (
-                      <TooltipContent
-                        side="left"
-                        className="text-xs max-w-[200px]"
-                      >
-                        {allocateTooltip}
-                      </TooltipContent>
-                    )}
-                  </Tooltip>
-
-                  {/* Redeem button */}
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!canRedeem) return;
-                          if (unitsOwned > 0) {
-                            setRedeemDirection("long");
-                          } else {
-                            setRedeemDirection("short");
-                          }
-                          setShowRedeemConfirm(true);
-                        }}
-                        disabled={!canRedeem}
-                        aria-disabled={!canRedeem}
-                        className={`
-                        relative inline-flex items-center justify-center gap-1.5
-                        w-36 h-10
-                        px-4 py-2 text-xs font-semibold tracking-wider uppercase
-                        focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring
-                        ${
-                          canRedeem
-                            ? "bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md font-semibold"
-                            : "bg-muted/10 text-muted-foreground border-0 opacity-40 cursor-not-allowed active:scale-100"
-                        }
-                      `}
-                      >
-                        Redeem
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent
-                      side="left"
-                      className="text-xs max-w-[200px]"
+                          ) : (
+                            "HIGH"
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      {allocateTooltip && (
+                        <TooltipContent side="left" className="text-xs max-w-[200px]">
+                          {allocateTooltip}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                    <button
+                      type="button"
+                      onClick={() => setIsShortModalOpen(true)}
+                      className="relative inline-flex items-center justify-center gap-1.5 w-[68px] h-10 px-3 py-2 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
                     >
-                      {redeemTooltip}
-                    </TooltipContent>
-                  </Tooltip>
+                      LOW
+                    </button>
+                  </div>
+                  {hasAnyPosition && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (longUnits > 0) {
+                          setRedeemDirection("long");
+                        } else {
+                          setRedeemDirection("short");
+                        }
+                        setShowRedeemConfirm(true);
+                      }}
+                      className="w-full h-9 rounded-md text-xs font-semibold tracking-wider uppercase bg-zinc-800/60 text-zinc-400 border-0 hover:bg-zinc-700/60 hover:text-zinc-300 transition-all duration-150 active:scale-95"
+                    >
+                      REDEEM
+                    </button>
+                  )}
                 </div>
 
                 {/* ── Mobile-only button row (sm:hidden) ──
