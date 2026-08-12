@@ -1427,11 +1427,7 @@ export function PortfolioHeader({
 
           {/* Feature F — Sort Controls */}
           {filteredHoldings.length > 0 && (
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground shrink-0">
-                Sort
-              </span>
-              <div className="flex items-center gap-1 overflow-x-auto">
+            <div className="flex items-center gap-1 mb-2 overflow-x-auto">
                 {(
                   [
                     { id: "default", label: "Default" },
@@ -1455,30 +1451,6 @@ export function PortfolioHeader({
                     {label}
                   </button>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {/* Feature E — Column Headers */}
-          {filteredHoldings.length > 0 && (
-            <div className="flex items-center justify-between px-3 pb-1 mb-1 border-b border-border/30">
-              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
-                Index
-              </span>
-              <div className="flex items-center gap-4">
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold w-[44px] text-right">
-                  Score
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold w-[44px] text-right">
-                  Price
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold w-[44px] text-right">
-                  Shares
-                </span>
-                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold w-[80px] text-right">
-                  Value
-                </span>
-              </div>
             </div>
           )}
 
