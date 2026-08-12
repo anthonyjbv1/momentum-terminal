@@ -382,7 +382,7 @@ export function ScoreHistoryModal({
                         type="monotone"
                         dataKey="value"
                         stroke={lineColor}
-                        strokeWidth={isMobile ? 1 : 2}
+                        strokeWidth={2}
                         dot={false}
                         isAnimationActive={false}
                       />
