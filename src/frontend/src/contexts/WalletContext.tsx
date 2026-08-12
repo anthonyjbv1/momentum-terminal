@@ -387,17 +387,16 @@ function applyAITechAlloc(
 }
 
 /**
- * Compute the initial wallet state in one pass, applying all seeding functions.
+ * Compute the initial wallet state. New users start with a clean balance and
+ * empty activity — no auto-seeded holdings or fake history.
  */
 function computeInitialWalletState(userId: string): {
   balance: number;
   activity: ActivityEntry[];
 } {
-  const base = getInitialBalance(userId);
-  const history = loadActivityHistory(userId);
-  const seeded = applySeedingIfNeeded(userId, base, history);
-  const alloc100 = apply100DollarAlloc(userId, seeded.balance, seeded.activity);
-  return applyAITechAlloc(userId, alloc100.balance, alloc100.activity);
+  const balance = getInitialBalance(userId);
+  const activity = loadActivityHistory(userId);
+  return { balance, activity };
 }
 
 export function WalletProvider({ children }: { children: React.ReactNode }) {

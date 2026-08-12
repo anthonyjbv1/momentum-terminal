@@ -1,12 +1,11 @@
 /**
  * OnboardingOverlay — 5-slide first-visit tutorial.
  *
- * Trigger: on mount, checks localStorage.getItem('mt_onboarding_complete').
+ * Trigger: on mount, checks localStorage for a per-user onboarding key.
  * If the key exists (truthy), the overlay does not render. On dismiss
- * (Skip or Start Trading), sets the key and hides permanently.
+ * (Skip or Enter Terminal), sets the key and hides permanently.
  */
 
-// TODO: wire when guide is published
 const MOMENTUM_GUIDE_URL = "";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -21,10 +20,8 @@ import {
 } from "../services/dispatchedHeadlineLog";
 import type { DispatchedHeadlineEntry } from "../services/dispatchedHeadlineLog";
 
-// ─── helpers ─────────────────────────────────────────────────────────────────
-
 function stripIndexSuffix(name: string): string {
-  return name.replace(/ Index$/, "");
+  return name.replace(/ (Index|Sentiment)$/, "");
 }
 
 function formatImpact(score: number): string {
@@ -32,32 +29,45 @@ function formatImpact(score: number): string {
   return `${sign}${score.toFixed(2)}`;
 }
 
-// ─── SLIDE 0 — Index list miniature ──────────────────────────────────────────
+// ─── SLIDE 0 — Live index scores ─────────────────────────────────────────────
 
 function Slide0Preview() {
   const { finalScores } = useOracleTick();
-  const first3 = FALLBACK_ASSET_DEFS.slice(0, 3);
+  const assets = FALLBACK_ASSET_DEFS.slice(0, 4);
 
   return (
-    <div className="pointer-events-none flex flex-col gap-3 py-2 px-1">
-      {first3.map((asset) => {
+    <div className="pointer-events-none w-full flex flex-col gap-2 py-1">
+      {/* Header row */}
+      <div className="flex items-center justify-between mb-1 px-1">
+        <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Index</span>
+        <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Score</span>
+      </div>
+      {assets.map((asset, i) => {
         const score = finalScores.get(asset.name);
+        const isPos = score != null && score >= 50;
         return (
           <div
             key={asset.name}
-            className="flex items-center justify-between gap-3"
+            className="flex items-center justify-between px-2.5 py-2 rounded"
+            style={{
+              background: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent",
+              borderLeft: score != null ? `2px solid ${isPos ? "#4ade80" : "#f87171"}` : "2px solid rgba(255,255,255,0.06)",
+            }}
           >
             {score == null ? (
               <>
-                <div className="h-3 w-32 rounded bg-zinc-800 animate-pulse" />
-                <div className="h-3 w-12 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-2.5 w-28 rounded bg-zinc-800 animate-pulse" />
+                <div className="h-2.5 w-10 rounded bg-zinc-800 animate-pulse" />
               </>
             ) : (
               <>
-                <span className="text-[11px] font-medium text-zinc-300 truncate">
+                <span className="text-[10px] font-medium text-zinc-300 truncate pr-2">
                   {stripIndexSuffix(asset.name)}
                 </span>
-                <span className="font-mono text-[11px] font-bold text-primary tabular-nums shrink-0">
+                <span
+                  className="font-mono text-[11px] font-bold tabular-nums shrink-0"
+                  style={{ color: isPos ? "#4ade80" : "#f87171" }}
+                >
                   {score.toFixed(1)}
                 </span>
               </>
@@ -65,273 +75,132 @@ function Slide0Preview() {
           </div>
         );
       })}
+      <div className="flex items-center gap-1.5 mt-1 px-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-[9px] text-zinc-600 uppercase tracking-wider">Oracle live · updating in real time</span>
+      </div>
     </div>
   );
 }
 
-// ─── SLIDE 1 — Static score preview (replaces live SentimentArc) ──────────────
+// ─── SLIDE 1 — Score / buy / redeem anatomy ───────────────────────────────────
 
 function Slide1Preview() {
-  // Mirror the exact SVG technique used in ConfidenceRing (OracleAuditModal.tsx)
   const SCORE = 74.8;
-  const SIZE = 96;
-  const STROKE = 7;
+  const BUY = (SCORE + 0.5).toFixed(1);
+  const REDEEM = (SCORE - 0.5).toFixed(1);
+  const SIZE = 80;
+  const STROKE = 6;
   const R = (SIZE - STROKE) / 2;
-  const CIRCUMFERENCE = 2 * Math.PI * R;
-  const progress = Math.min(100, Math.max(0, SCORE));
-  const dashOffset = CIRCUMFERENCE * (1 - progress / 100);
-  const color = "#4ade80";
-  const glowColor = "rgba(74,222,128,0.35)";
+  const C = 2 * Math.PI * R;
+  const dashOffset = C * (1 - SCORE / 100);
+  const green = "#4ade80";
 
   return (
-    <div
-      className="pointer-events-none"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "8px",
-        padding: "1rem",
-      }}
-    >
-      {/* SVG ring — exact same structure as ConfidenceRing in OracleAuditModal */}
-      <div style={{ position: "relative", width: SIZE, height: SIZE }}>
-        <svg
-          width={SIZE}
-          height={SIZE}
-          viewBox={`0 0 ${SIZE} ${SIZE}`}
-          style={{ transform: "rotate(-90deg)" }}
-          role="img"
-          aria-label={`Confidence score: ${SCORE}%`}
-        >
-          <title>Confidence score: {SCORE}%</title>
-          {/* Track ring */}
-          <circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={R}
-            fill="none"
-            stroke="rgba(255,255,255,0.07)"
-            strokeWidth={STROKE}
-          />
-          {/* Progress arc */}
-          <circle
-            cx={SIZE / 2}
-            cy={SIZE / 2}
-            r={R}
-            fill="none"
-            stroke={color}
-            strokeWidth={STROKE}
-            strokeLinecap="round"
-            strokeDasharray={CIRCUMFERENCE}
-            strokeDashoffset={dashOffset}
-            style={{
-              filter: `drop-shadow(0 0 4px ${glowColor})`,
-            }}
+    <div className="pointer-events-none w-full flex items-center gap-5 px-2 py-2">
+      {/* Arc ring */}
+      <div style={{ position: "relative", width: SIZE, height: SIZE, flexShrink: 0 }}>
+        <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} style={{ transform: "rotate(-90deg)" }} aria-hidden="true">
+          <title>Score arc</title>
+          <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={STROKE} />
+          <circle cx={SIZE/2} cy={SIZE/2} r={R} fill="none" stroke={green} strokeWidth={STROKE} strokeLinecap="round"
+            strokeDasharray={C} strokeDashoffset={dashOffset}
+            style={{ filter: "drop-shadow(0 0 4px rgba(74,222,128,0.35))" }}
           />
         </svg>
-
-        {/* Center label — exact same structure as ConfidenceRing */}
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "1px",
-          }}
-        >
-          <span
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontWeight: 800,
-              fontSize: "1.35rem",
-              color,
-              lineHeight: 1,
-              letterSpacing: "-0.02em",
-            }}
-          >
-            {SCORE}
-          </span>
-          <span
-            style={{
-              fontFamily: "'Inter', system-ui, sans-serif",
-              fontSize: "0.6rem",
-              color: "rgba(255,255,255,0.35)",
-              fontWeight: 500,
-              letterSpacing: "0.05em",
-            }}
-          >
-            %
-          </span>
+        <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 800, fontSize: "1.1rem", color: green, lineHeight: 1 }}>{SCORE}</span>
+          <span style={{ fontSize: "0.55rem", color: "rgba(255,255,255,0.3)", letterSpacing: "0.05em", marginTop: 2 }}>SCORE</span>
         </div>
       </div>
 
-      {/* Tier pill — exact same structure as ConfidenceRing tier pill */}
-      <span
-        style={{
-          fontSize: "0.6rem",
-          fontWeight: 700,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color,
-          background: `${color}18`,
-          border: `1px solid ${color}40`,
-          borderRadius: "999px",
-          padding: "2px 10px",
-        }}
-      >
-        LIVE SCORE
-      </span>
-      <div
-        style={{
-          display: "flex",
-          gap: "1rem",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              color: "oklch(0.72 0.18 145)",
-              fontSize: "0.875rem",
-              fontFamily: "monospace",
-              fontWeight: 600,
-            }}
-          >
-            75.3
-          </div>
-          <div
-            style={{
-              color: "#8E8E93",
-              fontSize: "0.625rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            BUY
-          </div>
+      {/* Price columns */}
+      <div className="flex flex-col gap-2 flex-1">
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded" style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}>
+          <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">Buy (High)</span>
+          <span className="font-mono text-[11px] font-bold text-green-400">{BUY}</span>
         </div>
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              color: "#f87171",
-              fontSize: "0.875rem",
-              fontFamily: "monospace",
-              fontWeight: 600,
-            }}
-          >
-            74.3
-          </div>
-          <div
-            style={{
-              color: "#8E8E93",
-              fontSize: "0.625rem",
-              textTransform: "uppercase",
-              letterSpacing: "0.08em",
-            }}
-          >
-            REDEEM
-          </div>
+        <div className="flex items-center justify-between px-2.5 py-1.5 rounded" style={{ background: "rgba(248,113,113,0.06)", border: "1px solid rgba(248,113,113,0.15)" }}>
+          <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-semibold">Sell (Low)</span>
+          <span className="font-mono text-[11px] font-bold text-red-400">{REDEEM}</span>
+        </div>
+        <div className="flex items-center justify-between px-2.5 py-1 rounded" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Spread</span>
+          <span className="font-mono text-[10px] text-zinc-500">±0.50 pts</span>
         </div>
       </div>
     </div>
   );
 }
 
-// ─── SLIDE 2 — Oracle feed snippet ───────────────────────────────────────────
+// ─── SLIDE 2 — Oracle feed ────────────────────────────────────────────────────
 
 function Slide2Preview() {
   const { lastDispatchedHeadline } = useOracleTick();
   const [entries, setEntries] = useState<DispatchedHeadlineEntry[]>([]);
 
-  // Initialise + subscribe to dispatch log, same pattern as NewsFeedSidebar
   useEffect(() => {
-    const refresh = () => {
-      setEntries(getAllDispatchedHeadlines(2));
-    };
+    const refresh = () => setEntries(getAllDispatchedHeadlines(2));
     refresh();
     const unsub = subscribeToDispatchedHeadlines(refresh);
     return unsub;
   }, []);
 
-  // Also re-read when a new headline fires via useOracleTick
   useEffect(() => {
-    if (lastDispatchedHeadline != null) {
-      setEntries(getAllDispatchedHeadlines(2));
-    }
+    if (lastDispatchedHeadline != null) setEntries(getAllDispatchedHeadlines(2));
   }, [lastDispatchedHeadline]);
 
-  const skeletonRow = (
-    <div className="flex flex-col gap-1.5">
-      <div className="h-3 w-full rounded bg-zinc-800 animate-pulse" />
-      <div className="h-3 w-3/4 rounded bg-zinc-800 animate-pulse" />
+  const skeleton = (
+    <div className="flex flex-col gap-1.5 px-2.5 py-2 rounded" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}>
+      <div className="h-2.5 w-full rounded bg-zinc-800 animate-pulse" />
+      <div className="h-2.5 w-3/4 rounded bg-zinc-800 animate-pulse" />
       <div className="flex items-center gap-2 mt-0.5">
-        <div className="h-2 w-16 rounded bg-zinc-800 animate-pulse" />
+        <div className="h-2 w-14 rounded bg-zinc-800 animate-pulse" />
         <div className="h-2 w-10 rounded bg-zinc-800 animate-pulse" />
-        <div className="h-3 w-8 rounded bg-zinc-800 animate-pulse ml-auto" />
+        <div className="h-2.5 w-8 rounded bg-zinc-800 animate-pulse ml-auto" />
       </div>
     </div>
   );
 
-  // Cross-index divider label — inserted between entry 0 and entry 1
-  const crossIndexDivider = (
-    <div
-      style={{
-        textAlign: "center",
-        padding: "0.375rem 0",
-        color: "#8E8E93",
-        fontSize: "0.625rem",
-        textTransform: "uppercase",
-        letterSpacing: "0.12em",
-        fontStyle: "italic",
-      }}
-    >
-      Same headline · Two indexes · Different impact
-    </div>
-  );
-
   return (
-    <div className="pointer-events-none flex flex-col gap-3 py-2 px-1">
+    <div className="pointer-events-none w-full flex flex-col gap-2 py-1">
+      <div className="flex items-center gap-1.5 mb-0.5 px-1">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-[9px] text-zinc-500 uppercase tracking-wider font-semibold">Oracle Feed</span>
+      </div>
       {entries.length === 0
-        ? [0, 1].map((i) => <div key={i}>{skeletonRow}</div>)
-        : entries.map((entry, idx) => {
+        ? [0, 1].map((i) => <div key={i}>{skeleton}</div>)
+        : entries.map((entry) => {
             const { event } = entry;
-            const src = event.source?.trim() || "NEWSWIRE";
-            const tag = stripIndexSuffix(event.relatedIndex ?? "");
             const impact = formatImpact(event.sentimentScore);
-            const impactColor =
-              event.sentimentScore > 0
-                ? "text-green-400"
-                : event.sentimentScore < 0
-                  ? "text-red-400"
-                  : "text-zinc-400";
-
+            const isPos = event.sentimentScore > 0;
+            const tag = stripIndexSuffix(event.relatedIndex ?? "");
             return (
-              <div key={`${entry.dispatchedAt}-${event.headline}`}>
-                <div className="flex flex-col gap-1">
-                  <p className="text-[11px] text-zinc-300 font-medium leading-relaxed line-clamp-2">
-                    {event.headline}
-                  </p>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[9px] uppercase tracking-widest text-zinc-500 font-medium">
-                      {src}
+              <div
+                key={`${entry.dispatchedAt}-${event.headline}`}
+                className="flex flex-col gap-1.5 px-2.5 py-2 rounded"
+                style={{
+                  background: "rgba(255,255,255,0.02)",
+                  border: "1px solid rgba(255,255,255,0.05)",
+                  borderLeft: `2px solid ${isPos ? "#4ade80" : "#f87171"}`,
+                }}
+              >
+                <p className="text-[10px] text-zinc-300 font-medium leading-relaxed line-clamp-2">
+                  {event.headline}
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-medium">
+                    {event.source?.trim() || "NEWSWIRE"}
+                  </span>
+                  {tag && (
+                    <span className="text-[9px] uppercase tracking-wider text-primary/70 font-semibold border border-primary/20 bg-primary/5 px-1 py-0.5 rounded-[3px]">
+                      {tag}
                     </span>
-                    {tag && (
-                      <span className="text-[9px] uppercase tracking-wider text-primary/70 font-semibold border border-primary/20 bg-primary/5 px-1 py-0.5 rounded-[3px]">
-                        {tag}
-                      </span>
-                    )}
-                    <span
-                      className={`font-mono text-[10px] font-bold tabular-nums ml-auto ${impactColor}`}
-                    >
-                      {impact} pts
-                    </span>
-                  </div>
+                  )}
+                  <span className={`font-mono text-[10px] font-bold tabular-nums ml-auto ${isPos ? "text-green-400" : "text-red-400"}`}>
+                    {impact} pts
+                  </span>
                 </div>
-                {/* Insert cross-index label after the first entry when 2 entries exist */}
-                {idx === 0 && entries.length >= 2 && crossIndexDivider}
               </div>
             );
           })}
@@ -339,113 +208,84 @@ function Slide2Preview() {
   );
 }
 
-// ─── SLIDE 3 — Static SVG illustration ───────────────────────────────────────
+// ─── SLIDE 3 — Loyalty tiers ──────────────────────────────────────────────────
 
 function Slide3Preview() {
+  const tiers = [
+    { tier: "Bronze",  days: "7d+",  spread: "0.40", color: "oklch(0.62 0.12 55)" },
+    { tier: "Silver",  days: "14d+", spread: "0.30", color: "oklch(0.78 0.04 240)" },
+    { tier: "Gold",    days: "21d+", spread: "0.20", color: "oklch(0.82 0.18 85)" },
+    { tier: "Obsidian",days: "30d+", spread: "0.10", color: "oklch(0.68 0.22 290)" },
+  ];
+
   return (
-    <div className="flex items-center justify-center py-4">
-      <svg
-        viewBox="0 0 200 120"
-        width="200"
-        height="120"
-        xmlns="http://www.w3.org/2000/svg"
-        aria-hidden="true"
-      >
-        {/* Open book left page */}
-        <path
-          d="M60 30 Q60 20 70 18 L100 22 L100 90 L70 86 Q60 84 60 74 Z"
-          fill="none"
-          stroke="#4b5563"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-        {/* Open book right page */}
-        <path
-          d="M140 30 Q140 20 130 18 L100 22 L100 90 L130 86 Q140 84 140 74 Z"
-          fill="none"
-          stroke="#4b5563"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-        />
-        {/* Spine line */}
-        <line
-          x1="100"
-          y1="22"
-          x2="100"
-          y2="90"
-          stroke="#374151"
-          strokeWidth="1"
-        />
-        {/* Left page lines */}
-        <line
-          x1="72"
-          y1="40"
-          x2="96"
-          y2="41"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <line
-          x1="72"
-          y1="50"
-          x2="96"
-          y2="51"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <line
-          x1="72"
-          y1="60"
-          x2="90"
-          y2="61"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        {/* Right page lines */}
-        <line
-          x1="104"
-          y1="40"
-          x2="128"
-          y2="41"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <line
-          x1="104"
-          y1="50"
-          x2="128"
-          y2="51"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        <line
-          x1="104"
-          y1="60"
-          x2="122"
-          y2="61"
-          stroke="#374151"
-          strokeWidth="1"
-          strokeLinecap="round"
-        />
-        {/* "MOMENTUM TERMINAL" text */}
-        <text
-          x="100"
-          y="108"
-          textAnchor="middle"
-          fontSize="8"
-          fontWeight="700"
-          letterSpacing="2"
-          fill="#6b7280"
-          fontFamily="system-ui, sans-serif"
+    <div className="pointer-events-none w-full flex flex-col gap-1.5 py-1">
+      <div className="flex items-center justify-between px-1 mb-1">
+        <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Tier</span>
+        <div className="flex items-center gap-6">
+          <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Hold</span>
+          <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">Spread</span>
+        </div>
+      </div>
+      {tiers.map((row) => (
+        <div
+          key={row.tier}
+          className="flex items-center justify-between px-2.5 py-2 rounded"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px solid rgba(255,255,255,0.05)",
+            borderLeft: `2px solid ${row.color}`,
+          }}
         >
-          MOMENTUM TERMINAL
-        </text>
-      </svg>
+          <span style={{ color: row.color, fontSize: "0.7rem", fontWeight: 700, fontFamily: "'JetBrains Mono', monospace", minWidth: "5rem" }}>
+            {row.tier}
+          </span>
+          <div className="flex items-center gap-6">
+            <span style={{ color: "#8E8E93", fontSize: "0.65rem", fontFamily: "'JetBrains Mono', monospace" }}>{row.days}</span>
+            <span style={{ color: "oklch(0.72 0.18 145)", fontSize: "0.7rem", fontFamily: "'JetBrains Mono', monospace", fontWeight: 600 }}>
+              {row.spread}
+            </span>
+          </div>
+        </div>
+      ))}
+      <p className="text-[9px] text-zinc-600 text-center mt-1 italic">
+        Standard tier pays full 0.50 spread. Hold longer, pay less.
+      </p>
+    </div>
+  );
+}
+
+// ─── SLIDE 4 — Ready state ────────────────────────────────────────────────────
+
+function Slide4Preview() {
+  const stats = [
+    { label: "Indexes Tracked", value: "53" },
+    { label: "Oracle Model", value: "AI / NLP" },
+    { label: "Starting Balance", value: "$100,100" },
+    { label: "Min. Allocation", value: "$1.00" },
+  ];
+
+  return (
+    <div className="pointer-events-none w-full flex flex-col gap-2 py-1">
+      <div
+        className="flex items-center justify-center gap-2 px-3 py-2 rounded mb-1"
+        style={{ background: "rgba(74,222,128,0.06)", border: "1px solid rgba(74,222,128,0.15)" }}
+      >
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-[10px] uppercase tracking-widest text-green-400 font-bold">Systems Nominal</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="flex flex-col gap-0.5 px-2.5 py-2 rounded"
+            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+          >
+            <span className="text-[9px] uppercase tracking-widest text-zinc-600 font-semibold">{s.label}</span>
+            <span className="font-mono text-[11px] font-bold text-zinc-200">{s.value}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -453,6 +293,7 @@ function Slide3Preview() {
 // ─── Slide definitions ────────────────────────────────────────────────────────
 
 interface SlideConfig {
+  label: string;
   title: string;
   body: string;
   preview: React.ReactNode;
@@ -486,148 +327,56 @@ export function OnboardingOverlay({ onDismiss }: OnboardingOverlayProps) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const startedRef = useRef(false);
 
-  // Prevent re-show on accidental re-mount
   if (!visible) return null;
 
   const dismiss = (navigateToMarkets: boolean) => {
     try {
       localStorage.setItem(onboardingKey, "true");
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
     setVisible(false);
     onDismiss(navigateToMarkets);
   };
 
   const handleSkip = () => dismiss(false);
-  const handleStartTrading = () => {
-    startedRef.current = true;
-    dismiss(true);
-  };
+  const handleEnter = () => { startedRef.current = true; dismiss(true); };
   const handleBack = () => setCurrentSlide((s) => Math.max(0, s - 1));
-  const handleNext = () => {
-    if (currentSlide < SLIDES.length - 1) setCurrentSlide((s) => s + 1);
-  };
+  const handleNext = () => { if (currentSlide < SLIDES.length - 1) setCurrentSlide((s) => s + 1); };
 
   const SLIDES: SlideConfig[] = [
     {
-      title: "What is Momentum Terminal?",
-      body: "Trade the narrative. Every index tracks the real-time momentum of a major global story — from Fed policy to cultural movements. No expiry. No binary bets. Just continuous conviction.",
+      label: "01 / MARKETS",
+      title: "Trade the Narrative",
+      body: "Every index tracks the real-time momentum of a major global story — Fed policy, AI regulation, geopolitical risk. No expiry. No binary bets. Continuous conviction with live price discovery.",
       preview: <Slide0Preview />,
     },
     {
-      title: "How to Trade",
-      body: "Allocate capital to gain exposure to any index. If narrative momentum moves in your favor, your position gains value. Redeem at any time — a ±0.5 spread applies on entry and exit. The longer you hold, the lower your exit spread — rewarding conviction over reaction.",
+      label: "02 / POSITIONS",
+      title: "High, Low, and Redeem",
+      body: "HIGH allocates capital long on an index. LOW opens a short position. REDEEM closes your position at the live oracle price minus spread. All positions are marked to market in real time.",
       preview: <Slide1Preview />,
     },
     {
-      title: "The Oracle",
-      body: "Every price is driven by the Oracle — an AI pipeline that classifies incoming headlines, scores their impact, and updates index prices in real time. The same headline can move multiple indexes simultaneously at different magnitudes. Tap any index to see its full audit trail.",
+      label: "03 / ORACLE",
+      title: "AI-Powered Price Engine",
+      body: "The Oracle classifies incoming headlines, scores their sentiment impact, and updates every index price in real time. One headline can move multiple indexes simultaneously at different magnitudes.",
       preview: <Slide2Preview />,
     },
     {
-      title: "Learn More",
-      body: "A detailed guide to Momentum Terminal — covering indexes, the Oracle, allocation strategy, and the loyalty tier system — is available in the Momentum Guide at the bottom of the platform.",
+      label: "04 / LOYALTY",
+      title: "Hold Longer, Pay Less",
+      body: "Every position has its own loyalty clock. The longer you hold, the lower your exit spread — rewarding conviction over reaction. Reach Obsidian tier and exit at near-zero spread.",
       preview: <Slide3Preview />,
     },
     {
-      title: "The Longer You Hold",
-      body: "Every position has its own loyalty clock. Hold longer and your exit spread drops — rewarding conviction, not just timing. Reach Obsidian tier and exit at nearly zero spread.",
-      preview: (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.5rem",
-            width: "100%",
-            padding: "0.5rem 0",
-          }}
-        >
-          {[
-            {
-              tier: "Bronze",
-              days: "7 days",
-              spread: "0.40 spread",
-              color: "oklch(0.62 0.12 55)",
-            },
-            {
-              tier: "Silver",
-              days: "14 days",
-              spread: "0.30 spread",
-              color: "oklch(0.78 0.04 240)",
-            },
-            {
-              tier: "Gold",
-              days: "21 days",
-              spread: "0.20 spread",
-              color: "oklch(0.82 0.18 85)",
-            },
-            {
-              tier: "Obsidian",
-              days: "30 days",
-              spread: "0.10 spread",
-              color: "oklch(0.68 0.22 290)",
-            },
-          ].map((row) => (
-            <div
-              key={row.tier}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "0.5rem 0.75rem",
-                borderRadius: "0.375rem",
-                backgroundColor: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
-              }}
-            >
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
-              >
-                <span
-                  style={{
-                    color: row.color,
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    fontFamily: "monospace",
-                    minWidth: "4.5rem",
-                  }}
-                >
-                  {row.tier}
-                </span>
-                <span style={{ color: "#8E8E93", fontSize: "0.6875rem" }}>
-                  {row.days}
-                </span>
-              </div>
-              <span
-                style={{
-                  color: "oklch(0.72 0.18 145)",
-                  fontSize: "0.75rem",
-                  fontFamily: "monospace",
-                  fontWeight: 600,
-                }}
-              >
-                {row.spread}
-              </span>
-            </div>
-          ))}
-          <p
-            style={{
-              color: "#8E8E93",
-              fontSize: "0.625rem",
-              textAlign: "center",
-              marginTop: "0.25rem",
-              fontStyle: "italic",
-            }}
-          >
-            Standard tier pays full 0.50 spread. Each tier above reduces it.
-          </p>
-        </div>
-      ),
+      label: "05 / READY",
+      title: "Terminal Initialized",
+      body: "Your account starts with $100,100 in simulated capital and a clean slate — no pre-seeded positions. Build your own portfolio from the ground up. The Oracle is live.",
+      preview: <Slide4Preview />,
     },
   ];
 
   const slide = SLIDES[currentSlide];
+  const isLast = currentSlide === SLIDES.length - 1;
 
   return (
     <AnimatePresence>
@@ -636,149 +385,172 @@ export function OnboardingOverlay({ onDismiss }: OnboardingOverlayProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3, ease: "easeOut" }}
-          className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center"
+          transition={{ duration: 0.25, ease: "easeOut" }}
+          className="fixed inset-0 z-[9999] flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)" }}
           data-ocid="onboarding.dialog"
         >
-          {/* Card */}
-          <div className="relative bg-[#0a0a0a] border border-zinc-800 rounded-2xl w-full max-w-sm mx-4 overflow-hidden flex flex-col shadow-2xl">
-            {/* Skip link — top-right absolute */}
-            <button
-              type="button"
-              onClick={handleSkip}
-              data-ocid="onboarding.skip_button"
-              className="absolute top-3 right-4 text-xs text-zinc-500 hover:text-zinc-300 transition-colors duration-150 cursor-pointer z-10"
-              aria-label="Skip onboarding"
+          <div
+            className="relative w-full max-w-sm mx-4 flex flex-col overflow-hidden"
+            style={{
+              background: "#080808",
+              border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "12px",
+              boxShadow: "0 32px 64px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04)",
+            }}
+          >
+            {/* Terminal header bar */}
+            <div
+              className="flex items-center justify-between px-4 py-2.5 shrink-0"
+              style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", background: "rgba(255,255,255,0.02)" }}
             >
-              Skip
-            </button>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                <span
+                  className="text-[9px] uppercase tracking-widest font-bold"
+                  style={{ color: "rgba(255,255,255,0.25)", fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  MOMENTUM TERMINAL
+                </span>
+              </div>
+              <span
+                className="text-[9px] font-semibold"
+                style={{ color: "rgba(255,255,255,0.2)", fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.08em" }}
+              >
+                {slide.label}
+              </span>
+            </div>
 
             {/* Preview panel */}
-            <div className="h-[180px] bg-zinc-900/60 border-b border-zinc-800 flex items-center justify-center px-6 overflow-hidden shrink-0">
+            <div
+              className="px-4 py-4 shrink-0"
+              style={{
+                minHeight: "180px",
+                borderBottom: "1px solid rgba(255,255,255,0.06)",
+                background: "rgba(255,255,255,0.01)",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
               {slide.preview}
             </div>
 
-            {/* Content area */}
-            <div className="px-6 pt-5 pb-4">
-              <h2 className="text-foreground text-sm font-bold tracking-tight mb-2">
+            {/* Content */}
+            <div className="px-5 pt-4 pb-3">
+              <h2
+                className="mb-1.5"
+                style={{
+                  fontSize: "0.875rem",
+                  fontWeight: 700,
+                  color: "rgba(255,255,255,0.92)",
+                  letterSpacing: "-0.01em",
+                  lineHeight: 1.3,
+                }}
+              >
                 {slide.title}
               </h2>
-              <p className="text-zinc-400 text-xs leading-relaxed">
+              <p style={{ fontSize: "0.75rem", color: "#71717a", lineHeight: 1.65 }}>
                 {slide.body}
               </p>
 
-              {/* Slide 3 (index 3) — guide indicator */}
-              {currentSlide === 3 && (
-                <div className="mt-4 flex items-center gap-2 justify-center">
-                  {MOMENTUM_GUIDE_URL ? (
-                    <a
-                      href={MOMENTUM_GUIDE_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-primary/70 hover:text-primary transition-colors duration-150"
-                      data-ocid="onboarding.guide_link"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M6 2.5V9.5M3 7L6 9.5L9 7"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      Momentum Guide
-                    </a>
-                  ) : (
-                    <span
-                      className="flex items-center gap-1.5 text-xs text-zinc-600 cursor-default select-none"
-                      data-ocid="onboarding.guide_label"
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 12 12"
-                        fill="none"
-                        aria-hidden="true"
-                      >
-                        <path
-                          d="M6 2.5V9.5M3 7L6 9.5L9 7"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      Momentum Guide
-                    </span>
-                  )}
-                </div>
+              {currentSlide === 3 && MOMENTUM_GUIDE_URL && (
+                <a
+                  href={MOMENTUM_GUIDE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 flex items-center gap-1.5 text-xs text-primary/60 hover:text-primary transition-colors duration-150"
+                >
+                  Momentum Guide ↗
+                </a>
               )}
             </div>
 
-            {/* Navigation row */}
-            <div className="flex items-center justify-between px-6 pb-5 gap-3">
-              {/* Back button */}
+            {/* Nav row */}
+            <div
+              className="flex items-center justify-between px-5 pb-4 pt-2"
+              style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }}
+            >
+              {/* Back */}
               <button
                 type="button"
                 onClick={handleBack}
                 disabled={currentSlide === 0}
-                data-ocid="onboarding.back_button"
                 aria-label="Previous slide"
-                className={`flex items-center justify-center w-8 h-8 rounded-lg border transition-colors duration-150 focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 ${
+                className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors duration-150 focus:outline-none ${
                   currentSlide === 0
-                    ? "border-zinc-800 text-zinc-700 opacity-30 cursor-not-allowed"
-                    : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 cursor-pointer"
+                    ? "text-zinc-700 cursor-not-allowed"
+                    : "text-zinc-500 hover:text-zinc-200 cursor-pointer"
                 }`}
+                style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
 
-              {/* Progress dots — auto-derived from SLIDES.length */}
-              <div
-                className="flex items-center gap-1.5"
-                aria-label={`Slide ${currentSlide + 1} of ${SLIDES.length}`}
-              >
+              {/* Dots */}
+              <div className="flex items-center gap-1.5">
                 {SLIDES.map((s, i) => (
-                  <span
-                    key={s.title}
-                    className={`inline-block w-2 h-2 rounded-full transition-colors duration-200 ${
-                      i === currentSlide ? "bg-green-500" : "bg-zinc-700"
-                    }`}
-                    data-ocid={`onboarding.dot.${i + 1}`}
-                    aria-hidden="true"
+                  <button
+                    key={s.label}
+                    type="button"
+                    onClick={() => setCurrentSlide(i)}
+                    aria-label={`Go to slide ${i + 1}`}
+                    className="transition-all duration-200 rounded-full"
+                    style={{
+                      width: i === currentSlide ? "16px" : "6px",
+                      height: "6px",
+                      background: i === currentSlide ? "#4ade80" : "rgba(255,255,255,0.12)",
+                    }}
                   />
                 ))}
               </div>
 
-              {/* Next / Start Trading */}
-              {currentSlide < SLIDES.length - 1 ? (
+              {/* Next or Enter */}
+              {isLast ? (
                 <button
                   type="button"
-                  onClick={handleNext}
-                  data-ocid="onboarding.next_button"
-                  className="flex items-center justify-center w-8 h-8 rounded-lg border border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors duration-150 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/50"
-                  aria-label="Next slide"
+                  onClick={handleEnter}
+                  data-ocid="onboarding.start_trading_button"
+                  className="px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide transition-all duration-150 cursor-pointer focus:outline-none"
+                  style={{
+                    background: "rgba(74,222,128,0.15)",
+                    border: "1px solid rgba(74,222,128,0.3)",
+                    color: "#4ade80",
+                  }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "#4ade80";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#000";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLButtonElement).style.background = "rgba(74,222,128,0.15)";
+                    (e.currentTarget as HTMLButtonElement).style.color = "#4ade80";
+                  }}
                 >
-                  <ChevronRight className="w-4 h-4" />
+                  Enter Terminal
                 </button>
               ) : (
                 <button
                   type="button"
-                  onClick={handleStartTrading}
-                  data-ocid="onboarding.start_trading_button"
-                  className="px-4 py-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-bold tracking-wide transition-colors duration-150 cursor-pointer focus:outline-none focus-visible:ring-1 focus-visible:ring-green-400/50"
+                  onClick={handleNext}
+                  data-ocid="onboarding.next_button"
+                  aria-label="Next slide"
+                  className="flex items-center justify-center w-8 h-8 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors duration-150 cursor-pointer focus:outline-none"
+                  style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
                 >
-                  Start Trading
+                  <ChevronRight className="w-4 h-4" />
                 </button>
               )}
             </div>
+
+            {/* Skip link */}
+            <button
+              type="button"
+              onClick={handleSkip}
+              data-ocid="onboarding.skip_button"
+              className="absolute top-2.5 right-14 text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors duration-150 cursor-pointer"
+              aria-label="Skip onboarding"
+            >
+              skip
+            </button>
           </div>
         </motion.div>
       )}
