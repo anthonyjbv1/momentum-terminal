@@ -670,7 +670,7 @@ export function ProfilePage() {
       );
       return `Joined ${formatJoinDate(sorted[0].timestamp)}`;
     }
-    return "Joined recently";
+    return `Joined ${new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
   })();
   void joinDate;
 
