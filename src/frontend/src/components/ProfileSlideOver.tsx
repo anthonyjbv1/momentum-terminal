@@ -260,15 +260,18 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
     .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
     .slice(0, 20);
 
-  // Join date from earliest transaction or profile
+  // Join date — prefer signup timestamp stored in session, fall back to earliest transaction
   const joinDate = (() => {
+    if (userAccount?.createdAt) {
+      return `Joined ${new Date(userAccount.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    }
     if (transactions && transactions.length > 0) {
       const sorted = [...transactions].sort(
         (a, b) => Number(a.timestamp) - Number(b.timestamp),
       );
       return `Joined ${formatJoinDate(sorted[0].timestamp)}`;
     }
-    return "Joined Feb 2026";
+    return "Joined recently";
   })();
   void joinDate;
 

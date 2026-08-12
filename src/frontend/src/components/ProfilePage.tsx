@@ -659,13 +659,18 @@ export function ProfilePage() {
     .slice(0, 20);
 
   const joinDate = (() => {
+    // Prefer the signup timestamp stored in the session
+    if (userAccount?.createdAt) {
+      return `Joined ${new Date(userAccount.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+    }
+    // Fall back to earliest transaction timestamp
     if (transactions && transactions.length > 0) {
       const sorted = [...transactions].sort(
         (a, b) => Number(a.timestamp) - Number(b.timestamp),
       );
       return `Joined ${formatJoinDate(sorted[0].timestamp)}`;
     }
-    return "Joined Feb 2026";
+    return "Joined recently";
   })();
   void joinDate;
 

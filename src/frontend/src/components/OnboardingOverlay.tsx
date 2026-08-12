@@ -261,7 +261,7 @@ function Slide4Preview() {
   const stats = [
     { label: "Indexes Tracked", value: "53" },
     { label: "Oracle Model", value: "AI / NLP" },
-    { label: "Starting Balance", value: "$100,100" },
+    { label: "Starting Balance", value: "$0" },
     { label: "Min. Allocation", value: "$1.00" },
   ];
 
@@ -370,7 +370,7 @@ export function OnboardingOverlay({ onDismiss }: OnboardingOverlayProps) {
     {
       label: "05 / READY",
       title: "Terminal Initialized",
-      body: "Your account starts with $100,100 in simulated capital and a clean slate — no pre-seeded positions. Build your own portfolio from the ground up. The Oracle is live.",
+      body: "Your account starts with a clean slate — no pre-seeded positions and no buying power until you add funds. Build your portfolio from the ground up. The Oracle is live.",
       preview: <Slide4Preview />,
     },
   ];

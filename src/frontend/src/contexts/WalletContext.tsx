@@ -46,7 +46,7 @@ interface WalletContextValue {
   ) => void;
 }
 
-const SIMULATED_STARTING_BALANCE = 100_100;
+const SIMULATED_STARTING_BALANCE = 0;
 
 // Static key suffixes — prefixed with userId at runtime
 const SEEDED_FLAG_SUFFIX = "sentimentam_seeded_v5";

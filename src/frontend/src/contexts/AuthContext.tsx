@@ -12,6 +12,7 @@ export interface UserAccount {
   email: string;
   avatar?: string;
   provider?: "email" | "google";
+  createdAt?: number; // Unix ms timestamp of first signup / first login
 }
 
 interface AuthContextValue {
@@ -34,6 +35,7 @@ interface StoredAccount {
   email: string;
   password: string;
   provider: "email" | "google";
+  createdAt?: number;
 }
 
 function getRegisteredAccounts(): StoredAccount[] {
@@ -144,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: match.username,
         email: match.email,
         provider: "email",
+        createdAt: match.createdAt ?? Date.now(),
       };
       persistSession(account);
     },
@@ -155,13 +158,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Enforce password strength rules
       validatePasswordStrength(password);
 
+      const now = Date.now();
       // Save to registered accounts registry
-      saveRegisteredAccount({ username, email, password, provider: "email" });
+      saveRegisteredAccount({ username, email, password, provider: "email", createdAt: now });
 
       const account: UserAccount = {
         username,
         email,
         provider: "email",
+        createdAt: now,
       };
       persistSession(account);
     },
