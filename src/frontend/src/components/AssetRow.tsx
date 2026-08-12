@@ -776,7 +776,7 @@ function AssetRowInner({
   const isRedeemButtonDisabled =
     (redeemDirection === "short" && shortHasEntry && !shortEntryScoreValid) ||
     !!redeemUnitsError ||
-    (redeemDirection !== "short" && redeemUnits <= 0);
+    redeemUnits <= 0;
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -1665,21 +1665,60 @@ function AssetRowInner({
                         </span>
                       </div>
 
-                      {/* Units input — shares only */}
-                      <div style={{ margin: "1rem 1.25rem 0 1.25rem" }}>
-                        <div
-                          style={{
-                            color: "#6b6b6b",
-                            fontSize: "0.625rem",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.1em",
-                            fontWeight: 500,
-                            marginBottom: "0.5rem",
-                          }}
-                        >
-                          {redeemDirection === "short" ? "Shares to Close" : "Shares to Redeem"}
-                        </div>
+                      {/* Input mode toggle: $ Dollar / # Shares */}
+                      <div
+                        style={{
+                          display: "flex",
+                          margin: "1rem 1.25rem 0 1.25rem",
+                          backgroundColor: "rgba(255,255,255,0.04)",
+                          borderRadius: "9999px",
+                          padding: "3px",
+                          gap: "3px",
+                        }}
+                      >
+                        {(["dollar", "units"] as const).map((mode) => {
+                          const label = mode === "dollar" ? "$ Dollar" : "# Shares";
+                          const isActive = redeemInputMode === mode;
+                          const activeColor = redeemDirection === "short" ? "#f87171" : "#4ade80";
+                          const activeBg = redeemDirection === "short" ? "rgba(239,68,68,0.15)" : "rgba(74,222,128,0.15)";
+                          const activeBorder = redeemDirection === "short" ? "rgba(239,68,68,0.4)" : "rgba(74,222,128,0.4)";
+                          return (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => {
+                                if (redeemInputMode !== mode) {
+                                  setRedeemInputMode(mode);
+                                  setRedeemUnitsError("");
+                                  if (mode === "units") {
+                                    setRedeemDollarRaw("");
+                                  } else {
+                                    setRedeemUnitsRaw("");
+                                    setRedeemUnits(0);
+                                  }
+                                }
+                              }}
+                              style={{
+                                flex: 1,
+                                padding: "0.375rem 0",
+                                borderRadius: "9999px",
+                                border: isActive ? `1px solid ${activeBorder}` : "1px solid transparent",
+                                backgroundColor: isActive ? activeBg : "transparent",
+                                color: isActive ? activeColor : "#8E8E93",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
 
+                      {/* Input field */}
+                      <div style={{ margin: "0.75rem 1.25rem 0 1.25rem" }}>
                         <div
                           style={{
                             backgroundColor: "#111111",
@@ -1692,86 +1731,121 @@ function AssetRowInner({
                                   : "#1e1e1e"
                             }`,
                             padding: "0.75rem 1rem",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.25rem",
                           }}
                         >
-                          <input
-                            id="redeem-units-input"
-                            type="number"
-                            min={1}
-                            max={maxRedeemUnits}
-                            step={1}
-                            value={redeemUnitsRaw}
-                            onChange={(e) => {
-                              const raw = e.target.value;
-                              setRedeemUnitsRaw(raw);
-                              setRedeemUnitsError("");
-                              if (raw === "" || raw === "0") {
-                                setRedeemUnitsError("Enter a valid number of units");
-                                return;
-                              }
-                              const parsed = Number.parseInt(raw, 10);
-                              if (Number.isNaN(parsed)) {
-                                setRedeemUnitsError("Enter a valid number of units");
-                                return;
-                              }
-                              if (parsed > maxRedeemUnits) {
-                                setRedeemUnitsError(`Cannot exceed your balance of ${maxRedeemUnits} shares`);
-                                return;
-                              }
-                              if (parsed < 1) {
-                                setRedeemUnitsError("Minimum redemption is 1 share");
-                                return;
-                              }
-                              setRedeemUnits(parsed);
-                            }}
-                            onBlur={(e) => {
-                              const parsed = Number.parseInt(e.target.value, 10);
-                              const clamped = Number.isNaN(parsed)
-                                ? maxRedeemUnits
-                                : Math.max(1, Math.min(maxRedeemUnits, parsed));
-                              setRedeemUnits(clamped);
-                              setRedeemUnitsRaw(String(clamped));
-                              setRedeemUnitsError("");
-                            }}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              outline: "none",
-                              color: redeemDirection === "short" ? "#f87171" : (redeemUnitsRaw ? "#ffffff" : "#4a4a4a"),
-                              fontSize: "2.25rem",
-                              fontWeight: 700,
-                              caretColor: redeemDirection === "short" ? "#f87171" : "oklch(0.72 0.18 145)",
-                              width: "100%",
-                            }}
-                          />
+                          {redeemInputMode === "dollar" && (
+                            <span style={{ fontSize: "1.875rem", fontWeight: 300, color: redeemDollarRaw ? "#4a4a4a" : "#4a4a4a" }}>$</span>
+                          )}
+                          {redeemInputMode === "dollar" ? (
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={redeemDollarRaw}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (/^[\d,]*\.?\d{0,2}$/.test(val) || val === "") {
+                                  setRedeemDollarRaw(val);
+                                  setRedeemUnitsError("");
+                                  const parsed = Number.parseFloat(val.replace(/,/g, "")) || 0;
+                                  const units = effectiveRedeemPrice > 0 ? Math.max(0, Math.min(maxRedeemUnits, Math.floor(parsed / effectiveRedeemPrice))) : 0;
+                                  setRedeemUnits(units);
+                                  if (parsed > 0 && units < 1) {
+                                    setRedeemUnitsError(`Minimum is 1 share (~$${effectiveRedeemPrice.toFixed(2)})`);
+                                  }
+                                }
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                outline: "none",
+                                color: redeemDirection === "short" ? "#f87171" : (redeemDollarRaw ? "#ffffff" : "#4a4a4a"),
+                                fontSize: "2.25rem",
+                                fontWeight: 700,
+                                caretColor: redeemDirection === "short" ? "#f87171" : "oklch(0.72 0.18 145)",
+                                width: "100%",
+                              }}
+                            />
+                          ) : (
+                            <input
+                              id="redeem-units-input"
+                              type="number"
+                              min={1}
+                              max={maxRedeemUnits}
+                              step={1}
+                              value={redeemUnitsRaw}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                setRedeemUnitsRaw(raw);
+                                setRedeemUnitsError("");
+                                if (raw === "" || raw === "0") {
+                                  setRedeemUnitsError("Enter a valid number of units");
+                                  return;
+                                }
+                                const parsed = Number.parseInt(raw, 10);
+                                if (Number.isNaN(parsed)) {
+                                  setRedeemUnitsError("Enter a valid number of units");
+                                  return;
+                                }
+                                if (parsed > maxRedeemUnits) {
+                                  setRedeemUnitsError(`Cannot exceed your balance of ${maxRedeemUnits} shares`);
+                                  return;
+                                }
+                                if (parsed < 1) {
+                                  setRedeemUnitsError("Minimum redemption is 1 share");
+                                  return;
+                                }
+                                setRedeemUnits(parsed);
+                              }}
+                              onBlur={(e) => {
+                                const parsed = Number.parseInt(e.target.value, 10);
+                                const clamped = Number.isNaN(parsed)
+                                  ? maxRedeemUnits
+                                  : Math.max(1, Math.min(maxRedeemUnits, parsed));
+                                setRedeemUnits(clamped);
+                                setRedeemUnitsRaw(String(clamped));
+                                setRedeemUnitsError("");
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                outline: "none",
+                                color: redeemDirection === "short" ? "#f87171" : (redeemUnitsRaw ? "#ffffff" : "#4a4a4a"),
+                                fontSize: "2.25rem",
+                                fontWeight: 700,
+                                caretColor: redeemDirection === "short" ? "#f87171" : "oklch(0.72 0.18 145)",
+                                width: "100%",
+                              }}
+                            />
+                          )}
                         </div>
-                        {/* Max units hint */}
-                        <p
-                          style={{
-                            color: "#6b6b6b",
-                            fontSize: "0.6875rem",
-                            
-                            marginTop: "0.375rem",
-                            marginBottom: 0,
-                          }}
-                        >
-                          Max: {maxRedeemUnits} shares
-                          {redeemUnitsRaw !== "" && redeemUnits > 0 && effectiveRedeemPrice > 0 && (
-                            <span style={{ color: redeemDirection === "short" ? "#f87171" : "#6b6b6b" }}>
-                              {" "}· ${(redeemUnits * effectiveRedeemPrice).toFixed(2)}
-                            </span>
+                        {/* Hint line */}
+                        <p style={{ color: "#6b6b6b", fontSize: "0.6875rem", marginTop: "0.375rem", marginBottom: 0 }}>
+                          {redeemInputMode === "dollar" ? (
+                            <>
+                              Max: ${(maxRedeemUnits * effectiveRedeemPrice).toFixed(2)}
+                              {redeemDollarRaw && redeemUnits > 0 && (
+                                <span style={{ color: redeemDirection === "short" ? "#f87171" : "#6b6b6b" }}>
+                                  {" "}· {redeemUnits} shares
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              Max: {maxRedeemUnits} shares
+                              {redeemUnitsRaw !== "" && redeemUnits > 0 && effectiveRedeemPrice > 0 && (
+                                <span style={{ color: redeemDirection === "short" ? "#f87171" : "#6b6b6b" }}>
+                                  {" "}· ${(redeemUnits * effectiveRedeemPrice).toFixed(2)}
+                                </span>
+                              )}
+                            </>
                           )}
                         </p>
                         {redeemUnitsError && (
-                          <p
-                            style={{
-                              color: "#f87171",
-                              fontSize: "0.6875rem",
-                              
-                              marginTop: "0.25rem",
-                              marginBottom: 0,
-                            }}
-                          >
+                          <p style={{ color: "#f87171", fontSize: "0.6875rem", marginTop: "0.25rem", marginBottom: 0 }}>
                             {redeemUnitsError}
                           </p>
                         )}
@@ -2077,7 +2151,13 @@ function AssetRowInner({
                             : "pointer",
                         }}
                       >
-                        {isRedeemButtonDisabled ? "Enter an Amount" : (redeemDirection === "short" ? `Close Short · ${redeemUnitsRaw} shares` : `Confirm Redemption · ${redeemUnitsRaw} shares`)}
+                        {isRedeemButtonDisabled
+                          ? "Enter an Amount"
+                          : redeemDirection === "short"
+                            ? `Close Short · ${redeemUnits} shares`
+                            : redeemInputMode === "dollar"
+                              ? `Confirm · $${redeemDollarRaw} (${redeemUnits} shares)`
+                              : `Confirm · ${redeemUnits} shares`}
                       </button>
                     </div>
                   </>

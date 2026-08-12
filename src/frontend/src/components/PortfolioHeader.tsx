@@ -211,81 +211,103 @@ function HoldingRow({
   const utilizationRatio = Math.min(1, platformAllocated / POOL_REF_CAP);
   const utilizationBarColor = "bg-white/20";
 
+  const pnl = liveValue - costBasis;
+  const pnlPct = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+  const isUp = pnl >= 0;
+  const pnlColor = isUp ? "#4ade80" : "#f87171";
+  const scoreIsHigh = rawScore >= 50;
+  const directionColor = direction === "LOW" ? "#f87171" : "#4ade80";
+  const cardBg = direction === "LOW" ? "rgba(69,10,10,0.25)" : "rgba(5,46,22,0.15)";
+  const cardBorder = direction === "LOW" ? "rgba(127,29,29,0.3)" : "rgba(22,101,52,0.25)";
+
   return (
     <motion.div
       key={name}
-      className="group flex flex-col py-1.5 px-2 sm:py-2 sm:px-3 rounded-sm bg-white/[0.02] border border-border/50 transition-all duration-150 hover:bg-white/[0.04] hover:border-border/80"
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25, ease: "easeOut", delay: index * 0.06 }}
+      style={{
+        borderRadius: "0.75rem",
+        background: cardBg,
+        border: `1px solid ${cardBorder}`,
+        padding: "0.875rem 1rem",
+        fontFamily: "'Inter', system-ui, sans-serif",
+        cursor: "pointer",
+      }}
+      onClick={() => onSelectIndex?.(name)}
     >
-      {/* Top row: name + category badge + score + price + value + shares */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
-        {/* Left: dot + name + category badge */}
-        <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-0">
-          <span className="inline-block w-1.5 h-1.5 rounded-full bg-primary/60 shrink-0" />
-          <button
-            type="button"
-            className="text-foreground text-sm font-medium truncate cursor-pointer hover:text-white transition-colors text-left min-w-0"
-            onClick={() => onSelectIndex?.(name)}
-          >
+      {/* Top row: name + direction pill + score badge */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.625rem" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+          <p style={{ color: "#ffffff", fontSize: "0.9375rem", fontWeight: 600, letterSpacing: "-0.01em", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {INDEX_DISPLAY_NAMES[name] ?? name}
-          </button>
-          {direction && <DirectionPill direction={direction} />}
+          </p>
+          {direction && (
+            <span style={{
+              fontSize: "0.5625rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+              padding: "2px 6px", borderRadius: "4px", flexShrink: 0,
+              backgroundColor: direction === "LOW" ? "rgba(239,68,68,0.12)" : "rgba(74,222,128,0.12)",
+              border: `1px solid ${direction === "LOW" ? "rgba(239,68,68,0.35)" : "rgba(74,222,128,0.35)"}`,
+              color: directionColor,
+            }}>
+              {direction === "LOW" ? "LOW" : "HIGH"}
+            </span>
+          )}
         </div>
+        {/* Score badge */}
+        <span style={{
+          fontSize: "0.6875rem", fontWeight: 600, padding: "2px 8px", borderRadius: "9999px", flexShrink: 0,
+          backgroundColor: scoreIsHigh ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+          border: `1px solid ${scoreIsHigh ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
+          color: scoreIsHigh ? "#4ade80" : "#f87171",
+        }}>
+          {rawScore.toFixed(1)}
+        </span>
+      </div>
 
-        {/* Right: score + price + shares + value */}
-        <div className="flex items-baseline gap-4 shrink-0">
-          {/* Score */}
-          <div className="hidden sm:flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-white/30" />
-            <div className="text-right">
-              <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
-                Score
-              </p>
-              <p className="font-mono text-[11px] text-muted-foreground">
-                {rawScore.toFixed(1)}
-              </p>
-            </div>
-          </div>
-          {/* Price */}
-          <div className="hidden sm:block text-right">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Price
+      {/* Value + P&L row */}
+      <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <div>
+          <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, marginBottom: "0.125rem" }}>Value</p>
+          <p style={{ color: "#ffffff", fontSize: "1.375rem", fontWeight: 700, letterSpacing: "-0.02em", margin: 0 }}>
+            {fmt(liveValue)}
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.08em", fontWeight: 500, marginBottom: "0.125rem" }}>P&amp;L</p>
+          <p style={{ color: pnlColor, fontSize: "0.9375rem", fontWeight: 700, margin: 0 }}>
+            {isUp ? "+" : ""}{fmt(pnl)}
+          </p>
+          {costBasis > 0 && (
+            <p style={{ color: pnlColor, fontSize: "0.6875rem", opacity: 0.8, margin: 0 }}>
+              {isUp ? "+" : ""}{pnlPct.toFixed(2)}%
             </p>
-            <p className="font-mono text-[11px] text-muted-foreground">
-              {liveRedeemPrice.toFixed(2)}
-            </p>
-          </div>
-          {/* Shares */}
-          <div className="text-right">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Shares
-            </p>
-            <p className="font-mono text-[11px] text-muted-foreground">
-              {effectiveUnits.toFixed(4)}
-            </p>
-          </div>
-          {/* Value */}
-          <div className="text-right min-w-[80px]">
-            <p className="text-[9px] uppercase tracking-widest text-muted-foreground">
-              Value
-            </p>
-            <p className="text-muted-foreground font-mono text-[11px] sm:text-[15px] sm:font-semibold">
-              {fmt(liveValue)}
-            </p>
-          </div>
+          )}
         </div>
       </div>
 
-      {/* P&L / Yield Progress Bar — one-way unlock via hasUnlockedPnL */}
+      {/* Bottom: shares + basis */}
+      <div style={{ display: "flex", gap: "1.25rem", marginTop: "0.625rem", paddingTop: "0.5rem", borderTop: `1px solid ${direction === "LOW" ? "rgba(127,29,29,0.2)" : "rgba(22,101,52,0.2)"}` }}>
+        <div>
+          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Shares</p>
+          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{effectiveUnits.toFixed(4)}</p>
+        </div>
+        <div>
+          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Basis</p>
+          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{fmt(costBasis)}</p>
+        </div>
+        <div>
+          <p style={{ color: "#6b6b6b", fontSize: "0.5625rem", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.125rem" }}>Price</p>
+          <p style={{ color: "#a0a0a0", fontSize: "0.75rem", fontWeight: 500, margin: 0 }}>{liveRedeemPrice.toFixed(2)}</p>
+        </div>
+      </div>
+
       <YieldProgressBar
         costBasis={costBasis}
         currentValue={liveValue}
         hasUnlockedPnL={hasUnlockedPnL}
         onUnlock={onUnlock}
       />
-
     </motion.div>
   );
 }
@@ -556,8 +578,8 @@ function IndexSlideOver({
         onClick={onClose}
       />
       <motion.div
-        className="fixed right-0 top-0 h-full z-50 flex flex-col w-full sm:w-96"
-        style={{ background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif" }}
+        className="fixed right-0 top-0 z-50 flex flex-col w-full sm:w-96"
+        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif" }}
         initial={{ x: "100%" }}
         animate={{ x: 0 }}
         exit={{ x: "100%" }}
