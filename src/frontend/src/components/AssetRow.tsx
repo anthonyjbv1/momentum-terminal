@@ -339,10 +339,6 @@ export function AssetColumnHeaders() {
               Redeem Price
             </span>
           </div>
-          {/* Arc column spacer — matches SentimentArc SVG width (80px) */}
-          <div style={{ width: "80px" }} />
-          {/* Buttons column spacer — matches action buttons container (w-36 = 144px) */}
-          <div style={{ width: "144px" }} />
         </div>
       </div>
     </div>
@@ -863,9 +859,9 @@ function AssetRowInner({
             )}
 
             {/* Capacity bar + desktop action buttons in one row */}
-            <div className="flex items-start gap-3 mt-2">
+            <div className="flex items-start justify-between mt-2">
               {unitsOwned > 0 && (
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 mr-6">
                   <CapacityBar
                     asset={asset}
                     isCrisis={showHaltBanner}
@@ -874,7 +870,7 @@ function AssetRowInner({
                 </div>
               )}
               {/* Desktop HIGH / LOW / REDEEM buttons — hidden on mobile */}
-              <div className="hidden sm:flex flex-col gap-1 shrink-0">
+              <div className="hidden sm:flex flex-col gap-1 shrink-0 ml-auto">
                 <div className="flex flex-row gap-2">
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -883,7 +879,7 @@ function AssetRowInner({
                         onClick={() => setIsAllocationModalOpen(true)}
                         disabled={!canAllocate}
                         aria-disabled={!canAllocate}
-                        className={`relative inline-flex items-center justify-center gap-1.5 h-8 px-5 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md border-0 transition-all duration-150 ${
+                        className={`relative inline-flex items-center justify-center gap-1.5 h-8 min-w-[100px] px-5 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-md border-0 transition-all duration-150 ${
                           showHaltBanner
                             ? "bg-muted/20 text-red-400 opacity-50 cursor-not-allowed"
                             : isAtCapacity || isUserAtPositionLimit
@@ -909,7 +905,7 @@ function AssetRowInner({
                   <button
                     type="button"
                     onClick={() => setIsShortModalOpen(true)}
-                    className="relative inline-flex items-center justify-center gap-1.5 h-8 px-5 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
+                    className="relative inline-flex items-center justify-center gap-1.5 h-8 min-w-[100px] px-5 text-xs font-semibold tracking-wider uppercase focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-red-500/15 text-red-500 border-0 hover:bg-red-500 hover:text-white transition-all duration-150 active:scale-95 rounded-md"
                   >
                     LOW
                   </button>
