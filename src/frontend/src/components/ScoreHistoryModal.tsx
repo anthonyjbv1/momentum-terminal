@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Area,
@@ -168,6 +168,13 @@ export function ScoreHistoryModal({
 
   const currentColor = currentScore >= avgVal ? "#22c55e" : "#ef4444";
 
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
   const yDomainMin = Math.floor(minVal - 2);
   const yDomainMax = Math.ceil(maxVal + 2);
 
@@ -319,8 +326,8 @@ export function ScoreHistoryModal({
             {/* Chart */}
             <div style={{ padding: "1rem 1.25rem 0" }}>
               {hasData ? (
-                <div style={{ height: "240px" }}>
-                  <ResponsiveContainer width="100%" height={240}>
+                <div style={{ height: isMobile ? "180px" : "240px" }}>
+                  <ResponsiveContainer width="100%" height={isMobile ? 180 : 240}>
                     <LineChart
                       data={chartData}
                       margin={{ top: 8, right: 8, bottom: 4, left: 0 }}
@@ -338,11 +345,12 @@ export function ScoreHistoryModal({
                         interval="preserveStartEnd"
                       />
                       <YAxis
-                        domain={[yDomainMin, yDomainMax]}
+                        domain={isMobile ? ["auto", "auto"] : [yDomainMin, yDomainMax]}
                         tick={axisTickStyle}
                         axisLine={false}
                         tickLine={false}
                         width={35}
+                        padding={isMobile ? { top: 5, bottom: 5 } : undefined}
                       />
                       <RechartsTooltip
                         content={<CustomTooltip />}
@@ -374,7 +382,7 @@ export function ScoreHistoryModal({
                         type="monotone"
                         dataKey="value"
                         stroke={lineColor}
-                        strokeWidth={2}
+                        strokeWidth={isMobile ? 1 : 2}
                         dot={false}
                         isAnimationActive={false}
                       />
@@ -384,7 +392,7 @@ export function ScoreHistoryModal({
               ) : (
                 <div
                   style={{
-                    height: "240px",
+                    height: isMobile ? "180px" : "240px",
                     display: "flex",
                     flexDirection: "column",
                     alignItems: "center",
