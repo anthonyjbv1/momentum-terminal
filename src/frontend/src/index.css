@@ -57,6 +57,9 @@
   /* Force dark mode always */
   html {
     color-scheme: dark;
+    /* Prevent iOS text size adjustment (landscape zoom, Dynamic Type) */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   * {
@@ -68,6 +71,10 @@
     font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Pin weight explicitly so iOS Bold Text accessibility setting cannot
+       override inherited font-weight values across the app. */
+    font-weight: 400;
+    font-synthesis: none;
   }
 
   /* Monospace elements */
