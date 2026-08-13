@@ -57,17 +57,6 @@
   /* Force dark mode always */
   html {
     color-scheme: dark;
-    /* Lock font stack on the root — Tailwind preflight sets html's font-family
-       to include system-ui/-apple-system which responds to iOS Bold Text.
-       Using only the loaded web font prevents the system font from taking over. */
-    font-family: "Inter", sans-serif !important;
-    /* Prevent iOS Dynamic Type and landscape text scaling */
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-    /* Pin weight — iOS Bold Text injects bold via the user-agent/user stylesheet;
-       !important in the author stylesheet overrides it. */
-    font-weight: 400 !important;
-    font-synthesis: none;
   }
 
   * {
@@ -76,11 +65,9 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", sans-serif !important;
+    font-family: "Inter", system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    font-weight: 400 !important;
-    font-synthesis: none;
   }
 
   /* Monospace elements */
