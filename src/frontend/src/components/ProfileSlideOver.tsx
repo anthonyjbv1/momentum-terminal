@@ -341,7 +341,7 @@ export function ProfileSlideOver({ isOpen, onClose }: ProfileSlideOverProps) {
           visibility: isOpen ? "visible" : "hidden",
           opacity: isOpen ? 1 : 0,
           pointerEvents: isOpen ? "auto" : "none",
-          fontFamily: "'Inter', system-ui, sans-serif",
+          fontFamily: "'Inter', sans-serif",
           boxSizing: "border-box",
         }}
         aria-label="Profile"

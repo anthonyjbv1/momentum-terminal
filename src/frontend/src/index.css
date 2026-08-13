@@ -54,20 +54,66 @@
     --dynamic-spread-muted: oklch(0.6 0.1 55);
   }
 
-  /* Force dark mode always */
+  /* ── iOS / Safari display-settings isolation ────────────────────────────────
+   * Tailwind preflight injects `-apple-system, system-ui` onto the html element.
+   * iOS "Bold Text" and "Larger Text" accessibility toggles work by modifying
+   * how the system font renders — web fonts (Inter, JetBrains Mono) are immune
+   * as long as no system-font alias appears anywhere in the stack.
+   *
+   * Strategy:
+   *  1. Override html with only the loaded web font — no system-ui fallback.
+   *  2. Pin font-weight, font-style, and font-size on html so nothing inherits
+   *     a boosted value from the UA/user stylesheet.
+   *  3. Propagate explicit font-family to every element type that browsers
+   *     reset independently (inputs, buttons, select, textarea, SVG text).
+   *  4. font-synthesis: none everywhere — blocks the browser from faking bold
+   *     or italic variants the loaded font doesn't have.
+   *  5. -webkit-text-size-adjust: 100% — prevents Safari from scaling text on
+   *     orientation change or based on Dynamic Type preferences.
+   * ───────────────────────────────────────────────────────────────────────── */
+
   html {
     color-scheme: dark;
+    /* Override Tailwind preflight — must use only the loaded web font */
+    font-family: "Inter", sans-serif !important;
+    font-weight: 400 !important;
+    font-style: normal !important;
+    font-synthesis: none !important;
+    -webkit-text-size-adjust: 100% !important;
+    text-size-adjust: 100% !important;
   }
 
   * {
     @apply border-border;
+    /* Prevent the browser from synthesizing bold/italic for any element */
+    font-synthesis: none;
   }
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Inter", system-ui, sans-serif;
+    font-family: "Inter", sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Browsers reset font on form controls and buttons — force inheritance */
+  input,
+  button,
+  select,
+  textarea,
+  optgroup {
+    font-family: inherit;
+    font-weight: inherit;
+    font-size: inherit;
+    font-style: inherit;
+    line-height: inherit;
+  }
+
+  /* SVG text inherits from the DOM but some browsers need a nudge */
+  svg text,
+  svg tspan {
+    font-family: inherit;
+    font-weight: inherit;
   }
 
   /* Monospace elements */
