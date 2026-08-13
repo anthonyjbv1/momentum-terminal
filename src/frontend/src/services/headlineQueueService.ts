@@ -2643,10 +2643,10 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   const oddsApiIntervalId = setInterval(fetchOddsAPIBatch, 900_000);
 
   void fetchGoogleSearchBatch();
-  const googleSearchIntervalId = setInterval(fetchGoogleSearchBatch, 1_200_000);
+  const googleSearchIntervalId = setInterval(fetchGoogleSearchBatch, 3_600_000);
 
   void fetchRedditApifyBatch();
-  const redditApifyIntervalId = setInterval(fetchRedditApifyBatch, 1_500_000);
+  const redditApifyIntervalId = setInterval(fetchRedditApifyBatch, 3_600_000);
 
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
