@@ -1340,9 +1340,8 @@ function AssetRowInner({
                         style={{
                           color: "#ffffff",
                           fontSize: "1.25rem",
-                          fontWeight: 800,
+                          fontWeight: 700,
                           letterSpacing: "-0.01em",
-                          fontFamily: "'JetBrains Mono', monospace",
                           margin: 0,
                         }}
                       >
