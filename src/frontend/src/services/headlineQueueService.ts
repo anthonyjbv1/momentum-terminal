@@ -103,8 +103,6 @@ function shouldBlockHeadline(text: string): string | null {
 
 let _isFetchingNews = false;
 let _isFetchingGDELT = false;
-let _isFetchingFTC = false;
-let _isFetchingEPA = false;
 let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
 let _isFetchingOddsAPI = false;
@@ -120,8 +118,6 @@ const LOW_WATER_MARK = 5;
 
 // ─── Fetch interval constants ─────────────────────────────────────────────────
 const GDELT_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const FTC_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const EPA_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 const YOUTUBE_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const OMDB_FETCH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
@@ -669,7 +665,7 @@ async function fetchFREDBatch(): Promise<void> {
       FRED_SERIES.map(async (series) => {
         try {
           const resp = await fetch(
-            `https://api.stlouisfed.org/fred/series/observations?series_id=${series.id}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`,
+            `/api/data-proxy?url=${encodeURIComponent(`https://api.stlouisfed.org/fred/series/observations?series_id=${series.id}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`)}`,
           );
           if (!resp.ok) return [];
           const data = await resp.json() as { observations?: Array<{ value: string }> };
@@ -736,7 +732,7 @@ async function fetchBLSBatch(): Promise<void> {
       catch { return {}; }
     })();
 
-    const resp = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
+    const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent("https://api.bls.gov/publicAPI/v2/timeseries/data/")}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1238,62 +1234,6 @@ function parseCongressResponse(jsonText: string): Array<{
   }
 }
 
-// ─── FTC RSS parser ───────────────────────────────────────────────────────────
-function parseFTCResponse(xmlText: string): Array<{
-  text: string;
-  relatedIndex: string;
-  source: string;
-}> {
-  if (!xmlText || xmlText.trim() === "") return [];
-
-  const AI_TECH_KEYWORDS = [
-    "ai",
-    "artificial intelligence",
-    "antitrust",
-    "tech",
-    "semiconductor",
-    "data privacy",
-    "algorithm",
-    "chipmaker",
-    "merger",
-    "acquisition",
-  ] as const;
-
-  try {
-    const headlines: Array<{
-      text: string;
-      relatedIndex: string;
-      source: string;
-    }> = [];
-    const itemTitleRegex = /<item>[\s\S]*?<title>(.*?)<\/title>/g;
-    let match = itemTitleRegex.exec(xmlText);
-
-    while (match !== null) {
-      const title = match[1]
-        .replace(/<!\[CDATA\[/, "")
-        .replace(/\]\]>/, "")
-        .trim();
-
-      if (title && title.length >= 10) {
-        const lower = title.toLowerCase();
-        const relevant = AI_TECH_KEYWORDS.some((kw) => lower.includes(kw));
-        if (relevant) {
-          headlines.push({
-            text: title,
-            relatedIndex: "AI Regulation Risk Sentiment",
-            source: "FTC",
-          });
-        }
-      }
-      match = itemTitleRegex.exec(xmlText);
-    }
-
-    return headlines;
-  } catch {
-    return [];
-  }
-}
-
 // ─── DC / Marvel keyword routing arrays (shared by YouTube + TMDB parsers) ────
 const MARVEL_ROUTING_KEYWORDS = [
   "Marvel",
@@ -1512,43 +1452,6 @@ async function fetchGDELTBatch(): Promise<void> {
   }
 }
 
-
-// ─── FTC batch fetch ──────────────────────────────────────────────────────────
-async function fetchFTCBatch(): Promise<void> {
-  if (_isFetchingFTC) return;
-  _isFetchingFTC = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchFTCData();
-    const parsed = parseFTCResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 1,
-          forcedIndex: h.relatedIndex,
-          source: "ftc",
-        });
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[FTCService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[FTCService] Failed to fetch FTC data:", err);
-  } finally {
-    _isFetchingFTC = false;
-  }
-}
 
 // ─── SCOTUS RSS parser ────────────────────────────────────────────────────────
 const SCOTUS_POSITIVE_KEYWORDS = [
@@ -1898,73 +1801,6 @@ function parseCongressProgressiveResponse(rawJson: string): QueuedHeadline[] {
   }
 }
 
-// ─── EPA RSS parser ───────────────────────────────────────────────────────────
-const EPA_POSITIVE_KEYWORDS = [
-  "finalizes",
-  "restores",
-  "strengthens",
-  "expands",
-  "approves",
-  "protects",
-] as const;
-
-const EPA_NEGATIVE_KEYWORDS = [
-  "rolls back",
-  "weakens",
-  "repeals",
-  "cuts",
-  "reduces",
-  "withdraws",
-  "reverses",
-] as const;
-
-function parseEPAResponse(xmlText: string): QueuedHeadline[] {
-  if (!xmlText || xmlText.trim() === "") return [];
-
-  try {
-    const headlines: QueuedHeadline[] = [];
-    const itemTitleRegex = /<item>[\s\S]*?<title>(.*?)<\/title>/g;
-    let match = itemTitleRegex.exec(xmlText);
-
-    while (match !== null) {
-      const title = match[1]
-        .replace(/<!\[CDATA\[/, "")
-        .replace(/\]\]>/, "")
-        .trim();
-
-      if (title && title.length >= 10) {
-        const lower = title.toLowerCase();
-
-        let direction: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
-        let confidence = 0.5;
-
-        if (EPA_POSITIVE_KEYWORDS.some((kw) => lower.includes(kw))) {
-          direction = "POSITIVE";
-          confidence = jitter(0.75, 0.92);
-        } else if (EPA_NEGATIVE_KEYWORDS.some((kw) => lower.includes(kw))) {
-          direction = "NEGATIVE";
-          confidence = jitter(0.75, 0.92);
-        }
-
-        void direction;
-        void confidence;
-
-        headlines.push({
-          text: `EPA: ${title}`,
-          sourceTier: 1,
-          forcedIndex: "Progressive Values Sentiment Index",
-          source: "epa",
-        });
-      }
-      match = itemTitleRegex.exec(xmlText);
-    }
-
-    return headlines;
-  } catch {
-    return [];
-  }
-}
-
 // ─── ACLU RSS parser ──────────────────────────────────────────────────────────
 const ACLU_POSITIVE_KEYWORDS = [
   "wins",
@@ -2028,39 +1864,6 @@ function parseACLUResponse(xmlText: string): QueuedHeadline[] {
     return headlines;
   } catch {
     return [];
-  }
-}
-
-
-// ─── EPA batch fetch ──────────────────────────────────────────────────────────
-async function fetchEPABatch(): Promise<void> {
-  if (_isFetchingEPA) return;
-  _isFetchingEPA = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchEPAData();
-    const parsed = parseEPAResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[EPAService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[EPAService] Failed to fetch EPA data:", err);
-  } finally {
-    _isFetchingEPA = false;
   }
 }
 
@@ -2195,7 +1998,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   const newsIntervalId = setInterval(fetchNewsBatch, 300_000);
 
   void fetchNewsAPIBatch();
-  const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 1_800_000);
+  const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 3_600_000);
 
   void fetchRSSBatch();
   const rssIntervalId = setInterval(fetchRSSBatch, 600_000);
@@ -2222,14 +2025,6 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchGDELTBatch();
   const gdeltIntervalId = setInterval(fetchGDELTBatch, GDELT_FETCH_INTERVAL_MS);
 
-  // FTC press releases — fire immediately, then every 30 minutes
-  void fetchFTCBatch();
-  const ftcIntervalId = setInterval(fetchFTCBatch, FTC_FETCH_INTERVAL_MS);
-
-  // EPA press releases — fire immediately, then every 30 minutes
-  void fetchEPABatch();
-  const epaIntervalId = setInterval(fetchEPABatch, EPA_FETCH_INTERVAL_MS);
-
   // YouTube video trends — fire immediately, then every 1 hour
   void fetchYouTubeBatch();
   const youtubeIntervalId = setInterval(
@@ -2245,8 +2040,6 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(newsIntervalId);
     clearInterval(blsIntervalId);
     clearInterval(gdeltIntervalId);
-    clearInterval(ftcIntervalId);
-    clearInterval(epaIntervalId);
     clearInterval(newsApiIntervalId);
     clearInterval(rssIntervalId);
     clearInterval(oddsApiIntervalId);
