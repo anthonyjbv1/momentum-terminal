@@ -2634,7 +2634,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   const newsIntervalId = setInterval(fetchNewsBatch, 300_000);
 
   void fetchNewsAPIBatch();
-  const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 900_000);
+  const newsApiIntervalId = setInterval(fetchNewsAPIBatch, 1_800_000);
 
   void fetchRSSBatch();
   const rssIntervalId = setInterval(fetchRSSBatch, 600_000);
