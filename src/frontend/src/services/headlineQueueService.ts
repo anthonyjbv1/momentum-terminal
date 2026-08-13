@@ -102,47 +102,27 @@ function shouldBlockHeadline(text: string): string | null {
 }
 
 let _isFetchingNews = false;
-let _isFetchingSocial = false;
-let _isFetchingFed = false;
-let _isFetchingBLS = false;
-let _isFetchingReliefWeb = false;
 let _isFetchingGDELT = false;
-let _isFetchingUSPTO = false;
-let _isFetchingCongress = false;
 let _isFetchingFTC = false;
-let _isFetchingSCOTUS = false;
-let _isFetchingCongressTrad = false;
-let _isFetchingCourtListener = false;
 let _isFetchingEPA = false;
-let _isFetchingACLU = false;
 let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
 let _isFetchingOddsAPI = false;
 let _isFetchingGoogleSearch = false;
 let _isFetchingReddit = false;
 let _isFetchingRSS = false;
-let _isFetchingTMDB = false;
-let _isFetchingTMDBPopular = false;
 let _isFetchingOMDB = false;
+let _isFetchingFRED = false;
+let _isFetchingBLS = false;
+let _isFetchingBEA = false;
 
 const LOW_WATER_MARK = 5;
 
 // ─── Fetch interval constants ─────────────────────────────────────────────────
-const FED_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const BLS_FETCH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const RELIEFWEB_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const GDELT_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const USPTO_FETCH_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
-const CONGRESS_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const FTC_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const SCOTUS_FETCH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const CONGRESS_TRAD_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const COURTLISTENER_FETCH_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
 const EPA_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const ACLU_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const YOUTUBE_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
-const TMDB_FETCH_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
-const TMDB_POPULAR_FETCH_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 const OMDB_FETCH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 // ─── Extended actor type for new backend methods ──────────────────────────────
@@ -607,7 +587,7 @@ async function fetchRedditApifyBatch(): Promise<void> {
           const posts: unknown[] = Array.isArray(data) ? data : [];
 
           const postCount = posts.length;
-          const upvotes = posts.reduce((sum, p) => {
+          const upvotes = posts.reduce((sum: number, p) => {
             const post = p as Record<string, unknown>;
             const u =
               (post.numberOfUpvotes as number | undefined) ??
@@ -662,6 +642,224 @@ async function fetchRedditApifyBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Reddit Apify fetch failed.", err);
   } finally {
     _isFetchingReddit = false;
+  }
+}
+
+// ─── FRED (Federal Reserve Economic Data) direct fetch ────────────────────────
+async function fetchFREDBatch(): Promise<void> {
+  if (_isFetchingFRED) return;
+  _isFetchingFRED = true;
+  try {
+    const apiKey = import.meta.env.VITE_FRED_API_KEY ?? "";
+    if (!apiKey) return;
+
+    const FRED_SERIES = [
+      { id: "CPIAUCSL", label: "US Consumer Price Index", unit: "", index: "Fed Policy Sentiment" },
+      { id: "UNRATE",   label: "US Unemployment Rate",   unit: "%", index: "Fed Policy Sentiment" },
+      { id: "FEDFUNDS", label: "Federal Funds Rate",     unit: "%", index: "Fed Policy Sentiment" },
+      { id: "PCE",      label: "US PCE Inflation",       unit: "",  index: "Fed Policy Sentiment" },
+    ];
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_fred_values") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const results = await Promise.all(
+      FRED_SERIES.map(async (series) => {
+        try {
+          const resp = await fetch(
+            `https://api.stlouisfed.org/fred/series/observations?series_id=${series.id}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`,
+          );
+          if (!resp.ok) return [];
+          const data = await resp.json() as { observations?: Array<{ value: string }> };
+          const valueStr = data.observations?.[0]?.value;
+          if (!valueStr || valueStr === ".") return [];
+          const value = Number.parseFloat(valueStr);
+          if (Number.isNaN(value)) return [];
+
+          const prev = stored[series.id];
+          stored[series.id] = value;
+
+          if (prev === undefined || prev === value) return [];
+
+          const text = series.unit
+            ? `${series.label} at ${value}${series.unit} — ${series.id === "UNRATE" ? "labor market signal" : "monetary policy signal"}`
+            : series.id === "PCE"
+              ? `${series.label} at ${value} — Fed preferred inflation measure`
+              : `${series.label} at ${value} — Fed Policy signal`;
+
+          return [{ text, sourceTier: 1 as const, source: "fred" as const, forcedIndex: series.index }];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    try { localStorage.setItem("mt_fred_values", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    const mapped: QueuedHeadline[] = results.flat() as QueuedHeadline[];
+    for (const item of mapped) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[FREDService] Enqueued ${mapped.length} FRED economic headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[FREDService] FRED fetch failed.", err);
+  } finally {
+    _isFetchingFRED = false;
+  }
+}
+
+// ─── BLS (Bureau of Labor Statistics) direct fetch ────────────────────────────
+async function fetchBLSBatch(): Promise<void> {
+  if (_isFetchingBLS) return;
+  _isFetchingBLS = true;
+  try {
+    const apiKey = import.meta.env.VITE_BLS_API_KEY ?? "";
+    if (!apiKey) return;
+
+    const BLS_SERIES = [
+      { id: "CUUR0000SA0",  label: "US CPI",         unit: "",  index: "Fed Policy Sentiment",     headline: (v: number) => `US CPI at ${v} — inflation signal` },
+      { id: "LNS14000000",  label: "US Unemployment", unit: "%", index: "United States Sentiment",  headline: (v: number) => `US Unemployment at ${v}% — labor market signal` },
+    ];
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_bls_values") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const resp = await fetch("https://api.bls.gov/publicAPI/v2/timeseries/data/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        seriesid: BLS_SERIES.map((s) => s.id),
+        registrationkey: apiKey,
+        startyear: "2026",
+        endyear: "2026",
+      }),
+    });
+    if (!resp.ok) return;
+    const data = await resp.json() as { Results?: { series?: Array<{ seriesID: string; data?: Array<{ value: string }> }> } };
+    const series = data.Results?.series ?? [];
+
+    const mapped: QueuedHeadline[] = [];
+    for (const s of series) {
+      const meta = BLS_SERIES.find((b) => b.id === s.seriesID);
+      if (!meta) continue;
+      const valueStr = s.data?.[0]?.value;
+      if (!valueStr) continue;
+      const value = Number.parseFloat(valueStr);
+      if (Number.isNaN(value)) continue;
+
+      const prev = stored[s.seriesID];
+      stored[s.seriesID] = value;
+      if (prev === undefined || prev === value) continue;
+
+      const item: QueuedHeadline = { text: meta.headline(value), sourceTier: 1, source: "bls", forcedIndex: meta.index };
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        mapped.push(item);
+        _queue.push(item);
+      }
+    }
+
+    try { localStorage.setItem("mt_bls_values", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[BLSService] Enqueued ${mapped.length} BLS headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[BLSService] BLS fetch failed.", err);
+  } finally {
+    _isFetchingBLS = false;
+  }
+}
+
+// ─── BEA (Bureau of Economic Analysis) direct fetch ──────────────────────────
+async function fetchBEABatch(): Promise<void> {
+  if (_isFetchingBEA) return;
+  _isFetchingBEA = true;
+  try {
+    const apiKey = import.meta.env.VITE_BEA_API_KEY ?? "";
+    if (!apiKey) return;
+
+    const BEA_STATE_MAP: Record<string, string> = {
+      CA: "California Sentiment",
+      NY: "New York Sentiment",
+      TX: "Texas Sentiment",
+      FL: "Florida Sentiment",
+    };
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_bea_values") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const resp = await fetch(
+      `https://apps.bea.gov/api/data/?UserID=${apiKey}&method=GetData&datasetname=Regional&TableName=SQGDP2&LineCode=1&GeoFips=STATE&Year=2026&ResultFormat=JSON`,
+    );
+    if (!resp.ok) return;
+    const data = await resp.json() as {
+      BEAAPI?: { Results?: { Data?: Array<{ GeoFips: string; GeoName: string; DataValue: string; TimePeriod: string }> } }
+    };
+    const rows = data.BEAAPI?.Results?.Data ?? [];
+
+    const stateMap: Record<string, { name: string; value: number }> = {};
+    for (const row of rows) {
+      const fips = row.GeoFips;
+      const val = Number.parseFloat(row.DataValue.replace(/,/g, ""));
+      if (Number.isNaN(val)) continue;
+      if (!stateMap[fips] || row.TimePeriod > (stateMap[fips] as { name: string; value: number; period?: string }).period!) {
+        stateMap[fips] = { name: row.GeoName, value: val };
+      }
+    }
+
+    const FIPS_TO_ABBR: Record<string, string> = { "06000": "CA", "36000": "NY", "48000": "TX", "12000": "FL" };
+    const mapped: QueuedHeadline[] = [];
+
+    for (const [fips, abbr] of Object.entries(FIPS_TO_ABBR)) {
+      const entry = stateMap[fips];
+      if (!entry) continue;
+      const index = BEA_STATE_MAP[abbr];
+      if (!index) continue;
+
+      const prev = stored[abbr];
+      stored[abbr] = entry.value;
+      if (prev === undefined || prev === entry.value) continue;
+
+      const pct = prev > 0 ? (((entry.value - prev) / prev) * 100).toFixed(1) : "0.0";
+      const text = `${entry.name} GDP growth ${pct}% — regional economic signal`;
+      const item: QueuedHeadline = { text, sourceTier: 1, source: "bea", forcedIndex: index };
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        mapped.push(item);
+        _queue.push(item);
+      }
+    }
+
+    try { localStorage.setItem("mt_bea_values", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[BEAService] Enqueued ${mapped.length} BEA regional GDP headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[BEAService] BEA fetch failed.", err);
+  } finally {
+    _isFetchingBEA = false;
   }
 }
 
@@ -762,239 +960,6 @@ async function fetchRSSBatch(): Promise<void> {
   }
 }
 
-async function fetchRedditBatch(actor: ActorWithFedBLS): Promise<void> {
-  if (!actor) {
-    console.warn(
-      "[RedditService] fetchRedditBatch() called with no actor — skipping.",
-    );
-    return;
-  }
-  if (_isFetchingSocial) return;
-  _isFetchingSocial = true;
-  console.info("[RedditService] fetchRedditBatch() starting...");
-
-  // Macro subreddits — no forcedIndex, route via fallback keyword matching
-  const MACRO_SUBREDDITS = ["worldnews", "wallstreetbets", "politics"] as const;
-
-  try {
-    let totalEnqueued = 0;
-
-    const _processSubreddit = async (
-      subreddit: string,
-      forcedIndex: string,
-    ): Promise<void> => {
-      try {
-        const rawJson = await actor.fetchRedditFeed(subreddit);
-        if (!rawJson || rawJson === "{}" || rawJson.trim() === "") return;
-
-        console.info(
-          "[RedditService] Raw response:",
-          rawJson.substring(0, 300),
-        );
-        const data = JSON.parse(rawJson) as {
-          data?: {
-            children?: Array<{
-              data?: { title?: string; ups?: number; num_comments?: number };
-            }>;
-          };
-        };
-
-        const children = data?.data?.children;
-        if (!Array.isArray(children)) return;
-
-        let subEnqueued = 0;
-        for (const child of children) {
-          const title = child.data?.title;
-          if (!title || title.length < 5) continue;
-
-          const ups =
-            typeof child.data?.ups === "number" ? child.data.ups : undefined;
-          const numComments =
-            typeof child.data?.num_comments === "number"
-              ? child.data.num_comments
-              : undefined;
-
-          const _brSub = shouldBlockHeadline(title);
-          if (_brSub) {
-            blockedHeadlines.push({
-              text: title,
-              reason: _brSub,
-              blockedAt: Date.now(),
-            });
-          } else {
-            _queue.push({
-              text: title,
-              sourceTier: 3,
-              forcedIndex,
-              source: "reddit",
-              engagementScore: ups,
-              commentCount: numComments,
-            });
-            totalEnqueued++;
-            subEnqueued++;
-          }
-        }
-        console.info(
-          `[RedditService] Successfully fetched ${subreddit}: ${subEnqueued} headlines`,
-        );
-      } catch (err) {
-        console.warn(
-          `[RedditService] Failed to fetch subreddit ${subreddit}:`,
-          err,
-        );
-      }
-    };
-
-    // Macro subreddits — no forcedIndex, rely on fallback keyword routing in OracleTickContext
-    const processMacroSubreddit = async (subreddit: string): Promise<void> => {
-      try {
-        const rawJson = await actor.fetchRedditFeed(subreddit);
-        if (!rawJson || rawJson === "{}" || rawJson.trim() === "") return;
-
-        console.info(
-          "[RedditService] Raw response:",
-          rawJson.substring(0, 300),
-        );
-        const data = JSON.parse(rawJson) as {
-          data?: {
-            children?: Array<{
-              data?: { title?: string; ups?: number; num_comments?: number };
-            }>;
-          };
-        };
-
-        const children = data?.data?.children;
-        if (!Array.isArray(children)) return;
-
-        let macroEnqueued = 0;
-        for (const child of children) {
-          const title = child.data?.title;
-          if (!title || title.length < 5) continue;
-
-          const ups =
-            typeof child.data?.ups === "number" ? child.data.ups : undefined;
-          const numComments =
-            typeof child.data?.num_comments === "number"
-              ? child.data.num_comments
-              : undefined;
-
-          const _brMacro = shouldBlockHeadline(title);
-          if (_brMacro) {
-            blockedHeadlines.push({
-              text: title,
-              reason: _brMacro,
-              blockedAt: Date.now(),
-            });
-          } else {
-            _queue.push({
-              text: title,
-              sourceTier: 3,
-              // No forcedIndex — routes through fallback keyword matching
-              source: "reddit",
-              engagementScore: ups,
-              commentCount: numComments,
-            });
-            totalEnqueued++;
-            macroEnqueued++;
-          }
-        }
-        console.info(
-          `[RedditService] Successfully fetched ${subreddit}: ${macroEnqueued} headlines`,
-        );
-      } catch (err) {
-        console.warn(
-          `[RedditService] Failed to fetch subreddit ${subreddit}:`,
-          err,
-        );
-      }
-    };
-
-    await Promise.all([
-      ...MACRO_SUBREDDITS.map((sub) => processMacroSubreddit(sub)),
-
-      // ── Masculinity Discourse Sentiment Index ──────────────────
-      _processSubreddit("MensRights", "Masculinity Discourse Sentiment Index"),
-      _processSubreddit("AskMen", "Masculinity Discourse Sentiment Index"),
-      _processSubreddit("lonely", "Masculinity Discourse Sentiment Index"),
-
-      // ── Feminism Wave Sentiment Index ──────────────────────────
-      _processSubreddit("TwoXChromosomes", "Feminism Wave Sentiment Index"),
-      _processSubreddit("feminism", "Feminism Wave Sentiment Index"),
-      _processSubreddit("TrueOffMyChest", "Feminism Wave Sentiment Index"),
-
-      // ── F1 Constructor Sentiment Index ─────────────────────────
-      _processSubreddit("formula1", "F1 Constructor Sentiment Index"),
-      _processSubreddit("F1Technical", "F1 Constructor Sentiment Index"),
-
-      // ── NASCAR American Racing Sentiment Index ─────────────────
-      _processSubreddit("NASCAR", "NASCAR American Racing Sentiment Index"),
-      _processSubreddit(
-        "motorsports",
-        "NASCAR American Racing Sentiment Index",
-      ),
-
-      // ── Obesity Drug Sentiment Index ───────────────────────────
-      _processSubreddit("Ozempic", "Obesity Drug Sentiment Index"),
-      _processSubreddit("WeightLoss", "Obesity Drug Sentiment Index"),
-      _processSubreddit("diabetes", "Obesity Drug Sentiment Index"),
-
-      // ── Whole Food & Wellness Sentiment Index ──────────────────
-      _processSubreddit("nutrition", "Whole Food & Wellness Sentiment Index"),
-      _processSubreddit("Fitness", "Whole Food & Wellness Sentiment Index"),
-      _processSubreddit(
-        "EatCheapAndHealthy",
-        "Whole Food & Wellness Sentiment Index",
-      ),
-    ]);
-
-    if (totalEnqueued > 0) {
-      console.info(
-        `[RedditService] Enqueued ${totalEnqueued} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[RedditService] Failed to fetch Reddit data:", err);
-  } finally {
-    _isFetchingSocial = false;
-  }
-}
-
-// ─── Fed RSS parser ───────────────────────────────────────────────────────────
-function parseFedResponse(
-  xmlText: string,
-): Array<{ text: string; relatedIndex: string; source: string }> {
-  if (!xmlText || xmlText.trim() === "") return [];
-
-  const headlines: Array<{
-    text: string;
-    relatedIndex: string;
-    source: string;
-  }> = [];
-
-  const titleMatches = xmlText.match(
-    /<title><!\[CDATA\[(.*?)\]\]><\/title>|<title>(.*?)<\/title>/g,
-  );
-  if (!titleMatches) return [];
-
-  for (const match of titleMatches.slice(1, 6)) {
-    const title = match
-      .replace(/<title><!\[CDATA\[/, "")
-      .replace(/\]\]><\/title>/, "")
-      .replace(/<title>/, "")
-      .replace(/<\/title>/, "")
-      .trim();
-
-    if (!title || title.length < 10) continue;
-
-    headlines.push({
-      text: `Federal Reserve: ${title}`,
-      relatedIndex: "Fed Policy Sentiment",
-      source: "Federal Reserve",
-    });
-  }
-
-  return headlines;
-}
 
 // ─── BLS JSON parser ──────────────────────────────────────────────────────────
 function parseBLSResponse(
@@ -1508,116 +1473,6 @@ function parseTMDBResponse(
   }
 }
 
-// ─── Federal Reserve batch fetch ──────────────────────────────────────────────
-async function fetchFedBatch(): Promise<void> {
-  if (_isFetchingFed) return;
-  _isFetchingFed = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const fedRawData = await actor.fetchFedData();
-    const fedHeadlines = parseFedResponse(fedRawData);
-    for (const h of fedHeadlines) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 2,
-          forcedIndex: h.relatedIndex,
-          source: "federal reserve",
-        });
-      }
-    }
-    if (fedHeadlines.length > 0) {
-      console.info(
-        `[FedService] Enqueued ${fedHeadlines.length} Federal Reserve headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[FedService] Failed to fetch Federal Reserve data:", err);
-  } finally {
-    _isFetchingFed = false;
-  }
-}
-
-// ─── BLS batch fetch ──────────────────────────────────────────────────────────
-async function fetchBLSBatch(): Promise<void> {
-  if (_isFetchingBLS) return;
-  _isFetchingBLS = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const blsRawData = await actor.fetchBLSData();
-    const blsHeadlines = parseBLSResponse(blsRawData);
-    for (const h of blsHeadlines) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 2,
-          forcedIndex: h.relatedIndex,
-          source: "bls",
-        });
-      }
-    }
-    if (blsHeadlines.length > 0) {
-      console.info(
-        `[BLSService] Enqueued ${blsHeadlines.length} BLS economic headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[BLSService] Failed to fetch BLS data:", err);
-  } finally {
-    _isFetchingBLS = false;
-  }
-}
-
-// ─── ReliefWeb batch fetch ────────────────────────────────────────────────────
-async function fetchReliefWebBatch(): Promise<void> {
-  if (_isFetchingReliefWeb) return;
-  _isFetchingReliefWeb = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchReliefWebData();
-    const parsed = parseReliefWebResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 2,
-          forcedIndex: h.relatedIndex,
-          source: "reliefweb",
-        });
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[ReliefWebService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[ReliefWebService] Failed to fetch ReliefWeb data:", err);
-  } finally {
-    _isFetchingReliefWeb = false;
-  }
-}
 
 // ─── GDELT batch fetch ────────────────────────────────────────────────────────
 async function fetchGDELTBatch(): Promise<void> {
@@ -1657,79 +1512,6 @@ async function fetchGDELTBatch(): Promise<void> {
   }
 }
 
-// ─── USPTO batch fetch ────────────────────────────────────────────────────────
-async function fetchUSPTOBatch(): Promise<void> {
-  if (_isFetchingUSPTO) return;
-  _isFetchingUSPTO = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchUSPTOData();
-    const parsed = parseUSPTOResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 3,
-          forcedIndex: h.relatedIndex,
-          source: "uspto",
-        });
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[USPTOService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[USPTOService] Failed to fetch USPTO data:", err);
-  } finally {
-    _isFetchingUSPTO = false;
-  }
-}
-
-// ─── Congress batch fetch ─────────────────────────────────────────────────────
-async function fetchCongressBatch(): Promise<void> {
-  if (_isFetchingCongress) return;
-  _isFetchingCongress = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchCongressData();
-    const parsed = parseCongressResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push({
-          text: h.text,
-          sourceTier: 2,
-          forcedIndex: h.relatedIndex,
-          source: "congress",
-        });
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[CongressService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[CongressService] Failed to fetch Congress data:", err);
-  } finally {
-    _isFetchingCongress = false;
-  }
-}
 
 // ─── FTC batch fetch ──────────────────────────────────────────────────────────
 async function fetchFTCBatch(): Promise<void> {
@@ -2249,133 +2031,6 @@ function parseACLUResponse(xmlText: string): QueuedHeadline[] {
   }
 }
 
-// ─── SCOTUS batch fetch ────────────────────────────────────────────────────────
-async function fetchSCOTUSBatch(): Promise<void> {
-  if (_isFetchingSCOTUS) return;
-  _isFetchingSCOTUS = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchSCOTUSData();
-    const parsed = parseSCOTUSResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[SCOTUSService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-    const progressiveParsed = parseSCOTUSProgressiveResponse(rawData);
-    for (const h of progressiveParsed) {
-      const _brProg = shouldBlockHeadline(h.text);
-      if (_brProg) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _brProg,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-  } catch (err) {
-    console.warn("[SCOTUSService] Failed to fetch SCOTUS data:", err);
-  } finally {
-    _isFetchingSCOTUS = false;
-  }
-}
-
-// ─── Congress Traditional batch fetch ─────────────────────────────────────────
-async function fetchCongressTraditionalBatch(): Promise<void> {
-  if (_isFetchingCongressTrad) return;
-  _isFetchingCongressTrad = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchCongressTraditionalData();
-    const parsed = parseCongressTraditionalResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[CongressTradService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-    const progressiveParsed = parseCongressProgressiveResponse(rawData);
-    for (const h of progressiveParsed) {
-      const _brProg = shouldBlockHeadline(h.text);
-      if (_brProg) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _brProg,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-  } catch (err) {
-    console.warn(
-      "[CongressTradService] Failed to fetch Congress Traditional data:",
-      err,
-    );
-  } finally {
-    _isFetchingCongressTrad = false;
-  }
-}
-
-// ─── CourtListener batch fetch ─────────────────────────────────────────────────
-async function fetchCourtListenerBatch(): Promise<void> {
-  if (_isFetchingCourtListener) return;
-  _isFetchingCourtListener = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchCourtListenerData();
-    const parsed = parseCourtListenerResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[CourtListenerService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn(
-      "[CourtListenerService] Failed to fetch CourtListener data:",
-      err,
-    );
-  } finally {
-    _isFetchingCourtListener = false;
-  }
-}
 
 // ─── EPA batch fetch ──────────────────────────────────────────────────────────
 async function fetchEPABatch(): Promise<void> {
@@ -2409,37 +2064,6 @@ async function fetchEPABatch(): Promise<void> {
   }
 }
 
-// ─── ACLU batch fetch ─────────────────────────────────────────────────────────
-async function fetchACLUBatch(): Promise<void> {
-  if (_isFetchingACLU) return;
-  _isFetchingACLU = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchACLUData();
-    const parsed = parseACLUResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[ACLUService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[ACLUService] Failed to fetch ACLU data:", err);
-  } finally {
-    _isFetchingACLU = false;
-  }
-}
 
 // ─── YouTube batch fetch ──────────────────────────────────────────────────────
 async function fetchYouTubeBatch(): Promise<void> {
@@ -2473,69 +2097,6 @@ async function fetchYouTubeBatch(): Promise<void> {
   }
 }
 
-// ─── TMDB upcoming batch fetch ────────────────────────────────────────────────
-async function fetchTMDBBatch(): Promise<void> {
-  if (_isFetchingTMDB) return;
-  _isFetchingTMDB = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchTMDBData();
-    const parsed = parseTMDBResponse(rawData, "Upcoming: ");
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[TMDBService] Enqueued ${parsed.length} headlines (upcoming). Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[TMDBService] Failed to fetch TMDB upcoming data:", err);
-  } finally {
-    _isFetchingTMDB = false;
-  }
-}
-
-// ─── TMDB popular batch fetch ─────────────────────────────────────────────────
-async function fetchTMDBPopularBatch(): Promise<void> {
-  if (_isFetchingTMDBPopular) return;
-  _isFetchingTMDBPopular = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchTMDBPopularData();
-    const parsed = parseTMDBResponse(rawData, "Trending: ");
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[TMDBService] Enqueued ${parsed.length} headlines (trending). Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[TMDBService] Failed to fetch TMDB popular data:", err);
-  } finally {
-    _isFetchingTMDBPopular = false;
-  }
-}
 
 // ─── OMDb JSON parser ─────────────────────────────────────────────────────────
 function _parseOMDBResponse(
@@ -2648,73 +2209,26 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchRedditApifyBatch();
   const redditApifyIntervalId = setInterval(fetchRedditApifyBatch, 3_600_000);
 
-  // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
-  // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
-  void fetchRedditBatch(actor);
-  const socialIntervalId = setInterval(() => fetchRedditBatch(actor), 300_000);
+  void fetchFREDBatch();
+  const fredIntervalId = setInterval(fetchFREDBatch, 3_600_000);
 
-  // Federal Reserve — fire immediately, then every 30 minutes
-  void fetchFedBatch();
-  const fedIntervalId = setInterval(fetchFedBatch, FED_FETCH_INTERVAL_MS);
-
-  // BLS economic data — fire immediately, then every 24 hours
   void fetchBLSBatch();
-  const blsIntervalId = setInterval(fetchBLSBatch, BLS_FETCH_INTERVAL_MS);
+  const blsIntervalId = setInterval(fetchBLSBatch, 3_600_000);
 
-  // ReliefWeb MENA reports — fire immediately, then every 1 hour
-  void fetchReliefWebBatch();
-  const reliefWebIntervalId = setInterval(
-    fetchReliefWebBatch,
-    RELIEFWEB_FETCH_INTERVAL_MS,
-  );
+  void fetchBEABatch();
+  const beaIntervalId = setInterval(fetchBEABatch, 3_600_000);
 
   // GDELT MENA news — fire immediately, then every 30 minutes
   void fetchGDELTBatch();
   const gdeltIntervalId = setInterval(fetchGDELTBatch, GDELT_FETCH_INTERVAL_MS);
 
-  // USPTO patent filings — fire immediately, then every 24 hours
-  void fetchUSPTOBatch();
-  const usptoIntervalId = setInterval(fetchUSPTOBatch, USPTO_FETCH_INTERVAL_MS);
-
-  // Congress.gov bill activity — fire immediately, then every 1 hour
-  void fetchCongressBatch();
-  const congressIntervalId = setInterval(
-    fetchCongressBatch,
-    CONGRESS_FETCH_INTERVAL_MS,
-  );
-
   // FTC press releases — fire immediately, then every 30 minutes
   void fetchFTCBatch();
   const ftcIntervalId = setInterval(fetchFTCBatch, FTC_FETCH_INTERVAL_MS);
 
-  // SCOTUS opinions — fire immediately, then every 6 hours
-  void fetchSCOTUSBatch();
-  const scotusIntervalId = setInterval(
-    fetchSCOTUSBatch,
-    SCOTUS_FETCH_INTERVAL_MS,
-  );
-
-  // Congress Traditional conservative bills — fire immediately, then every 1 hour
-  void fetchCongressTraditionalBatch();
-  const congressTradIntervalId = setInterval(
-    fetchCongressTraditionalBatch,
-    CONGRESS_TRAD_FETCH_INTERVAL_MS,
-  );
-
-  // CourtListener federal court opinions — fire immediately, then every 4 hours
-  void fetchCourtListenerBatch();
-  const courtListenerIntervalId = setInterval(
-    fetchCourtListenerBatch,
-    COURTLISTENER_FETCH_INTERVAL_MS,
-  );
-
   // EPA press releases — fire immediately, then every 30 minutes
   void fetchEPABatch();
   const epaIntervalId = setInterval(fetchEPABatch, EPA_FETCH_INTERVAL_MS);
-
-  // ACLU press releases — fire immediately, then every 1 hour
-  void fetchACLUBatch();
-  const acluIntervalId = setInterval(fetchACLUBatch, ACLU_FETCH_INTERVAL_MS);
 
   // YouTube video trends — fire immediately, then every 1 hour
   void fetchYouTubeBatch();
@@ -2723,45 +2237,25 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     YOUTUBE_FETCH_INTERVAL_MS,
   );
 
-  // TMDB upcoming releases — fire immediately, then every 6 hours
-  void fetchTMDBBatch();
-  const tmdbIntervalId = setInterval(fetchTMDBBatch, TMDB_FETCH_INTERVAL_MS);
-
-  // TMDB popular/trending — fire immediately, then every 2 hours
-  void fetchTMDBPopularBatch();
-  const tmdbPopularIntervalId = setInterval(
-    fetchTMDBPopularBatch,
-    TMDB_POPULAR_FETCH_INTERVAL_MS,
-  );
-
   // OMDb film database — fire immediately, then every 12 hours
   void fetchOMDBBatch();
   const omdbIntervalId = setInterval(fetchOMDBBatch, OMDB_FETCH_INTERVAL_MS);
 
   return () => {
     clearInterval(newsIntervalId);
-    clearInterval(socialIntervalId);
-    clearInterval(fedIntervalId);
     clearInterval(blsIntervalId);
-    clearInterval(reliefWebIntervalId);
     clearInterval(gdeltIntervalId);
-    clearInterval(usptoIntervalId);
-    clearInterval(congressIntervalId);
     clearInterval(ftcIntervalId);
-    clearInterval(scotusIntervalId);
-    clearInterval(congressTradIntervalId);
-    clearInterval(courtListenerIntervalId);
     clearInterval(epaIntervalId);
-    clearInterval(acluIntervalId);
     clearInterval(newsApiIntervalId);
     clearInterval(rssIntervalId);
     clearInterval(oddsApiIntervalId);
     clearInterval(googleSearchIntervalId);
     clearInterval(redditApifyIntervalId);
     clearInterval(youtubeIntervalId);
-    clearInterval(tmdbIntervalId);
-    clearInterval(tmdbPopularIntervalId);
     clearInterval(omdbIntervalId);
+    clearInterval(fredIntervalId);
+    clearInterval(beaIntervalId);
     _initialized = false;
   };
 }
@@ -2808,7 +2302,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
