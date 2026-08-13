@@ -1858,7 +1858,7 @@ export function ProfilePage() {
     return (
       <div
         className="w-full max-w-2xl mx-auto px-4 py-6 flex flex-col gap-3"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         data-ocid="profile_page"
       >
         {/* Account header — no avatar */}
@@ -4003,7 +4003,7 @@ export function ProfilePage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
           className="w-full max-w-2xl mx-auto px-4 py-6"
-          style={{ fontFamily: "'Inter', sans-serif" }}
+          style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
           data-ocid="profile_page.history"
         >
           {/* Sub-header */}
@@ -4158,7 +4158,7 @@ export function ProfilePage() {
     return (
       <div
         className="w-full max-w-2xl mx-auto px-4 py-6"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         data-ocid="profile_page.tx_detail"
       >
         <div className="flex items-center gap-3 mb-5">
@@ -4358,7 +4358,7 @@ export function ProfilePage() {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
           className="w-full max-w-2xl mx-auto px-4 py-6"
-          style={{ fontFamily: "'Inter', sans-serif" }}
+          style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
           data-ocid="profile_page.tax"
         >
           <div className="flex items-center gap-3 mb-5">
@@ -4420,7 +4420,7 @@ export function ProfilePage() {
         exit={{ opacity: 0 }}
         transition={{ duration: 0.3, ease: "easeOut" }}
         className="w-full max-w-2xl mx-auto px-4 py-6"
-        style={{ fontFamily: "'Inter', sans-serif" }}
+        style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
         data-ocid="profile_page.legal"
       >
         <div className="flex items-center gap-3 mb-5">

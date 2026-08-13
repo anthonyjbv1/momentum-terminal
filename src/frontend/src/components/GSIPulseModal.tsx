@@ -110,7 +110,7 @@ export default function GSIPulseModal({
             alignItems: "center",
             justifyContent: "center",
             padding: "16px",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', system-ui, sans-serif",
             background: "none",
             border: "none",
             margin: 0,

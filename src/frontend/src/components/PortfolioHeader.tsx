@@ -231,7 +231,7 @@ function HoldingRow({
         background: cardBg,
         border: `1px solid ${cardBorder}`,
         padding: "0.875rem 1rem",
-        fontFamily: "'Inter', sans-serif",
+        fontFamily: "'Inter', system-ui, sans-serif",
         cursor: "pointer",
       }}
       onClick={() => onSelectIndex?.(name)}

@@ -39,7 +39,7 @@ export function AuthGateway() {
 
           <h1
             className="font-bold leading-tight mb-3"
-            style={{ fontSize: "2rem", color: "#fff", letterSpacing: "-0.03em", fontFamily: "'Inter', sans-serif" }}
+            style={{ fontSize: "2rem", color: "#fff", letterSpacing: "-0.03em", fontFamily: "'Inter', system-ui, sans-serif" }}
           >
             Trade the<br />Narrative.
           </h1>

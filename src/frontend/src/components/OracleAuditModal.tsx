@@ -224,7 +224,7 @@ function ConfidenceRing({
           </span>
           <span
             style={{
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "'Inter', system-ui, sans-serif",
               fontSize: "0.6rem",
               color: "rgba(255,255,255,0.35)",
               fontWeight: 500,
@@ -1276,7 +1276,7 @@ function UnifiedTickEntry({
               color: "#94a3b8",
               fontStyle: "italic",
               lineHeight: 1.5,
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "'Inter', system-ui, sans-serif",
               borderLeft: "2px solid rgba(134,239,172,0.25)",
               paddingLeft: "8px",
             }}
@@ -1559,7 +1559,7 @@ function RadarSpider({
                 dominantBaseline="central"
                 fill={lp.color}
                 fontSize={8.5}
-                fontFamily="'Inter', sans-serif"
+                fontFamily="'Inter', system-ui, sans-serif"
                 fontWeight={600}
                 letterSpacing="0.03em"
               >
@@ -1680,7 +1680,7 @@ function SentimentLineChart({
                   fontWeight: 700,
                   letterSpacing: "0.08em",
                   textTransform: "uppercase",
-                  fontFamily: "'Inter', sans-serif",
+                  fontFamily: "'Inter', system-ui, sans-serif",
                   transition:
                     "background 0.2s ease, color 0.2s ease, border-color 0.2s ease",
                   background: active ? "rgba(74,222,128,0.12)" : "transparent",
@@ -1806,7 +1806,7 @@ function SentimentLineChart({
                 fontSize: "0.72rem",
                 color: "#475569",
                 fontStyle: "italic",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Inter', system-ui, sans-serif",
               }}
             >
               Awaiting Oracle ticks to populate chart...
@@ -1859,7 +1859,7 @@ function SentimentLineChart({
               color: "#475569",
               letterSpacing: "0.08em",
               textTransform: "uppercase",
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "'Inter', system-ui, sans-serif",
               whiteSpace: "nowrap",
             }}
           >
@@ -2083,7 +2083,7 @@ export default function OracleAuditModal({
             alignItems: "center",
             justifyContent: "center",
             padding: "16px",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', system-ui, sans-serif",
           }}
         >
           {/* Solid opaque backdrop */}
@@ -2481,7 +2481,7 @@ export default function OracleAuditModal({
                         textTransform: "uppercase",
                         letterSpacing: "0.1em",
                         fontWeight: 600,
-                        fontFamily: "'Inter', sans-serif",
+                        fontFamily: "'Inter', system-ui, sans-serif",
                       }}
                     >
                       Global Sensitivity (β)
@@ -3136,7 +3136,7 @@ export default function OracleAuditModal({
             border: "1px solid #2a2a2a",
             borderRadius: "12px",
             padding: "20px",
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', system-ui, sans-serif",
             boxShadow:
               "0 20px 50px rgba(0,0,0,0.85), 0 0 0 1px rgba(255,255,255,0.04)",
           }}

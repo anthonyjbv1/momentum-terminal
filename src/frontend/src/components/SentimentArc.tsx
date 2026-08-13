@@ -215,7 +215,7 @@ export function SentimentArc({
           fill={sentiment.pct !== null ? color : "#6b7280"}
           fontSize={Math.round(SIZE * 0.175)}
           fontWeight="700"
-          fontFamily="'Inter', sans-serif"
+          fontFamily="'Inter', system-ui, sans-serif"
         >
           {sentiment.direction === "Bullish"
             ? "↑"
@@ -272,7 +272,7 @@ export function SentimentArc({
             <span
               style={{
                 fontSize: "0.5rem",
-                fontFamily: "'Inter', sans-serif",
+                fontFamily: "'Inter', system-ui, sans-serif",
                 fontWeight: 700,
                 letterSpacing: "0.14em",
                 textTransform: "uppercase",
