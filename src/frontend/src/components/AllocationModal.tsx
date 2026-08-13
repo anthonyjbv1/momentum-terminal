@@ -406,8 +406,9 @@ export function AllocationModal({
                 style={{
                   color: "#ffffff",
                   fontSize: "1.25rem",
-                  fontWeight: 700,
+                  fontWeight: 800,
                   letterSpacing: "-0.01em",
+                  fontFamily: "'JetBrains Mono', monospace",
                   margin: 0,
                 }}
               >
