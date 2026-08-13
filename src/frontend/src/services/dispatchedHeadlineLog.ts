@@ -26,9 +26,31 @@ export interface DispatchedHeadlineEntry {
   consumedByTickId: number | null;
 }
 
-// In-memory log — capped at 100 entries per index
-const _log: DispatchedHeadlineEntry[] = [];
+const STORAGE_KEY = "mt_dispatched_headline_log";
 const MAX_LOG_SIZE = 100;
+// Only restore headlines from the last 24 hours so stale entries don't pile up
+const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function _persist(): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(_log));
+  } catch {}
+}
+
+function _restore(): DispatchedHeadlineEntry[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as DispatchedHeadlineEntry[];
+    const cutoff = Date.now() - MAX_AGE_MS;
+    return parsed.filter((e) => e.dispatchedAt >= cutoff);
+  } catch {
+    return [];
+  }
+}
+
+// In-memory log — hydrated from localStorage on module load
+const _log: DispatchedHeadlineEntry[] = _restore();
 
 /**
  * Records a newly dispatched headline. Called immediately when a headline
@@ -47,7 +69,7 @@ export function recordDispatchedHeadline(event: AuditableNewsEvent): void {
     _log.splice(0, _log.length - MAX_LOG_SIZE);
   }
 
-  // Notify listeners
+  _persist();
   _notifyListeners();
 }
 
@@ -67,6 +89,7 @@ export function markHeadlineConsumed(indexName: string, tickId: number): void {
       break;
     }
   }
+  _persist();
 }
 
 /**
@@ -131,6 +154,7 @@ export function annotateHeadlineWithInverse(
       break;
     }
   }
+  _persist();
   // Notify subscribers so the Oracle Feed re-reads the now-annotated entry.
   // Previously missing — the feed never received a re-render signal after
   // the inverse fields were written, causing the pill to vanish immediately.
