@@ -119,6 +119,7 @@ let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
 let _isFetchingOddsAPI = false;
 let _isFetchingGoogleSearch = false;
+let _isFetchingReddit = false;
 let _isFetchingRSS = false;
 let _isFetchingTMDB = false;
 let _isFetchingTMDBPopular = false;
@@ -531,6 +532,136 @@ async function fetchGoogleSearchBatch(): Promise<void> {
     console.warn("[HeadlineQueue] Google Search fetch failed.", err);
   } finally {
     _isFetchingGoogleSearch = false;
+  }
+}
+
+// ─── Reddit Apify volume-delta batch ─────────────────────────────────────────
+
+const REDDIT_SUBREDDITS: Record<string, string> = {
+  "r/diabetes": "Type 2 Diabetes Sentiment",
+  "r/COVID19": "COVID Variant Sentiment",
+  "r/LongCovid": "Long COVID Sentiment",
+  "r/mentalhealth": "Mental Health Sentiment",
+  "r/cancer": "Cancer Research Sentiment",
+  "r/Alzheimers": "Alzheimer's Sentiment",
+  "r/flu": "Seasonal Influenza Sentiment",
+  "r/Ozempic": "Ozempic Sentiment",
+  "r/WegovyWeightLoss": "Wegovy Sentiment",
+  "r/ADHD": "Adderall Sentiment",
+  "r/KansasCityChiefs": "Kansas City Chiefs Sentiment",
+  "r/DenverBroncos": "Denver Broncos Sentiment",
+  "r/barca": "FC Barcelona Sentiment",
+  "r/realmadrid": "Real Madrid CF Sentiment",
+  "r/NASCAR": "NASCAR Racing Sentiment",
+  "r/formula1": "F1 Constructor Sentiment",
+  "r/Masculinity": "Masculinity Discourse Sentiment",
+  "r/Feminism": "Feminism Wave Sentiment",
+  "r/MENA": "MENA Stability Sentiment",
+};
+
+const REDDIT_KEYS = Object.keys(REDDIT_SUBREDDITS);
+
+// Pointer persisted across page loads so each call advances through the list
+let _redditApifyPointer: number = (() => {
+  try {
+    const stored = Number.parseInt(localStorage.getItem("mt_reddit_pointer") ?? "0", 10);
+    return Number.isNaN(stored) ? 0 : stored % REDDIT_KEYS.length;
+  } catch {
+    return 0;
+  }
+})();
+
+async function fetchRedditApifyBatch(): Promise<void> {
+  if (_isFetchingReddit) return;
+  _isFetchingReddit = true;
+  try {
+    const apifyToken = import.meta.env.VITE_APIFY_TOKEN ?? "";
+    if (!apifyToken) return;
+
+    // Pick 3 subreddits from the current pointer position
+    const batch = [0, 1, 2].map((offset) => {
+      const key = REDDIT_KEYS[(_redditApifyPointer + offset) % REDDIT_KEYS.length];
+      return { sub: key, index: REDDIT_SUBREDDITS[key] };
+    });
+    _redditApifyPointer = (_redditApifyPointer + 3) % REDDIT_KEYS.length;
+    try { localStorage.setItem("mt_reddit_pointer", String(_redditApifyPointer)); } catch { /* ignore */ }
+
+    const results = await Promise.all(
+      batch.map(async ({ sub, index }) => {
+        try {
+          const subredditPath = sub.replace("r/", "");
+          const resp = await fetch(
+            `https://api.apify.com/v2/acts/oAuCIx3ItNrs2okjQ/run-sync-get-dataset-items?token=${apifyToken}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                startUrls: [{ url: `https://www.reddit.com/r/${subredditPath}/hot/` }],
+                maxItems: 50,
+                proxy: { useApifyProxy: true },
+              }),
+            },
+          );
+          if (!resp.ok) return [];
+          const data = await resp.json();
+          const posts: unknown[] = Array.isArray(data) ? data : [];
+
+          const postCount = posts.length;
+          const upvotes = posts.reduce((sum, p) => {
+            const post = p as Record<string, unknown>;
+            const u =
+              (post.numberOfUpvotes as number | undefined) ??
+              (post.upvotes as number | undefined) ??
+              (post.score as number | undefined) ??
+              (post.ups as number | undefined) ??
+              0;
+            return sum + u;
+          }, 0);
+
+          const stored: Record<string, number> = (() => {
+            try { return JSON.parse(localStorage.getItem("mt_reddit_volume") ?? "{}") as Record<string, number>; }
+            catch { return {}; }
+          })();
+
+          const prev = stored[sub];
+          stored[sub] = postCount;
+          try { localStorage.setItem("mt_reddit_volume", JSON.stringify(stored)); } catch { /* ignore */ }
+
+          // No baseline yet — store and skip
+          if (prev === undefined) return [];
+
+          const pct = prev > 0 ? ((postCount - prev) / prev) * 100 : 0;
+          if (Math.abs(pct) < 15) return [];
+
+          const surging = pct > 0;
+          const entityName = index.replace(" Sentiment", "");
+          const text = surging
+            ? `${sub} discussion volume surging — elevated narrative activity signal for ${entityName}`
+            : `${sub} discussion volume declining — fading narrative engagement for ${entityName}`;
+
+          void upvotes; // available for future use
+          return [{ text, sourceTier: 2 as const, source: "reddit" as const, forcedIndex: index }];
+        } catch {
+          return [];
+        }
+      }),
+    );
+
+    const mapped: QueuedHeadline[] = results.flat() as QueuedHeadline[];
+    for (const item of mapped) {
+      const blockReason = shouldBlockHeadline(item.text);
+      if (blockReason) {
+        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+      } else {
+        _queue.push(item);
+      }
+    }
+    saveHeadlinesToCache(mapped);
+    console.info(`[HeadlineQueue] Enqueued ${mapped.length} volume-change headlines from Reddit. Queue depth: ${_queue.length}`);
+  } catch (err) {
+    console.warn("[HeadlineQueue] Reddit Apify fetch failed.", err);
+  } finally {
+    _isFetchingReddit = false;
   }
 }
 
@@ -2514,6 +2645,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchGoogleSearchBatch();
   const googleSearchIntervalId = setInterval(fetchGoogleSearchBatch, 1_200_000);
 
+  void fetchRedditApifyBatch();
+  const redditApifyIntervalId = setInterval(fetchRedditApifyBatch, 1_500_000);
+
   // Pass the already-initialized actor directly — avoids a second createActorWithConfig()
   // call inside fetchRedditBatch() which was hanging on fetch("env.json") silently.
   void fetchRedditBatch(actor);
@@ -2623,6 +2757,7 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(rssIntervalId);
     clearInterval(oddsApiIntervalId);
     clearInterval(googleSearchIntervalId);
+    clearInterval(redditApifyIntervalId);
     clearInterval(youtubeIntervalId);
     clearInterval(tmdbIntervalId);
     clearInterval(tmdbPopularIntervalId);
@@ -2673,7 +2808,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
