@@ -44,6 +44,7 @@ import { getDecayRate } from "../lib/oracle/indexCategoryRegistry";
 import { markHeadlineConsumed } from "./dispatchedHeadlineLog";
 import {
   ACTIVE_INDICES,
+  ALL_INDICES,
   applyTidalPropagation,
   computeWeightedGSI,
   getBeta,
@@ -579,7 +580,7 @@ export function runOraclePipelineForAll(
   const finalScores = new Map<string, number>();
   const tickEntries: UnifiedOracleLogEntry[] = [];
 
-  for (const indexName of ACTIVE_INDICES) {
+  for (const indexName of ALL_INDICES) {
     const rawScore = rawOracleScores[indexName];
     if (rawScore === undefined) {
       console.warn(

@@ -1237,7 +1237,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
         ([k, v]) => prev.finalScores.get(k) !== v,
       );
       const nextScores = scoresChanged
-        ? new Map(output.finalScores)
+        ? new Map([...prev.finalScores, ...output.finalScores])
         : prev.finalScores;
       const currentPreemptions = getActivePreemptions();
       const preemptionsChanged =

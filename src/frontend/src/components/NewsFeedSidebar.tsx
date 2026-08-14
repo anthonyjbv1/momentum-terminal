@@ -63,7 +63,10 @@ type FeedCategoryFilter =
   | "cultural"
   | "sports"
   | "health"
-  | "technology";
+  | "technology"
+  | "individuals"
+  | "universities"
+  | "regional";
 
 const FEED_CATEGORY_TABS: { value: FeedCategoryFilter; label: string }[] = [
   { value: "all", label: "ALL" },
@@ -73,10 +76,14 @@ const FEED_CATEGORY_TABS: { value: FeedCategoryFilter; label: string }[] = [
   { value: "cultural", label: "CULTURAL" },
   { value: "sports", label: "SPORTS" },
   { value: "health", label: "HEALTH" },
+  { value: "individuals", label: "INDIVIDUALS" },
+  { value: "universities", label: "UNIVERSITIES" },
+  { value: "regional", label: "REGIONAL" },
 ];
 
 // Map from canonical index name → lowercase category (matches fallbackAssets.ts)
 const INDEX_CATEGORY_MAP: Record<string, FeedCategoryFilter> = {
+  // ── Core ──────────────────────────────────────────────────────────────────
   "Fed Policy Sentiment": "macro",
   "MENA Stability Sentiment": "geopolitical",
   "AI Regulation Risk Sentiment": "technology",
@@ -88,6 +95,53 @@ const INDEX_CATEGORY_MAP: Record<string, FeedCategoryFilter> = {
   "NASCAR Sentiment": "sports",
   "Obesity Drug Sentiment": "health",
   "Whole Food & Wellness Sentiment": "health",
+  // ── Individuals ───────────────────────────────────────────────────────────
+  "Elon Musk Sentiment": "individuals",
+  "MrBeast Sentiment": "individuals",
+  "Kai Cenat Sentiment": "individuals",
+  "Drake Sentiment": "individuals",
+  "Adin Ross Sentiment": "individuals",
+  "Patrick Mahomes Sentiment": "individuals",
+  "Kendrick Lamar Sentiment": "individuals",
+  "Jensen Huang Sentiment": "individuals",
+  "Mark Zuckerberg Sentiment": "individuals",
+  "Warren Buffett Sentiment": "individuals",
+  "Larry Ellison Sentiment": "individuals",
+  "Jeff Bezos Sentiment": "individuals",
+  "Larry Page Sentiment": "individuals",
+  "Sergey Brin Sentiment": "individuals",
+  "Michael Dell Sentiment": "individuals",
+  // ── Sports ────────────────────────────────────────────────────────────────
+  "Kansas City Chiefs Sentiment": "sports",
+  "Denver Broncos Sentiment": "sports",
+  "F1 Ferrari Sentiment": "sports",
+  "FC Barcelona Sentiment": "sports",
+  "France National Team Sentiment": "sports",
+  "F1 McLaren Sentiment": "sports",
+  "Real Madrid CF Sentiment": "sports",
+  "F1 Mercedes Sentiment": "sports",
+  "Spain National Team Sentiment": "sports",
+  // ── Universities ──────────────────────────────────────────────────────────
+  "University of Michigan Sentiment": "universities",
+  "Ohio State University Sentiment": "universities",
+  "Harvard University Sentiment": "universities",
+  "Yale University Sentiment": "universities",
+  // ── Health ────────────────────────────────────────────────────────────────
+  "Type 2 Diabetes Sentiment": "health",
+  "Alzheimer's Sentiment": "health",
+  "Seasonal Influenza Sentiment": "health",
+  "Ozempic Sentiment": "health",
+  "Wegovy Sentiment": "health",
+  "Mental Health Sentiment": "health",
+  "Cancer Research Sentiment": "health",
+  // ── Regional ──────────────────────────────────────────────────────────────
+  "California Sentiment": "regional",
+  "New York Sentiment": "regional",
+  "Florida Sentiment": "regional",
+  "Texas Sentiment": "regional",
+  "China Sentiment": "regional",
+  "Germany Sentiment": "regional",
+  "United States Sentiment": "regional",
 };
 
 function isSpecificIndex(relatedIndex: string): boolean {
