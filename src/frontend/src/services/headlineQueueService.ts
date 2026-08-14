@@ -102,8 +102,6 @@ function shouldBlockHeadline(text: string): string | null {
 }
 
 let _isFetchingNews = false;
-let _isFetchingGDELT = false;
-let _isFetchingYouTube = false;
 let _isFetchingNewsAPI = false;
 let _isFetchingOddsAPI = false;
 let _isFetchingGoogleSearch = false;
@@ -119,8 +117,6 @@ let _isFetchingSocialBlade = false;
 const LOW_WATER_MARK = 5;
 
 // ─── Fetch interval constants ─────────────────────────────────────────────────
-const GDELT_FETCH_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
-const YOUTUBE_FETCH_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 const OMDB_FETCH_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 // ─── Extended actor type for new backend methods ──────────────────────────────
@@ -337,6 +333,10 @@ async function fetchOddsAPIBatch(): Promise<void> {
           const resp = await fetch(
             `https://api.the-odds-api.com/v4/sports/${sport}/odds/?apiKey=${key}&regions=us&markets=h2h&oddsFormat=decimal`,
           );
+          if (resp.status === 401) {
+            console.warn("[OddsAPI] 401 Unauthorized — check VITE_ODDS_API_KEY");
+            return [];
+          }
           if (!resp.ok) return [];
           const games = await resp.json() as Array<{
             home_team: string;
@@ -448,6 +448,10 @@ const SEARCH_QUERIES = [
 
 async function fetchGoogleSearchBatch(): Promise<void> {
   if (_isFetchingGoogleSearch) return;
+  if (localStorage.getItem("mt_apify_disabled") === "true") {
+    console.info("[GoogleSearch] Apify disabled — free tier exhausted");
+    return;
+  }
   _isFetchingGoogleSearch = true;
   try {
     const apifyToken = import.meta.env.VITE_APIFY_TOKEN ?? "";
@@ -1252,68 +1256,6 @@ function parseReliefWebResponse(jsonText: string): Array<{
   }
 }
 
-// ─── GDELT JSON parser ────────────────────────────────────────────────────────
-function parseGDELTResponse(jsonText: string): Array<{
-  text: string;
-  relatedIndex: string;
-  source: string;
-  gdeltDirection?: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
-  gdeltConfidence?: number;
-}> {
-  if (!jsonText || jsonText === "{}") return [];
-
-  try {
-    const data = JSON.parse(jsonText) as {
-      articles?: Array<{
-        title?: string;
-        tone?: number;
-      }>;
-    };
-    if (!data?.articles || !Array.isArray(data.articles)) return [];
-
-    const headlines: Array<{
-      text: string;
-      relatedIndex: string;
-      source: string;
-      gdeltDirection?: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
-      gdeltConfidence?: number;
-    }> = [];
-
-    for (const article of data.articles) {
-      const title = article.title;
-      if (!title || title.length < 10) continue;
-
-      const tone = typeof article.tone === "number" ? article.tone : 0;
-
-      let gdeltDirection: "POSITIVE" | "NEGATIVE" | "NEUTRAL";
-      let gdeltConfidence: number;
-
-      if (tone < -3) {
-        gdeltDirection = "NEGATIVE";
-        gdeltConfidence = Math.min(0.95, Math.abs(tone) / 20);
-      } else if (tone > 3) {
-        gdeltDirection = "POSITIVE";
-        gdeltConfidence = Math.min(0.95, tone / 20);
-      } else {
-        gdeltDirection = "NEUTRAL";
-        gdeltConfidence = 0.5;
-      }
-
-      headlines.push({
-        text: title,
-        relatedIndex: "MENA Stability Sentiment",
-        source: "GDELT",
-        gdeltDirection,
-        gdeltConfidence,
-      });
-    }
-
-    return headlines;
-  } catch {
-    return [];
-  }
-}
-
 // ─── USPTO RSS parser ─────────────────────────────────────────────────────────
 function parseUSPTOResponse(xmlText: string): Array<{
   text: string;
@@ -1444,91 +1386,6 @@ const DC_ROUTING_KEYWORDS = [
   "Warner Bros",
 ] as const;
 
-const YOUTUBE_POSITIVE_WORDS = [
-  "record",
-  "biggest",
-  "massive",
-  "incredible",
-  "breaks",
-  "dominates",
-  "positive",
-  "love",
-  "amazing",
-] as const;
-
-const YOUTUBE_NEGATIVE_WORDS = [
-  "flop",
-  "disappointing",
-  "worst",
-  "fails",
-  "drops",
-  "decline",
-  "negative",
-  "hate",
-  "terrible",
-] as const;
-
-// ─── YouTube JSON parser ──────────────────────────────────────────────────────
-function parseYouTubeResponse(responseText: string): QueuedHeadline[] {
-  if (!responseText || responseText.trim() === "" || responseText === "{}")
-    return [];
-
-  try {
-    const data = JSON.parse(responseText) as {
-      items?: Array<{
-        snippet?: {
-          title?: string;
-          channelTitle?: string;
-        };
-      }>;
-    };
-
-    if (!data?.items || !Array.isArray(data.items)) return [];
-
-    const headlines: QueuedHeadline[] = [];
-
-    for (const item of data.items) {
-      const title = item.snippet?.title;
-      if (!title || title.length < 5) continue;
-
-      const _isMarvel = MARVEL_ROUTING_KEYWORDS.some((kw) =>
-        title.includes(kw),
-      );
-      const _isDC = DC_ROUTING_KEYWORDS.some((kw) => title.includes(kw));
-
-      const lower = title.toLowerCase();
-      let direction: "POSITIVE" | "NEGATIVE" | "NEUTRAL" = "NEUTRAL";
-      let confidence: number;
-
-      if (YOUTUBE_POSITIVE_WORDS.some((w) => lower.includes(w))) {
-        direction = "POSITIVE";
-        confidence = jitter(0.72, 0.9);
-      } else if (YOUTUBE_NEGATIVE_WORDS.some((w) => lower.includes(w))) {
-        direction = "NEGATIVE";
-        confidence = jitter(0.72, 0.9);
-      } else {
-        direction = "POSITIVE";
-        confidence = jitter(0.6, 0.75);
-      }
-
-      void direction;
-      void confidence;
-
-      const _baseHeadline = {
-        text: title,
-        sourceTier: 3 as const,
-        source: "youtube",
-      };
-
-      // DC and MU indexes removed — skip these headlines
-    }
-
-    return headlines;
-  } catch {
-    return [];
-  }
-}
-
 // ─── TMDB JSON parser ─────────────────────────────────────────────────────────
 function parseTMDBResponse(
   responseText: string,
@@ -1594,45 +1451,6 @@ function parseTMDBResponse(
     return headlines;
   } catch {
     return [];
-  }
-}
-
-
-// ─── GDELT batch fetch ────────────────────────────────────────────────────────
-async function fetchGDELTBatch(): Promise<void> {
-  if (_isFetchingGDELT) return;
-  _isFetchingGDELT = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchGDELTData();
-    const parsed = parseGDELTResponse(rawData);
-    for (const h of parsed) {
-      const queueItem: QueuedHeadline = {
-        text: h.text,
-        sourceTier: 3,
-        forcedIndex: h.relatedIndex,
-        source: "gdelt",
-      };
-      const _brGdelt = shouldBlockHeadline(queueItem.text);
-      if (_brGdelt) {
-        blockedHeadlines.push({
-          text: queueItem.text,
-          reason: _brGdelt,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(queueItem);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[GDELTService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[GDELTService] Failed to fetch GDELT data:", err);
-  } finally {
-    _isFetchingGDELT = false;
   }
 }
 
@@ -2052,39 +1870,6 @@ function parseACLUResponse(xmlText: string): QueuedHeadline[] {
 }
 
 
-// ─── YouTube batch fetch ──────────────────────────────────────────────────────
-async function fetchYouTubeBatch(): Promise<void> {
-  if (_isFetchingYouTube) return;
-  _isFetchingYouTube = true;
-  try {
-    const actor = (await createActorWithConfig()) as ActorWithFedBLS;
-    const rawData = await actor.fetchYouTubeData();
-    const parsed = parseYouTubeResponse(rawData);
-    for (const h of parsed) {
-      const _br = shouldBlockHeadline(h.text);
-      if (_br) {
-        blockedHeadlines.push({
-          text: h.text,
-          reason: _br,
-          blockedAt: Date.now(),
-        });
-      } else {
-        _queue.push(h);
-      }
-    }
-    if (parsed.length > 0) {
-      console.info(
-        `[YouTubeService] Enqueued ${parsed.length} headlines. Queue depth: ${_queue.length}`,
-      );
-    }
-  } catch (err) {
-    console.warn("[YouTubeService] Failed to fetch YouTube data:", err);
-  } finally {
-    _isFetchingYouTube = false;
-  }
-}
-
-
 // ─── OMDb JSON parser ─────────────────────────────────────────────────────────
 function _parseOMDBResponse(
   responseText: string,
@@ -2211,17 +1996,6 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchSocialBladeBatch();
   const socialBladeIntervalId = setInterval(fetchSocialBladeBatch, 3_600_000);
 
-  // GDELT MENA news — fire immediately, then every 30 minutes
-  void fetchGDELTBatch();
-  const gdeltIntervalId = setInterval(fetchGDELTBatch, GDELT_FETCH_INTERVAL_MS);
-
-  // YouTube video trends — fire immediately, then every 1 hour
-  void fetchYouTubeBatch();
-  const youtubeIntervalId = setInterval(
-    fetchYouTubeBatch,
-    YOUTUBE_FETCH_INTERVAL_MS,
-  );
-
   // OMDb film database — fire immediately, then every 12 hours
   void fetchOMDBBatch();
   const omdbIntervalId = setInterval(fetchOMDBBatch, OMDB_FETCH_INTERVAL_MS);
@@ -2229,13 +2003,11 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   return () => {
     clearInterval(newsIntervalId);
     clearInterval(blsIntervalId);
-    clearInterval(gdeltIntervalId);
     clearInterval(newsApiIntervalId);
     clearInterval(rssIntervalId);
     clearInterval(oddsApiIntervalId);
     clearInterval(googleSearchIntervalId);
     clearInterval(redditApifyIntervalId);
-    clearInterval(youtubeIntervalId);
     clearInterval(omdbIntervalId);
     clearInterval(fredIntervalId);
     clearInterval(beaIntervalId);
