@@ -113,6 +113,8 @@ let _isFetchingOMDB = false;
 let _isFetchingFRED = false;
 let _isFetchingBLS = false;
 let _isFetchingBEA = false;
+let _isFetchingForbes = false;
+let _isFetchingSocialBlade = false;
 
 const LOW_WATER_MARK = 5;
 
@@ -856,6 +858,188 @@ async function fetchBEABatch(): Promise<void> {
     console.warn("[BEAService] BEA fetch failed.", err);
   } finally {
     _isFetchingBEA = false;
+  }
+}
+
+// ─── Forbes Real-Time Billionaires batch fetch ────────────────────────────────
+async function fetchForbesBatch(): Promise<void> {
+  if (_isFetchingForbes) return;
+  _isFetchingForbes = true;
+  try {
+    const FORBES_INDEX_MAP: Record<string, string> = {
+      "Elon Musk": "Elon Musk Sentiment",
+      "Larry Page": "Larry Page Sentiment",
+      "Sergey Brin": "Sergey Brin Sentiment",
+      "Jeff Bezos": "Jeff Bezos Sentiment",
+      "Michael Dell": "Michael Dell Sentiment",
+      "Mark Zuckerberg": "Mark Zuckerberg Sentiment",
+      "Jensen Huang": "Jensen Huang Sentiment",
+      "Larry Ellison": "Larry Ellison Sentiment",
+      "Bernard Arnault & Family": "Bernard Arnault Sentiment",
+      "Warren Buffett": "Warren Buffett Sentiment",
+    };
+
+    const resp = await fetch(
+      `/api/data-proxy?url=${encodeURIComponent("https://www.forbes.com/forbesapi/person/rtb/0/position/true.json")}`,
+    );
+    if (!resp.ok) return;
+    const data = await resp.json() as { personList?: { personsLists?: Array<{
+      personName?: string;
+      finalWorth?: number;
+      estWorthPrev?: number;
+      position?: number;
+    }> } };
+
+    const persons = data.personList?.personsLists ?? [];
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_forbes_values") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const mapped: QueuedHeadline[] = [];
+
+    for (const person of persons) {
+      const name = person.personName;
+      if (!name || !(name in FORBES_INDEX_MAP)) continue;
+      const forcedIndex = FORBES_INDEX_MAP[name];
+      const rank = person.position ?? 0;
+      const finalWorth = person.finalWorth ?? 0;
+      const estWorthPrev = person.estWorthPrev ?? finalWorth;
+
+      const net_worth_b = finalWorth / 1000;
+
+      const rankHeadline: QueuedHeadline = {
+        text: `${name} net worth $${net_worth_b.toFixed(1)}B — Forbes Real-Time #${rank}`,
+        sourceTier: 1,
+        source: "forbes",
+        forcedIndex,
+      };
+      const blockReason1 = shouldBlockHeadline(rankHeadline.text);
+      if (blockReason1) {
+        blockedHeadlines.push({ text: rankHeadline.text, reason: blockReason1, blockedAt: Date.now() });
+      } else {
+        mapped.push(rankHeadline);
+        _queue.push(rankHeadline);
+      }
+
+      const prev = stored[name];
+      stored[name] = finalWorth;
+
+      if (prev !== undefined && prev !== finalWorth && estWorthPrev > 0) {
+        const change_abs = (finalWorth - estWorthPrev) / 1000;
+        const change_pct = ((finalWorth - estWorthPrev) / estWorthPrev) * 100;
+        if (Math.abs(change_pct) >= 0.5) {
+          const direction = change_abs >= 0 ? "rose" : "fell";
+          const changeHeadline: QueuedHeadline = {
+            text: `${name} net worth ${direction} $${Math.abs(change_abs).toFixed(1)}B (${change_pct >= 0 ? "+" : ""}${change_pct.toFixed(2)}%) since prior trading day per Forbes Real-Time Billionaires`,
+            sourceTier: 1,
+            source: "forbes",
+            forcedIndex,
+          };
+          const blockReason2 = shouldBlockHeadline(changeHeadline.text);
+          if (blockReason2) {
+            blockedHeadlines.push({ text: changeHeadline.text, reason: blockReason2, blockedAt: Date.now() });
+          } else {
+            mapped.push(changeHeadline);
+            _queue.push(changeHeadline);
+          }
+        }
+      }
+    }
+
+    try { localStorage.setItem("mt_forbes_values", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[ForbesService] Enqueued ${mapped.length} Forbes billionaire headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[ForbesService] Forbes fetch failed.", err);
+  } finally {
+    _isFetchingForbes = false;
+  }
+}
+
+// ─── Social Blade batch fetch ─────────────────────────────────────────────────
+async function fetchSocialBladeBatch(): Promise<void> {
+  if (_isFetchingSocialBlade) return;
+  _isFetchingSocialBlade = true;
+  try {
+    const SOCIALBLADE_ACCOUNTS: Record<string, { index: string; platform: string; label: string; url: string }> = {
+      kaicenat:      { index: "Kai Cenat Sentiment",       platform: "Twitch",    label: "Twitch followers",     url: "https://socialblade.com/twitch/user/kaicenat" },
+      adinross:      { index: "Adin Ross Sentiment",       platform: "Twitch",    label: "Twitch followers",     url: "https://socialblade.com/twitch/user/adinross" },
+      mrbeast:       { index: "MrBeast Sentiment",         platform: "YouTube",   label: "YouTube subscribers",  url: "https://socialblade.com/youtube/user/mrbeast" },
+      champagnepapi: { index: "Drake Sentiment",           platform: "Instagram", label: "Instagram followers",  url: "https://socialblade.com/instagram/user/champagnepapi" },
+      kendricklamar: { index: "Kendrick Lamar Sentiment",  platform: "Instagram", label: "Instagram followers",  url: "https://socialblade.com/instagram/user/kendricklamar" },
+      patrickmahomes:{ index: "Patrick Mahomes Sentiment", platform: "Instagram", label: "Instagram followers",  url: "https://socialblade.com/instagram/user/patrickmahomes" },
+    };
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_socialblade_values") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const countRegex = /(\d{1,3}(?:,\d{3})+)\s*(?:Followers|Subscribers)/i;
+    const mapped: QueuedHeadline[] = [];
+
+    await Promise.all(
+      Object.entries(SOCIALBLADE_ACCOUNTS).map(async ([username, meta]) => {
+        try {
+          const resp = await fetch(
+            `/api/data-proxy?url=${encodeURIComponent(meta.url)}`,
+          );
+          if (!resp.ok) return;
+          const html = await resp.text();
+          const match = countRegex.exec(html);
+          if (!match) return;
+          const count = parseInt(match[1].replace(/,/g, ""), 10);
+          if (count < 10_000) return;
+
+          const prev = stored[username];
+          stored[username] = count;
+
+          if (prev === undefined || prev === count) return;
+          const changePct = Math.abs((count - prev) / prev) * 100;
+          if (changePct < 5) return;
+
+          const direction = count > prev ? "surged" : "declined";
+          const momentum = count > prev ? "growing" : "declining";
+          const displayName = username === "champagnepapi" ? "Drake"
+            : username === "patrickmahomes" ? "Patrick Mahomes"
+            : username === "kendricklamar" ? "Kendrick Lamar"
+            : username === "mrbeast" ? "MrBeast"
+            : username === "kaicenat" ? "Kai Cenat"
+            : username === "adinross" ? "Adin Ross"
+            : username;
+
+          const item: QueuedHeadline = {
+            text: `${displayName} ${meta.platform} ${meta.label} ${direction} to ${count.toLocaleString()} — ${momentum} creator momentum signal`,
+            sourceTier: 2,
+            source: "socialblade",
+            forcedIndex: meta.index,
+          };
+          const blockReason = shouldBlockHeadline(item.text);
+          if (blockReason) {
+            blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+          } else {
+            mapped.push(item);
+            _queue.push(item);
+          }
+        } catch { /* skip this creator */ }
+      }),
+    );
+
+    try { localStorage.setItem("mt_socialblade_values", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[SocialBladeService] Enqueued ${mapped.length} creator headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[SocialBladeService] SocialBlade fetch failed.", err);
+  } finally {
+    _isFetchingSocialBlade = false;
   }
 }
 
@@ -2021,6 +2205,12 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchBEABatch();
   const beaIntervalId = setInterval(fetchBEABatch, 3_600_000);
 
+  void fetchForbesBatch();
+  const forbesIntervalId = setInterval(fetchForbesBatch, 3_600_000);
+
+  void fetchSocialBladeBatch();
+  const socialBladeIntervalId = setInterval(fetchSocialBladeBatch, 3_600_000);
+
   // GDELT MENA news — fire immediately, then every 30 minutes
   void fetchGDELTBatch();
   const gdeltIntervalId = setInterval(fetchGDELTBatch, GDELT_FETCH_INTERVAL_MS);
@@ -2049,6 +2239,8 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(omdbIntervalId);
     clearInterval(fredIntervalId);
     clearInterval(beaIntervalId);
+    clearInterval(forbesIntervalId);
+    clearInterval(socialBladeIntervalId);
     _initialized = false;
   };
 }
@@ -2095,7 +2287,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
