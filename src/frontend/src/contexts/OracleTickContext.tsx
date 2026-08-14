@@ -625,7 +625,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
             ],
           },
           {
-            index: "Traditional Values Sentiment",
+            index: "Traditionalism Sentiment",
             keywords: [
               "supreme court",
               "abortion",
@@ -648,7 +648,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
             ],
           },
           {
-            index: "Progressive Values Sentiment",
+            index: "Progressivism Sentiment",
             keywords: [
               "climate",
               "environment",

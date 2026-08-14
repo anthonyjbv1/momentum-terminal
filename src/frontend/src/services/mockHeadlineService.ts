@@ -18,12 +18,12 @@ const ACTIVE_INDEX_NAMES: Set<string> = new Set([
   "AI Regulation Risk Sentiment",
   "Fed Policy Sentiment",
   "MENA Stability Sentiment",
-  "Traditional Values Sentiment",
-  "Progressive Values Sentiment",
-  "Masculinity Discourse Sentiment",
-  "Feminism Wave Sentiment",
+  "Traditionalism Sentiment",
+  "Progressivism Sentiment",
+  "Masculism Sentiment",
+  "Feminism Sentiment",
   "F1 Constructor Sentiment",
-  "NASCAR Racing Sentiment",
+  "NASCAR Sentiment",
   "Obesity Drug Sentiment",
   "Whole Food & Wellness Sentiment",
 ]);
@@ -57,12 +57,12 @@ const GSI_INDEX_WEIGHTS: Record<string, number> = {
   "AI Regulation Risk Sentiment": 0.14,
   "Fed Policy Sentiment": 0.18,
   "MENA Stability Sentiment": 0.15,
-  "Traditional Values Sentiment": 0.1,
-  "Progressive Values Sentiment": 0.1,
-  "Masculinity Discourse Sentiment": 0.08,
-  "Feminism Wave Sentiment": 0.08,
+  "Traditionalism Sentiment": 0.1,
+  "Progressivism Sentiment": 0.1,
+  "Masculism Sentiment": 0.08,
+  "Feminism Sentiment": 0.08,
   "F1 Constructor Sentiment": 0.05,
-  "NASCAR Racing Sentiment": 0.05,
+  "NASCAR Sentiment": 0.05,
   "Obesity Drug Sentiment": 0.04,
   "Whole Food & Wellness Sentiment": 0.03,
 };
@@ -416,7 +416,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Supreme Court rules in favor of religious exemptions in landmark free exercise case",
     sentimentScore: 3.4,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "Reuters",
     rationale:
       "Landmark ruling expands religious liberty protections nationally.",
@@ -426,7 +426,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Congressional hearing targets gender curriculum in public schools amid parental rights push",
     sentimentScore: 2.8,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "WSJ",
     rationale:
       "Legislative pressure on curriculum signals rising parental rights momentum.",
@@ -436,7 +436,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Church attendance hits decade high as faith communities report surge in young adult membership",
     sentimentScore: 3.1,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "AP",
     rationale:
       "Rising faith community engagement strengthens traditional values coalition.",
@@ -446,7 +446,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Poll shows record support for school choice voucher programs in swing states",
     sentimentScore: 2.6,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "CNBC",
     rationale:
       "Broad public support for school choice signals policy tailwinds.",
@@ -456,7 +456,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal court blocks state mandate requiring gender identity curriculum in elementary schools",
     sentimentScore: 3.2,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "Bloomberg",
     rationale:
       "Court ruling reinforces parental control over early education content.",
@@ -467,7 +467,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Supreme Court rules 6-3 in favor of religious exemptions for employers citing sincerely held beliefs — landmark free exercise decision",
     sentimentScore: 3.8,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -475,7 +475,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal court blocks state mandate requiring gender identity curriculum in elementary schools — parental rights groups claim major victory",
     sentimentScore: 3.4,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "AP",
   },
   {
@@ -483,7 +483,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Gallup survey finds church attendance hits decade high — faith communities report surge in young adult membership",
     sentimentScore: 3.1,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "AP",
   },
   {
@@ -491,7 +491,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "School choice voucher program passes in four additional states — over 2 million students now eligible for private school funding",
     sentimentScore: 3.5,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "WSJ",
   },
   {
@@ -499,7 +499,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Second Amendment Foundation wins federal appeals court ruling striking down assault weapons ban in three states",
     sentimentScore: 3.2,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -507,7 +507,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Congressional hearing targets DEI mandates in public universities — Republican-led committee advances legislation restricting federal funding",
     sentimentScore: 2.8,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "WSJ",
   },
   {
@@ -515,7 +515,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Supreme Court agrees to hear landmark case on public school prayer — decision could reshape First Amendment jurisprudence",
     sentimentScore: 2.6,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "AP",
   },
   {
@@ -523,7 +523,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Bud Light boycott anniversary — traditional values coalition reports sustained 23% market share loss has not recovered",
     sentimentScore: 2.4,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "WSJ",
   },
   {
@@ -531,7 +531,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal judge strikes down school district transgender athlete policy — ruling applies across six-state circuit",
     sentimentScore: 3.0,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -539,7 +539,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "NFL viewership rebounds 18% after league distances itself from social justice campaign messaging",
     sentimentScore: 2.7,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Traditional Values Sentiment Index",
+    relatedIndex: "Traditionalism Sentiment Index",
     source: "WSJ",
   },
 
@@ -549,7 +549,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Historic climate bill passes Senate with bipartisan support, largest green investment in US history",
     sentimentScore: 3.8,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Reuters",
     rationale:
       "Landmark climate legislation signals sustained green policy commitment.",
@@ -559,7 +559,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Student loan forgiveness program reinstated following appeals court reversal",
     sentimentScore: 3.3,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Bloomberg",
     rationale:
       "Debt relief reinstatement mobilizes progressive base and boosts consumer sentiment.",
@@ -569,7 +569,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "UAW announces largest membership drive in thirty years as labor movement accelerates",
     sentimentScore: 2.9,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "AP",
     rationale:
       "Labor organizing surge confirms structural shift in worker bargaining power.",
@@ -579,7 +579,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal minimum wage increase bill advances through committee with strong progressive coalition",
     sentimentScore: 2.7,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "WSJ",
     rationale:
       "Wage floor legislation advances on coalition strength signaling policy traction.",
@@ -589,7 +589,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "LGBTQ protections expanded under new executive order covering federal contractors",
     sentimentScore: 3.1,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "CNBC",
     rationale:
       "Executive expansion of LGBTQ protections energizes progressive policy coalition.",
@@ -600,7 +600,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Historic climate bill passes Senate with bipartisan support — largest green energy investment in US history at $800B over decade",
     sentimentScore: 3.9,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -608,7 +608,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Student loan forgiveness program reinstated following appeals court reversal — 4 million borrowers to receive immediate relief",
     sentimentScore: 3.5,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Bloomberg",
   },
   {
@@ -616,7 +616,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "UAW wins landmark contract at three non-union auto plants — largest labor organizing victory in 40 years",
     sentimentScore: 3.6,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "AP",
   },
   {
@@ -624,7 +624,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal minimum wage increase to $17 advances through Senate committee — first federal increase in 15 years",
     sentimentScore: 3.2,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -632,7 +632,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Supreme Court strikes down affirmative action ban — ruling restores race-conscious admissions at public universities",
     sentimentScore: 3.4,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "AP",
   },
   {
@@ -640,7 +640,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "EPA issues strictest air quality standards in agency history — targets fossil fuel emissions in low-income communities",
     sentimentScore: 3.1,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -648,7 +648,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Democratic presidential candidate breaks single-day fundraising record at $42M — signaling strong grassroots energy heading into final stretch",
     sentimentScore: 3.3,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Bloomberg",
   },
   {
@@ -656,7 +656,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Federal court upholds LGBTQ workplace protections — ruling expands Title VII coverage to all 50 states regardless of state law",
     sentimentScore: 3.0,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "AP",
   },
   {
@@ -664,7 +664,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Healthcare public option bill advances — CBO scores it covering 12 million uninsured Americans at net zero cost over decade",
     sentimentScore: 2.9,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Reuters",
   },
   {
@@ -672,7 +672,7 @@ export const MOCK_HEADLINES: AuditableNewsEvent[] = [
       "Major pharmaceutical company agrees to $4B settlement in insulin price gouging case — landmark win for drug pricing reform advocates",
     sentimentScore: 3.2,
     category: NewsEventCategory.Washington,
-    relatedIndex: "Progressive Values Sentiment Index",
+    relatedIndex: "Progressivism Sentiment Index",
     source: "Bloomberg",
   },
 ];

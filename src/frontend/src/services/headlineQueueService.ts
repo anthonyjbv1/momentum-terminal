@@ -413,9 +413,9 @@ const SEARCH_QUERIES = [
   { query: "Michael Dell Dell Technologies", index: "Michael Dell Sentiment" },
   // Sports
   { query: "Real Madrid news", index: "Real Madrid CF Sentiment" },
-  { query: "Ferrari Formula 1", index: "Ferrari Sentiment" },
-  { query: "McLaren F1 racing", index: "McLaren Sentiment" },
-  { query: "Mercedes F1 team", index: "Mercedes Sentiment" },
+  { query: "Ferrari Formula 1", index: "F1 Ferrari Sentiment" },
+  { query: "McLaren F1 racing", index: "F1 McLaren Sentiment" },
+  { query: "Mercedes F1 team", index: "F1 Mercedes Sentiment" },
   { query: "Denver Broncos NFL", index: "Denver Broncos Sentiment" },
   { query: "France national soccer team", index: "France National Team Sentiment" },
   { query: "Spain national soccer team", index: "Spain National Team Sentiment" },
@@ -427,10 +427,10 @@ const SEARCH_QUERIES = [
   { query: "flu season influenza news", index: "Seasonal Influenza Sentiment" },
   { query: "Wegovy semaglutide news", index: "Wegovy Sentiment" },
   // Cultural
-  { query: "traditional values conservative news", index: "Traditional Values Sentiment" },
-  { query: "progressive liberal politics news", index: "Progressive Values Sentiment" },
-  { query: "masculinity men culture news", index: "Masculinity Discourse Sentiment" },
-  { query: "feminism women rights news", index: "Feminism Wave Sentiment" },
+  { query: "traditional values conservative news", index: "Traditionalism Sentiment" },
+  { query: "progressive liberal politics news", index: "Progressivism Sentiment" },
+  { query: "masculinity men culture news", index: "Masculism Sentiment" },
+  { query: "feminism women rights news", index: "Feminism Sentiment" },
   // Regional
   { query: "California politics news", index: "California Sentiment" },
   { query: "Texas politics news", index: "Texas Sentiment" },
@@ -534,10 +534,10 @@ const REDDIT_SUBREDDITS: Record<string, string> = {
   "r/DenverBroncos": "Denver Broncos Sentiment",
   "r/barca": "FC Barcelona Sentiment",
   "r/realmadrid": "Real Madrid CF Sentiment",
-  "r/NASCAR": "NASCAR Racing Sentiment",
+  "r/NASCAR": "NASCAR Sentiment",
   "r/formula1": "F1 Constructor Sentiment",
-  "r/Masculinity": "Masculinity Discourse Sentiment",
-  "r/Feminism": "Feminism Wave Sentiment",
+  "r/Masculinity": "Masculism Sentiment",
+  "r/Feminism": "Feminism Sentiment",
   "r/MENA": "MENA Stability Sentiment",
 };
 
@@ -1516,7 +1516,7 @@ function parseSCOTUSResponse(rawXml: string): QueuedHeadline[] {
       headlines.push({
         text: `SCOTUS Opinion: ${title}`,
         sourceTier: 1,
-        forcedIndex: "Traditional Values Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment Index",
         source: "scotus",
       });
 
@@ -1592,7 +1592,7 @@ function parseCongressTraditionalResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Congress: ${title}`,
         sourceTier: 2,
-        forcedIndex: "Traditional Values Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment Index",
         source: "congress",
       });
     }
@@ -1643,7 +1643,7 @@ function parseCourtListenerResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Federal Court: ${caseName}`,
         sourceTier: 2,
-        forcedIndex: "Traditional Values Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment Index",
         source: "courtlistener",
       });
     }
@@ -1713,7 +1713,7 @@ function parseSCOTUSProgressiveResponse(rawXml: string): QueuedHeadline[] {
       headlines.push({
         text: `SCOTUS Opinion: ${title}`,
         sourceTier: 1,
-        forcedIndex: "Progressive Values Sentiment Index",
+        forcedIndex: "Progressivism Sentiment Index",
         source: "scotus",
       });
 
@@ -1792,7 +1792,7 @@ function parseCongressProgressiveResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Congress: ${title}`,
         sourceTier: 2,
-        forcedIndex: "Progressive Values Sentiment Index",
+        forcedIndex: "Progressivism Sentiment Index",
         source: "congress",
       });
     }
@@ -1856,7 +1856,7 @@ function parseACLUResponse(xmlText: string): QueuedHeadline[] {
         headlines.push({
           text: `ACLU: ${title}`,
           sourceTier: 2,
-          forcedIndex: "Progressive Values Sentiment Index",
+          forcedIndex: "Progressivism Sentiment Index",
           source: "aclu",
         });
       }

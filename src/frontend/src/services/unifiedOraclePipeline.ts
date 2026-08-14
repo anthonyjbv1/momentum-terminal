@@ -555,12 +555,12 @@ export function runOraclePipelineForAll(
   // When the primary index moves, a 40%-dampened inverse signal is applied
   // to the paired index in the second pass (after all first-pass scores settle).
   const INVERSE_PAIRS: Record<string, string> = {
-    "Traditional Values Sentiment": "Progressive Values Sentiment",
-    "Progressive Values Sentiment": "Traditional Values Sentiment",
-    "Masculinity Discourse Sentiment": "Feminism Wave Sentiment",
-    "Feminism Wave Sentiment": "Masculinity Discourse Sentiment",
-    "F1 Constructor Sentiment": "NASCAR American Racing Sentiment",
-    "NASCAR Racing Sentiment": "F1 Constructor Sentiment",
+    "Traditionalism Sentiment": "Progressivism Sentiment",
+    "Progressivism Sentiment": "Traditionalism Sentiment",
+    "Masculism Sentiment": "Feminism Sentiment",
+    "Feminism Sentiment": "Masculism Sentiment",
+    "F1 Constructor Sentiment": "NASCAR Sentiment",
+    "NASCAR Sentiment": "F1 Constructor Sentiment",
     "Obesity Drug Sentiment": "Whole Food & Wellness Sentiment",
     "Whole Food & Wellness Sentiment": "Obesity Drug Sentiment",
   };
@@ -570,8 +570,8 @@ export function runOraclePipelineForAll(
   // When the primary index moves, a 30%-dampened convergent signal is applied
   // to the paired index in the SAME direction (they move together, not apart).
   const CONVERGENT_PAIRS: Record<string, string> = {
-    "Masculinity Discourse Sentiment": "Traditional Values Sentiment",
-    "Feminism Wave Sentiment": "Progressive Values Sentiment",
+    "Masculism Sentiment": "Traditionalism Sentiment",
+    "Feminism Sentiment": "Progressivism Sentiment",
   };
   const CONVERGENT_DAMPENING = 0.3;
 

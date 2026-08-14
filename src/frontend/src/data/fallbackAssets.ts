@@ -48,7 +48,7 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
     volatilityBuffer: 0.1,
   },
   {
-    name: "Traditional Values Sentiment",
+    name: "Traditionalism Sentiment",
     category: "CULTURAL",
     baseScore: 50.0,
     spread: 0.5,
@@ -56,7 +56,7 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
     volatilityBuffer: 0.1,
   },
   {
-    name: "Progressive Values Sentiment",
+    name: "Progressivism Sentiment",
     category: "CULTURAL",
     baseScore: 50.0,
     spread: 0.5,
@@ -64,7 +64,7 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
     volatilityBuffer: 0.1,
   },
   {
-    name: "Masculinity Discourse Sentiment",
+    name: "Masculism Sentiment",
     category: "CULTURAL",
     baseScore: 50.0,
     spread: 0.5,
@@ -72,7 +72,7 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
     volatilityBuffer: 0.1,
   },
   {
-    name: "Feminism Wave Sentiment",
+    name: "Feminism Sentiment",
     category: "CULTURAL",
     baseScore: 50.0,
     spread: 0.5,
@@ -88,7 +88,7 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
     volatilityBuffer: 0.1,
   },
   {
-    name: "NASCAR Racing Sentiment",
+    name: "NASCAR Sentiment",
     category: "SPORTS",
     baseScore: 50.0,
     spread: 0.5,
@@ -130,12 +130,12 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
   // ── Sports ────────────────────────────────────────────────────────────────────
   { name: "Kansas City Chiefs Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "Denver Broncos Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
-  { name: "Ferrari Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
+  { name: "F1 Ferrari Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "FC Barcelona Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "France National Team Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
-  { name: "McLaren Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
+  { name: "F1 McLaren Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "Real Madrid CF Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
-  { name: "Mercedes Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
+  { name: "F1 Mercedes Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "Spain National Team Sentiment", category: "SPORTS", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   // ── Universities ──────────────────────────────────────────────────────────────
   { name: "University of Michigan Sentiment", category: "UNIVERSITIES", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },

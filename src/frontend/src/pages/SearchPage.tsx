@@ -12,20 +12,67 @@ import { useOracleTick } from "../contexts/OracleTickContext";
 import { useAssetPrices } from "../hooks/useQueries";
 import { getDisplayName } from "../lib/oracle/indexCategoryRegistry";
 
-// Canonical "on the platform" display filter — same set used by the markets
-// page (AssetList.tsx). Only these indices are shown in search results.
+// All 53 platform indices — search covers the full index universe.
 const ALLOWED_INDEX_NAMES = new Set([
+  // ── Core ──────────────────────────────────────────────────────────────────
   "Fed Policy Sentiment",
   "MENA Stability Sentiment",
   "AI Regulation Risk Sentiment",
-  "Traditional Values Sentiment",
-  "Progressive Values Sentiment",
-  "Masculinity Discourse Sentiment",
-  "Feminism Wave Sentiment",
+  "Traditionalism Sentiment",
+  "Progressivism Sentiment",
+  "Masculism Sentiment",
+  "Feminism Sentiment",
   "F1 Constructor Sentiment",
-  "NASCAR Racing Sentiment",
+  "NASCAR Sentiment",
   "Obesity Drug Sentiment",
   "Whole Food & Wellness Sentiment",
+  // ── Individuals ───────────────────────────────────────────────────────────
+  "Elon Musk Sentiment",
+  "MrBeast Sentiment",
+  "Kai Cenat Sentiment",
+  "Drake Sentiment",
+  "Adin Ross Sentiment",
+  "Patrick Mahomes Sentiment",
+  "Kendrick Lamar Sentiment",
+  "Jensen Huang Sentiment",
+  "Mark Zuckerberg Sentiment",
+  "Warren Buffett Sentiment",
+  "Larry Ellison Sentiment",
+  "Jeff Bezos Sentiment",
+  "Larry Page Sentiment",
+  "Sergey Brin Sentiment",
+  "Michael Dell Sentiment",
+  // ── Sports ────────────────────────────────────────────────────────────────
+  "Kansas City Chiefs Sentiment",
+  "Denver Broncos Sentiment",
+  "F1 Ferrari Sentiment",
+  "FC Barcelona Sentiment",
+  "France National Team Sentiment",
+  "F1 McLaren Sentiment",
+  "Real Madrid CF Sentiment",
+  "F1 Mercedes Sentiment",
+  "Spain National Team Sentiment",
+  // ── Universities ──────────────────────────────────────────────────────────
+  "University of Michigan Sentiment",
+  "Ohio State University Sentiment",
+  "Harvard University Sentiment",
+  "Yale University Sentiment",
+  // ── Health ────────────────────────────────────────────────────────────────
+  "Type 2 Diabetes Sentiment",
+  "Alzheimer's Sentiment",
+  "Seasonal Influenza Sentiment",
+  "Ozempic Sentiment",
+  "Wegovy Sentiment",
+  "Mental Health Sentiment",
+  "Cancer Research Sentiment",
+  // ── Regional ──────────────────────────────────────────────────────────────
+  "California Sentiment",
+  "New York Sentiment",
+  "Florida Sentiment",
+  "Texas Sentiment",
+  "China Sentiment",
+  "Germany Sentiment",
+  "United States Sentiment",
 ]);
 
 interface SearchPageProps {

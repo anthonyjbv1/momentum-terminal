@@ -792,8 +792,8 @@ interface ExtendedTickEntry extends UnifiedOracleLogEntry {
 
 // ─── Index Short Codes ────────────────────────────────────────────────────────
 const INDEX_SHORT_CODES: Record<string, string> = {
-  "Traditional Values Sentiment Index": "TRAD VALUES",
-  "Progressive Values Sentiment Index": "PROG VALUES",
+  "Traditionalism Sentiment Index": "TRAD VALUES",
+  "Progressivism Sentiment Index": "PROG VALUES",
   "Fed Policy Sentiment": "FED POLICY",
   "MENA Stability Sentiment": "MENA",
   "AI Regulation Risk Sentiment": "AI & TECH",
