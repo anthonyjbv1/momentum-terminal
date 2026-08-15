@@ -1962,14 +1962,15 @@ export default function OracleAuditModal({
   // simultaneously.
   //
   // If no tick entry exists yet, fall back gracefully to the live prop value.
+  const safeCurrentScore = Number.isFinite(currentScore) ? currentScore : 50.0;
   const { panelPreviousScore, panelTickImpact, panelCurrentScore } =
     useMemo(() => {
       const latestTick = unifiedEntries[0] ?? null;
       if (!latestTick) {
         return {
-          panelPreviousScore: currentScore,
+          panelPreviousScore: safeCurrentScore,
           panelTickImpact: 0,
-          panelCurrentScore: currentScore,
+          panelCurrentScore: safeCurrentScore,
         };
       }
       // Use the tick log entry's own previousScore field if populated by the
@@ -1984,7 +1985,7 @@ export default function OracleAuditModal({
         panelTickImpact: impact,
         panelCurrentScore: final,
       };
-    }, [unifiedEntries, currentScore]);
+    }, [unifiedEntries, safeCurrentScore]);
 
   // Confidence score — calculated from actually dispatched events for this index
   const confidence = useMemo(() => calculateConfidenceScore(events), [events]);

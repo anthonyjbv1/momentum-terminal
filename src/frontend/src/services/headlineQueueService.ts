@@ -113,6 +113,9 @@ let _isFetchingBLS = false;
 let _isFetchingBEA = false;
 let _isFetchingForbes = false;
 let _isFetchingSocialBlade = false;
+let _isFetchingYouTube = false;
+let _isFetchingTwitch = false;
+let _isFetchingSpotify = false;
 
 const LOW_WATER_MARK = 5;
 
@@ -1044,6 +1047,334 @@ async function fetchSocialBladeBatch(): Promise<void> {
     console.warn("[SocialBladeService] SocialBlade fetch failed.", err);
   } finally {
     _isFetchingSocialBlade = false;
+  }
+}
+
+// ─── YouTube Data API batch fetch ─────────────────────────────────────────────
+async function fetchYouTubeBatch(): Promise<void> {
+  if (_isFetchingYouTube) return;
+  _isFetchingYouTube = true;
+  try {
+    const apiKey = import.meta.env.VITE_YOUTUBE_API_KEY as string | undefined;
+    if (!apiKey) {
+      console.warn("[YouTubeService] VITE_YOUTUBE_API_KEY not set — skipping.");
+      return;
+    }
+
+    const YOUTUBE_CHANNEL_MAP: Record<string, { index: string; displayName: string }> = {
+      "UCX6OQ3DkcsbYNE6H8uQQuVA": { index: "MrBeast Sentiment",        displayName: "MrBeast" },
+      "UCJrUFbQTO1hHcMvCgFOFZgw": { index: "Kai Cenat Sentiment",       displayName: "Kai Cenat" },
+      "UCVGA3Ol3DTGKd3TJ9o5D4tg": { index: "Adin Ross Sentiment",       displayName: "Adin Ross" },
+      "UCVtL9JJqxmFTKXMBUplmXBQ": { index: "Kendrick Lamar Sentiment",  displayName: "Kendrick Lamar" },
+      "UCByOQJjav0CUDwxCk-wiGSA": { index: "Drake Sentiment",           displayName: "Drake" },
+      "UCSHZKyawb77ixDdsGog4iWA": { index: "Elon Musk Sentiment",       displayName: "Elon Musk" },
+    };
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_yt_subs") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const mapped: QueuedHeadline[] = [];
+    const channelIds = Object.keys(YOUTUBE_CHANNEL_MAP).join(",");
+
+    const resp = await fetch(
+      `https://www.googleapis.com/youtube/v3/channels?part=statistics&id=${channelIds}&key=${apiKey}`,
+    );
+    if (!resp.ok) {
+      console.warn(`[YouTubeService] API returned ${resp.status}`);
+      return;
+    }
+
+    const data = await resp.json() as {
+      items?: Array<{
+        id: string;
+        statistics: { subscriberCount: string; viewCount: string; videoCount: string };
+      }>;
+    };
+
+    for (const item of data.items ?? []) {
+      const meta = YOUTUBE_CHANNEL_MAP[item.id];
+      if (!meta) continue;
+      const subs = parseInt(item.statistics.subscriberCount ?? "0", 10);
+      const views = parseInt(item.statistics.viewCount ?? "0", 10);
+      const videos = parseInt(item.statistics.videoCount ?? "0", 10);
+      if (!subs) continue;
+
+      // Headline 1 — always: snapshot stats
+      const statsHeadline: QueuedHeadline = {
+        text: `${meta.displayName} YouTube channel: ${subs.toLocaleString()} subscribers, ${views.toLocaleString()} total views, ${videos.toLocaleString()} videos published`,
+        sourceTier: 2,
+        source: "youtube",
+        forcedIndex: meta.index,
+
+      };
+      const block1 = shouldBlockHeadline(statsHeadline.text);
+      if (block1) {
+        blockedHeadlines.push({ text: statsHeadline.text, reason: block1, blockedAt: Date.now() });
+      } else {
+        mapped.push(statsHeadline);
+        _queue.push(statsHeadline);
+      }
+
+      // Headline 2 — conditional: subscriber growth
+      const prev = stored[item.id];
+      stored[item.id] = subs;
+      if (prev !== undefined && subs > prev) {
+        const growthHeadline: QueuedHeadline = {
+          text: `${meta.displayName} YouTube subscribers grew to ${subs.toLocaleString()} — positive growth signal`,
+          sourceTier: 2,
+          source: "youtube",
+          forcedIndex: meta.index,
+  
+        };
+        const block2 = shouldBlockHeadline(growthHeadline.text);
+        if (block2) {
+          blockedHeadlines.push({ text: growthHeadline.text, reason: block2, blockedAt: Date.now() });
+        } else {
+          mapped.push(growthHeadline);
+          _queue.push(growthHeadline);
+        }
+      }
+    }
+
+    try { localStorage.setItem("mt_yt_subs", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[YouTubeService] Enqueued ${mapped.length} YouTube headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[YouTubeService] YouTube fetch failed.", err);
+  } finally {
+    _isFetchingYouTube = false;
+  }
+}
+
+// ─── Twitch API batch fetch ───────────────────────────────────────────────────
+// Note: /helix/channels/followers requires moderator:read:followers (OAuth user scope).
+// Client-credentials only supports stream status and user lookups — follower counts
+// fall back to Social Blade (already proxied). Live viewer counts work on app auth.
+let _twitchToken: string | null = null;
+let _twitchTokenExpiresAt = 0;
+
+async function getTwitchToken(): Promise<string | null> {
+  if (_twitchToken && Date.now() < _twitchTokenExpiresAt) return _twitchToken;
+  const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID as string | undefined;
+  const clientSecret = import.meta.env.VITE_TWITCH_CLIENT_SECRET as string | undefined;
+  if (!clientId || !clientSecret) return null;
+  try {
+    const resp = await fetch("/api/twitch-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, clientSecret }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { access_token: string };
+    _twitchToken = data.access_token;
+    // Cache for 55 minutes (Twitch app tokens are valid for 60 days, but refresh regularly)
+    _twitchTokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    return _twitchToken;
+  } catch { return null; }
+}
+
+async function fetchTwitchBatch(): Promise<void> {
+  if (_isFetchingTwitch) return;
+  _isFetchingTwitch = true;
+  try {
+    const clientId = import.meta.env.VITE_TWITCH_CLIENT_ID as string | undefined;
+    if (!clientId) {
+      console.warn("[TwitchService] VITE_TWITCH_CLIENT_ID not set — skipping.");
+      return;
+    }
+    const token = await getTwitchToken();
+    if (!token) {
+      console.warn("[TwitchService] Could not obtain Twitch token — skipping.");
+      return;
+    }
+
+    const TWITCH_CHANNEL_MAP: Record<string, string> = {
+      kaicenat: "Kai Cenat Sentiment",
+      adinross: "Adin Ross Sentiment",
+    };
+
+    const DISPLAY_NAMES: Record<string, string> = {
+      kaicenat: "Kai Cenat",
+      adinross: "Adin Ross",
+    };
+
+    const mapped: QueuedHeadline[] = [];
+
+    await Promise.all(
+      Object.entries(TWITCH_CHANNEL_MAP).map(async ([username, forcedIndex]) => {
+        try {
+          const streamResp = await fetch(
+            `/api/twitch-proxy?endpoint=${encodeURIComponent(`streams?user_login=${username}`)}&clientId=${clientId}&token=${encodeURIComponent(token)}`,
+          );
+          if (!streamResp.ok) return;
+          const streamData = await streamResp.json() as {
+            data: Array<{ viewer_count: number; game_name: string; title: string }>;
+          };
+
+          const displayName = DISPLAY_NAMES[username] ?? username;
+          const stream = streamData.data?.[0];
+
+          let headline: QueuedHeadline;
+          if (stream) {
+            headline = {
+              text: `${displayName} is live on Twitch streaming ${stream.game_name} with ${stream.viewer_count.toLocaleString()} concurrent viewers`,
+              sourceTier: 2,
+              source: "twitch",
+              forcedIndex,
+      
+            };
+          } else {
+            // Offline — use Social Blade follower count from existing stored value as a proxy
+            const sbStored: Record<string, number> = (() => {
+              try { return JSON.parse(localStorage.getItem("mt_socialblade_values") ?? "{}") as Record<string, number>; }
+              catch { return {}; }
+            })();
+            const followers = sbStored[username];
+            const followerText = followers ? ` — ${followers.toLocaleString()} total followers` : "";
+            headline = {
+              text: `${displayName} is currently offline on Twitch${followerText}`,
+              sourceTier: 2,
+              source: "twitch",
+              forcedIndex,
+      
+            };
+          }
+
+          const blockReason = shouldBlockHeadline(headline.text);
+          if (blockReason) {
+            blockedHeadlines.push({ text: headline.text, reason: blockReason, blockedAt: Date.now() });
+          } else {
+            mapped.push(headline);
+            _queue.push(headline);
+          }
+        } catch { /* skip this creator */ }
+      }),
+    );
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[TwitchService] Enqueued ${mapped.length} Twitch headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[TwitchService] Twitch fetch failed.", err);
+  } finally {
+    _isFetchingTwitch = false;
+  }
+}
+
+// ─── Spotify API batch fetch ──────────────────────────────────────────────────
+let _spotifyToken: string | null = null;
+let _spotifyTokenExpiresAt = 0;
+
+async function getSpotifyToken(): Promise<string | null> {
+  if (_spotifyToken && Date.now() < _spotifyTokenExpiresAt) return _spotifyToken;
+  const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID as string | undefined;
+  const clientSecret = import.meta.env.VITE_SPOTIFY_CLIENT_SECRET as string | undefined;
+  if (!clientId || !clientSecret) return null;
+  try {
+    const resp = await fetch("/api/spotify-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clientId, clientSecret }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json() as { access_token: string };
+    _spotifyToken = data.access_token;
+    _spotifyTokenExpiresAt = Date.now() + 55 * 60 * 1000;
+    return _spotifyToken;
+  } catch { return null; }
+}
+
+async function fetchSpotifyBatch(): Promise<void> {
+  if (_isFetchingSpotify) return;
+  _isFetchingSpotify = true;
+  try {
+    const token = await getSpotifyToken();
+    if (!token) {
+      console.warn("[SpotifyService] Could not obtain Spotify token — skipping.");
+      return;
+    }
+
+    const SPOTIFY_ARTIST_MAP: Record<string, { index: string; displayName: string }> = {
+      "3TVXtAsR1Inumwj472S9r4": { index: "Drake Sentiment",          displayName: "Drake" },
+      "2YZyLoL8N0Wb9xBt1NhZWg": { index: "Kendrick Lamar Sentiment", displayName: "Kendrick Lamar" },
+    };
+
+    const stored: Record<string, number> = (() => {
+      try { return JSON.parse(localStorage.getItem("mt_spotify_followers") ?? "{}") as Record<string, number>; }
+      catch { return {}; }
+    })();
+
+    const mapped: QueuedHeadline[] = [];
+
+    await Promise.all(
+      Object.entries(SPOTIFY_ARTIST_MAP).map(async ([artistId, meta]) => {
+        try {
+          const resp = await fetch(
+            `/api/spotify-proxy?endpoint=${encodeURIComponent(`artists/${artistId}`)}&token=${encodeURIComponent(token)}`,
+          );
+          if (!resp.ok) return;
+          const data = await resp.json() as {
+            followers?: { total: number };
+            popularity?: number;
+          };
+          const followers = data.followers?.total ?? 0;
+          const popularity = data.popularity ?? 0;
+          if (!followers) return;
+
+          const snapshotHeadline: QueuedHeadline = {
+            text: `${meta.displayName} Spotify: ${followers.toLocaleString()} followers, popularity score ${popularity}/100`,
+            sourceTier: 2,
+            source: "spotify",
+            forcedIndex: meta.index,
+    
+          };
+          const block1 = shouldBlockHeadline(snapshotHeadline.text);
+          if (block1) {
+            blockedHeadlines.push({ text: snapshotHeadline.text, reason: block1, blockedAt: Date.now() });
+          } else {
+            mapped.push(snapshotHeadline);
+            _queue.push(snapshotHeadline);
+          }
+
+          const prev = stored[artistId];
+          stored[artistId] = followers;
+          if (prev !== undefined && prev !== followers) {
+            const direction = followers > prev ? "grew" : "declined";
+            const changeHeadline: QueuedHeadline = {
+              text: `${meta.displayName} Spotify followers ${direction} to ${followers.toLocaleString()}`,
+              sourceTier: 2,
+              source: "spotify",
+              forcedIndex: meta.index,
+      
+            };
+            const block2 = shouldBlockHeadline(changeHeadline.text);
+            if (block2) {
+              blockedHeadlines.push({ text: changeHeadline.text, reason: block2, blockedAt: Date.now() });
+            } else {
+              mapped.push(changeHeadline);
+              _queue.push(changeHeadline);
+            }
+          }
+        } catch { /* skip this artist */ }
+      }),
+    );
+
+    try { localStorage.setItem("mt_spotify_followers", JSON.stringify(stored)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[SpotifyService] Enqueued ${mapped.length} Spotify headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[SpotifyService] Spotify fetch failed.", err);
+  } finally {
+    _isFetchingSpotify = false;
   }
 }
 
@@ -1996,6 +2327,18 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchSocialBladeBatch();
   const socialBladeIntervalId = setInterval(fetchSocialBladeBatch, 3_600_000);
 
+  // YouTube — subscriber counts + growth signals (60 min)
+  void fetchYouTubeBatch();
+  const youTubeIntervalId = setInterval(fetchYouTubeBatch, 3_600_000);
+
+  // Twitch — live stream status + viewer counts (15 min)
+  void fetchTwitchBatch();
+  const twitchIntervalId = setInterval(fetchTwitchBatch, 900_000);
+
+  // Spotify — artist follower counts + popularity scores (60 min)
+  void fetchSpotifyBatch();
+  const spotifyIntervalId = setInterval(fetchSpotifyBatch, 3_600_000);
+
   // OMDb film database — fire immediately, then every 12 hours
   void fetchOMDBBatch();
   const omdbIntervalId = setInterval(fetchOMDBBatch, OMDB_FETCH_INTERVAL_MS);
@@ -2013,6 +2356,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(beaIntervalId);
     clearInterval(forbesIntervalId);
     clearInterval(socialBladeIntervalId);
+    clearInterval(youTubeIntervalId);
+    clearInterval(twitchIntervalId);
+    clearInterval(spotifyIntervalId);
     _initialized = false;
   };
 }
@@ -2059,7 +2405,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch(), fetchYouTubeBatch(), fetchTwitchBatch(), fetchSpotifyBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {

@@ -39,7 +39,7 @@ export const SOURCE_TIER_REGISTRY: Record<SourceTier, TierDefinition> = {
   },
   2: {
     tier: 2,
-    examples: ["WSJ", "FT", "CNBC"],
+    examples: ["WSJ", "FT", "CNBC", "youtube", "twitch", "spotify", "socialblade", "odds_api"],
     confidenceWeight: 0.8,
     impactMultiplier: 1.0,
     rawScoreBase: 80,

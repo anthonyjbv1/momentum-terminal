@@ -580,6 +580,8 @@ export function runOraclePipelineForAll(
   const finalScores = new Map<string, number>();
   const tickEntries: UnifiedOracleLogEntry[] = [];
 
+  const DEBUG_INDICES = new Set(["Progressivism Sentiment", "Traditionalism Sentiment", "Masculism Sentiment", "Feminism Sentiment", "NASCAR Sentiment"]);
+
   for (const indexName of ALL_INDICES) {
     const rawScore = rawOracleScores[indexName];
     if (rawScore === undefined) {
@@ -587,6 +589,9 @@ export function runOraclePipelineForAll(
         `[OraclePipeline] rawOracleScore is undefined for "${indexName}" — skipping this index for this tick. Check seeding logic.`,
       );
       continue;
+    }
+    if (DEBUG_INDICES.has(indexName)) {
+      console.debug(`[OraclePipeline][DEBUG] ${indexName}: rawScore=${rawScore}, isFinite=${Number.isFinite(rawScore)}`);
     }
 
     // Stream 2 social signal: present if this index received a social-tier headline this tick
@@ -611,6 +616,11 @@ export function runOraclePipelineForAll(
       nowMs,
       hasSocialSignal,
     );
+
+    if (!Number.isFinite(entry.finalScore)) {
+      console.warn(`[OraclePipeline] finalScore is NaN/Inf for "${indexName}" (rawScore=${rawScore}) — entry dropped from log. Pipeline math produced invalid result.`);
+      continue;
+    }
 
     // Update decay state so next tick's deltaHours is correct
     updateDecayState(indexName, entry.finalScore);

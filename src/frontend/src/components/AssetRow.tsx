@@ -928,7 +928,7 @@ function AssetRowInner({
                     color: isPriceFlashing ? "oklch(0.72 0.18 145)" : undefined,
                   }}
                 >
-                  {asset.baseScore.toFixed(1)}
+                  {(Number.isFinite(asset.baseScore) ? asset.baseScore : 50).toFixed(1)}
                 </p>
               </div>
 
@@ -950,7 +950,7 @@ function AssetRowInner({
                         : undefined,
                     }}
                   >
-                    {asset.buyPrice.toFixed(2)}
+                    {(Number.isFinite(asset.buyPrice) ? asset.buyPrice : 50).toFixed(2)}
                   </p>
                   <p
                     className="font-mono text-[10px] mt-0.5 text-muted-foreground"

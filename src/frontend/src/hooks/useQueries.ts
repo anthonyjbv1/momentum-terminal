@@ -175,7 +175,7 @@ export function useAssetPrices() {
             const oracleScore = finalScores.get(indexName);
 
             const resolvedBase =
-              oracleScore !== undefined && oracleScore > 0
+              oracleScore !== undefined && Number.isFinite(oracleScore) && oracleScore > 0
                 ? oracleScore
                 : fallback.baseScore > 0
                   ? fallback.baseScore

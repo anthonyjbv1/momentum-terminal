@@ -105,6 +105,10 @@ export function applyDecay(
  * Called after each Oracle tick writes a confirmed new score to the state map.
  */
 export function updateDecayState(indexName: string, score: number): void {
+  if (!Number.isFinite(score)) {
+    console.warn(`[DecayEngine] Refusing to store NaN/Inf decay state for "${indexName}" (score=${score}). Keeping previous state.`);
+    return;
+  }
   decayStateMap.set(indexName, {
     previousScore: score,
     lastUpdatedMs: Date.now(),

@@ -239,7 +239,8 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
             const historyMap = new Map<string, number[]>();
             for (const [indexName, scores] of Object.entries(parsed)) {
               if (Array.isArray(scores)) {
-                historyMap.set(indexName, scores.slice(-720));
+                const clean = (scores as number[]).filter(Number.isFinite);
+                historyMap.set(indexName, clean.slice(-720));
               }
             }
             if (historyMap.size > 0) {
@@ -322,12 +323,17 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
           for (const [key, arr] of historyMap.entries()) {
             historyMap.set(key, arr.slice(-720));
           }
-          scoreHistoryRef.current = historyMap;
+          // Merge canister history into existing ref — don't replace, because
+          // new-named indices (not stored in the canister yet) already have
+          // any localStorage-restored history and we must not lose it.
+          for (const [k, v] of historyMap.entries()) {
+            scoreHistoryRef.current.set(k, v);
+          }
           // Push hydrated history into React state so consuming components
           // receive the full 720-entry history immediately on mount.
           setTickState((prev) => ({
             ...prev,
-            scoreHistoryMap: historyMap,
+            scoreHistoryMap: new Map([...prev.scoreHistoryMap, ...historyMap]),
           }));
           console.info(
             `[OracleTick] Hydrated tick history from canister (${isAuthenticated ? "per-user" : "global"}): ${latestTicks.length} ticks across ${historyMap.size} indexes.`,
@@ -347,7 +353,11 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
           }
           setTickState((prev) => ({
             ...prev,
-            finalScores: scoreMap,
+            // Merge canister scores INTO prev — canister may have old index names
+            // (pre-rename). Putting prev last ensures new-named entries (already
+            // seeded from FALLBACK_ASSET_DEFS on mount) take precedence over any
+            // stale canister entry for the same logical index.
+            finalScores: new Map([...scoreMap, ...prev.finalScores]),
             scoreHistoryMap: scoreHistoryRef.current,
           }));
           console.info(
@@ -438,7 +448,11 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       // contributions as they age. Clamped to Math.max(0, ...) so the score
       // can never be pushed below 0 by decay alone.
       const adjustment = decayAdjustments[indexName] ?? 0;
-      rawOracleScores[indexName] = Math.max(0, baseScore + adjustment);
+      const rawVal = Math.max(0, baseScore + adjustment);
+      if (["Progressivism Sentiment","Traditionalism Sentiment","Masculism Sentiment","Feminism Sentiment","NASCAR Sentiment"].includes(indexName)) {
+        console.debug(`[OracleTick][DEBUG] ${indexName}: carryFwd=${oracleCarryForward}, cachedBase=${cachedBase}, fallbackBase=${fallbackBase}, baseScore=${baseScore}, rawVal=${rawVal}`);
+      }
+      rawOracleScores[indexName] = rawVal;
     }
 
     const cachedHoldings =
@@ -1321,6 +1335,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     // Populate per-index score history after writing the new finalScores.
     // scoreHistoryRef is a module-level ref — no re-render triggered.
     for (const [indexName, score] of output.finalScores.entries()) {
+      if (!Number.isFinite(score)) continue;
       const existing = scoreHistoryRef.current.get(indexName) ?? [];
       scoreHistoryRef.current.set(indexName, [...existing, score].slice(-720));
     }
