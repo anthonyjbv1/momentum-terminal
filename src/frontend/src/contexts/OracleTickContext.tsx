@@ -18,7 +18,7 @@ import {
   useState,
 } from "react";
 import type { ReactNode } from "react";
-import { createActorWithConfig } from "../config";
+
 import { FALLBACK_ASSET_DEFS } from "../data/fallbackAssets";
 import { SHOW_SCORING_METHOD } from "../lib/oracle/debugConfig";
 import type { IndexName } from "../lib/oracle/entityValidator";
@@ -148,10 +148,6 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     tickStateRef.current = tickState;
   }, [tickState]);
 
-  // Ref that makes the initialized actor available inside runTick without
-  // requiring a redundant createActorWithConfig() call on the hot path.
-  const actorRef = useRef<ActorWithFedBLS | null>(null);
-
   // Per-index score history — last 15 finalScores per index, keyed by index name.
   // Stored in a ref so it never triggers re-renders; exposed via the hook as a
   // stable Map<string, number[]> reference that SentimentArc reads on each render.
@@ -171,209 +167,76 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
   const tickIdRef = useRef<number>(0);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const actor = await createActorWithConfig();
-        const persisted = await actor.getPersistedHeadlines();
-
-        if (persisted.length === 0) {
-          console.info(
-            "[OracleTick] No persisted headlines in canister yet — feed will populate after first tick.",
-          );
-          return;
-        }
-
-        const sorted = [...persisted].sort(
-          (a, b) => Number(a.timestamp) - Number(b.timestamp),
-        );
-
-        for (const ph of sorted) {
-          const tier = Math.max(1, Math.min(5, Number(ph.sourceTier))) as
-            | 1
-            | 2
-            | 3
-            | 4
-            | 5;
-          const sourceName = getSourceNameForTier(tier);
-          recordDispatchedHeadline({
-            headline: ph.text,
-            sentimentScore: ph.impact,
-            category: NewsEventCategory.Washington,
-            relatedIndex: ph.targetIndex,
-            source: sourceName,
-            sourceTier: tier,
-            rationale: `[Canister History · ${
-              ph.impact > 0
-                ? "positive"
-                : ph.impact < 0
-                  ? "negative"
-                  : "neutral"
-            } @ ${(ph.confidence * 100).toFixed(
-              0,
-            )}%] Impact: ${ph.impact >= 0 ? "+" : ""}${ph.impact.toFixed(2)}`,
-          });
-        }
-
-        console.info(
-          `[OracleTick] Seeded ${sorted.length} persisted headlines from canister on mount.`,
-        );
-      } catch (err) {
-        console.warn(
-          "[OracleTick] Failed to fetch persisted headlines on mount — feed will populate after first tick.",
-          err,
-        );
-      }
-
-      // ── Fast initial render from localStorage backup ────────────────────────
-      // Load score history from localStorage BEFORE calling the canister so
-      // the UI has data immediately on mount. The canister call below will
-      // merge/update with the latest authoritative data.
-      let localHistoryRestored = false;
-      try {
-        const rawHistory = localStorage.getItem(
-          "momentum_oracle_score_history_v1",
-        );
-        if (rawHistory) {
-          const parsed = JSON.parse(rawHistory);
-          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-            const historyMap = new Map<string, number[]>();
-            for (const [indexName, scores] of Object.entries(parsed)) {
-              if (Array.isArray(scores)) {
-                const clean = (scores as number[]).filter(Number.isFinite);
-                historyMap.set(indexName, clean.slice(-720));
-              }
-            }
-            if (historyMap.size > 0) {
-              scoreHistoryRef.current = historyMap;
-              setTickState((prev) => ({
-                ...prev,
-                scoreHistoryMap: historyMap,
-              }));
-              localHistoryRestored = true;
-              console.info(
-                `[OracleTick] Restored score history from localStorage: ${historyMap.size} indexes.`,
-              );
-            }
+    // ── Seed dispatched headline log from localStorage ────────────────────────
+    try {
+      const raw = localStorage.getItem("mt_persisted_headlines");
+      if (raw) {
+        const parsed = JSON.parse(raw) as Array<{
+          text: string;
+          targetIndex: string;
+          impact: number;
+          sentimentLabel: string;
+          confidence: number;
+          sourceTier: number;
+          timestamp: number;
+        }>;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sorted = [...parsed].sort((a, b) => a.timestamp - b.timestamp);
+          for (const ph of sorted) {
+            const tier = Math.max(1, Math.min(5, Number(ph.sourceTier))) as 1 | 2 | 3 | 4 | 5;
+            const sourceName = getSourceNameForTier(tier);
+            recordDispatchedHeadline({
+              headline: ph.text,
+              sentimentScore: ph.impact,
+              category: NewsEventCategory.Washington,
+              relatedIndex: ph.targetIndex,
+              source: sourceName,
+              sourceTier: tier,
+              rationale: `[localStorage History · ${
+                ph.impact > 0 ? "positive" : ph.impact < 0 ? "negative" : "neutral"
+              } @ ${(ph.confidence * 100).toFixed(0)}%] Impact: ${ph.impact >= 0 ? "+" : ""}${ph.impact.toFixed(2)}`,
+            });
           }
+          console.info(`[OracleTick] Seeded ${sorted.length} persisted headlines from localStorage on mount.`);
         }
-      } catch {
-        // localStorage read failed — continue to canister hydration
+      } else {
+        console.info("[OracleTick] No persisted headlines in localStorage — feed will populate after first tick.");
       }
+    } catch (err) {
+      console.warn("[OracleTick] Failed to parse persisted headlines from localStorage.", err);
+    }
 
-      // Hydrate tick history and scores from canister stable memory.
-      // Uses optional chaining so this is silently skipped if the backend
-      // methods are not yet available. Falls back to localStorage/defaults
-      // on any error so the app always boots correctly.
-      try {
-        const actor = await createActorWithConfig();
-        const actorAny = actor as unknown as Record<
-          string,
-          (...args: unknown[]) => Promise<unknown>
-        >;
-
-        // Use per-user tick history when authenticated, global history otherwise.
-        const tickQuery = isAuthenticated
-          ? ((actorAny.getUserTickHistory?.(720) as
-              | Promise<
-                  Array<{
-                    tickIndex: number;
-                    timestamp: number;
-                    scores: Array<[string, number]>;
-                    gsiValue: number;
-                    topHeadline: string | null;
-                  }>
-                >
-              | undefined) ?? Promise.resolve([]))
-          : ((actorAny.getLatestTicks?.(720) as
-              | Promise<
-                  Array<{
-                    tickIndex: number;
-                    timestamp: number;
-                    scores: Array<[string, number]>;
-                    gsiValue: number;
-                    topHeadline: string | null;
-                  }>
-                >
-              | undefined) ?? Promise.resolve([]));
-
-        const scoreQuery = isAuthenticated
-          ? ((actorAny.getUserLatestScores?.() as
-              | Promise<Array<[string, number]>>
-              | undefined) ?? Promise.resolve([]))
-          : ((actorAny.getLatestScores?.() as
-              | Promise<Array<[string, number]>>
-              | undefined) ?? Promise.resolve([]));
-
-        const [latestTicks, latestScores] = await Promise.all([
-          tickQuery,
-          scoreQuery,
-        ]);
-
-        if (latestTicks && latestTicks.length > 0) {
-          // Hydrate scoreHistoryRef with canister tick history (cap each index
-          // to the last 720 scores, matching the 720-tick history window).
+    // ── Fast initial render from localStorage backup ────────────────────────
+    let localHistoryRestored = false;
+    try {
+      const rawHistory = localStorage.getItem("momentum_oracle_score_history_v1");
+      if (rawHistory) {
+        const parsed = JSON.parse(rawHistory);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           const historyMap = new Map<string, number[]>();
-          for (const tick of latestTicks) {
-            for (const [indexName, score] of tick.scores) {
-              const existing = historyMap.get(indexName) ?? [];
-              existing.push(score);
-              historyMap.set(indexName, existing);
+          for (const [indexName, scores] of Object.entries(parsed)) {
+            if (Array.isArray(scores)) {
+              const clean = (scores as number[]).filter(Number.isFinite);
+              historyMap.set(indexName, clean.slice(-720));
             }
           }
-          for (const [key, arr] of historyMap.entries()) {
-            historyMap.set(key, arr.slice(-720));
+          if (historyMap.size > 0) {
+            scoreHistoryRef.current = historyMap;
+            setTickState((prev) => ({
+              ...prev,
+              scoreHistoryMap: historyMap,
+            }));
+            localHistoryRestored = true;
+            console.info(`[OracleTick] Restored score history from localStorage: ${historyMap.size} indexes.`);
           }
-          // Merge canister history into existing ref — don't replace, because
-          // new-named indices (not stored in the canister yet) already have
-          // any localStorage-restored history and we must not lose it.
-          for (const [k, v] of historyMap.entries()) {
-            scoreHistoryRef.current.set(k, v);
-          }
-          // Push hydrated history into React state so consuming components
-          // receive the full 720-entry history immediately on mount.
-          setTickState((prev) => ({
-            ...prev,
-            scoreHistoryMap: new Map([...prev.scoreHistoryMap, ...historyMap]),
-          }));
-          console.info(
-            `[OracleTick] Hydrated tick history from canister (${isAuthenticated ? "per-user" : "global"}): ${latestTicks.length} ticks across ${historyMap.size} indexes.`,
-          );
-        } else if (localHistoryRestored) {
-          console.info(
-            "[OracleTick] Canister returned no ticks — keeping localStorage backup.",
-          );
-        }
-
-        if (latestScores && latestScores.length > 0) {
-          // Bootstrap finalScores from canister instead of localStorage so all
-          // devices start from the same authoritative score state.
-          const scoreMap = new Map<string, number>();
-          for (const [indexName, score] of latestScores) {
-            scoreMap.set(indexName, score);
-          }
-          setTickState((prev) => ({
-            ...prev,
-            // Merge canister scores INTO prev — canister may have old index names
-            // (pre-rename). Putting prev last ensures new-named entries (already
-            // seeded from FALLBACK_ASSET_DEFS on mount) take precedence over any
-            // stale canister entry for the same logical index.
-            finalScores: new Map([...scoreMap, ...prev.finalScores]),
-            scoreHistoryMap: scoreHistoryRef.current,
-          }));
-          console.info(
-            `[OracleTick] Bootstrapped ${scoreMap.size} index scores from canister on mount.`,
-          );
-        }
-      } catch {
-        // Canister hydration failed — fall back to localStorage/defaults
-        // (existing behavior in the score bootstrap effect below).
-        if (localHistoryRestored) {
-          console.info(
-            "[OracleTick] Canister unreachable — using localStorage backup for score history.",
-          );
         }
       }
-    })();
+    } catch {
+      // localStorage read failed — continue
+    }
+
+    console.info("[OracleTick] Canister hydration skipped — using localStorage.");
+    void localHistoryRestored; // suppress unused warning
   }, [isAuthenticated]);
 
   const runTick = useCallback(async () => {
@@ -505,6 +368,24 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
 
     const scoredHeadlines = await Promise.all(
       rawHeadlines.map(async (queued) => {
+        // Skip FinBERT for structured data sources (Forbes/YouTube/Twitch/Spotify)
+        // that have a forcedIndex and sourceLabelOverride — they don't need Gradio classification.
+        if (queued.forcedIndex && queued.sourceLabelOverride) {
+          const label =
+            typeof queued.sentimentScore === "number"
+              ? queued.sentimentScore > 0
+                ? "positive"
+                : queued.sentimentScore < 0
+                  ? "negative"
+                  : "positive"
+              : "positive";
+          return {
+            ...queued,
+            label: label as "positive" | "negative" | "neutral",
+            confidence: 0.75,
+            scoringMethod: "neutral_fallback" as const,
+          };
+        }
         const sentiment = await analyzeSentiment(
           queued.text,
           queued.sentimentScore,
@@ -1087,24 +968,24 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
 
         lastHeadlineThisTick = uiEntry;
 
-        const nowNs = BigInt(Date.now()) * BigInt(1_000_000);
-        createActorWithConfig()
-          .then((actor) =>
-            actor.storeProcessedHeadline({
-              text: scored.text,
-              targetIndex,
-              impact: finalImpact,
-              sentimentLabel: scored.label,
-              confidence: scored.confidence,
-              sourceTier: BigInt(scored.sourceTier),
-              timestamp: nowNs,
-              sourceChannel: "institutional",
-            }),
-          )
-          .catch(() => {});
+        // Persist processed headline to localStorage
+        try {
+          const stored = JSON.parse(localStorage.getItem("mt_persisted_headlines") ?? "[]") as Array<unknown>;
+          stored.push({
+            text: scored.text,
+            targetIndex,
+            impact: finalImpact,
+            sentimentLabel: scored.label,
+            confidence: scored.confidence,
+            sourceTier: scored.sourceTier,
+            timestamp: Date.now(),
+          });
+          const capped = stored.slice(-200);
+          localStorage.setItem("mt_persisted_headlines", JSON.stringify(capped));
+        } catch { /* ignore */ }
 
         const effectiveImpact = finalImpact === 0 ? 0 : finalImpact;
-        if (effectiveImpact === 0) {
+        if (effectiveImpact === 0 && !scored.sourceLabelOverride) {
           console.debug(
             `[OracleTick] Neutral headline skipped: "${scored.text.slice(0, 60)}..."`,
           );
@@ -1221,24 +1102,14 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
         // silent fail — never block tick execution
       });
 
-    // Fetch platform-wide cumulative volume per index from canister (fire-and-update,
-    // non-blocking). Runs on every tick so the Vol. label under the sentiment arc
-    // reflects the true platform cumulative volume across ALL completed transactions.
-    createActorWithConfig()
-      .then((actor) => actor.getTotalVolumeByIndex())
-      .then((result) => {
-        platformVolumeRef.current = Object.fromEntries(
-          (result as Array<[string, number]>).map(([name, vol]) => [
-            name,
-            Number(vol),
-          ]),
-        );
-      })
-      .catch((error) => {
-        // Surface the error so a failing volume fetch is diagnosable instead of
-        // silently leaving the Vol. display at $0. Never block tick execution.
-        console.error("Failed to fetch total volume by index:", error);
-      });
+    // Load platform volume per index from localStorage.
+    try {
+      const raw = localStorage.getItem("mt_volume_by_index");
+      if (raw) {
+        const parsed = JSON.parse(raw) as Record<string, number>;
+        platformVolumeRef.current = parsed;
+      }
+    } catch { /* ignore */ }
 
     const finalScoreRecord: Record<string, number> = {};
     for (const [name, score] of output.finalScores.entries()) {
@@ -1307,31 +1178,6 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       // localStorage write failed — silently continue
     }
 
-    // Persist tick to canister stable memory (fire-and-forget, non-blocking).
-    // Uses optional chaining so the call is silently skipped if the backend
-    // methods are not yet available (e.g. before bindgen regenerates types).
-    if (actorRef.current) {
-      const tickRecord = {
-        tickIndex: tickIdRef.current,
-        timestamp: Date.now(),
-        scores: Array.from(output.finalScores.entries()).map(
-          ([k, v]) => [k, v] as [string, number],
-        ),
-        gsiValue: newGSI ?? 0,
-        topHeadline: lastHeadlineThisTick?.headline ?? null,
-      };
-      void (
-        actorRef.current as unknown as Record<
-          string,
-          (...args: unknown[]) => Promise<unknown>
-        >
-      )
-        .persistTick?.(tickRecord)
-        ?.catch(() => {
-          // Fire-and-forget — canister write failures do not affect tick cycle
-        });
-    }
-
     // Populate per-index score history after writing the new finalScores.
     // scoreHistoryRef is a module-level ref — no re-render triggered.
     for (const [indexName, score] of output.finalScores.entries()) {
@@ -1383,23 +1229,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cleanupQueue: (() => void) | null = null;
 
-    // Initialize the actor once and pass it directly into initHeadlineQueue so
-    // fetchRedditBatch() uses the already-live actor instead of calling
-    // createActorWithConfig() independently (which was hanging on fetch("env.json")).
-    createActorWithConfig()
-      .then((actor) => {
-        actorRef.current = actor as ActorWithFedBLS;
-        cleanupQueue = initHeadlineQueue(actor as ActorWithFedBLS);
-      })
-      .catch((err) => {
-        console.warn(
-          "[OracleTick] Failed to initialize actor for headline queue — Reddit fetch will be skipped.",
-          err,
-        );
-        // Pass a null actor — fetchRedditBatch will still be guarded by _isFetchingSocial
-        // and other fetches use their own createActorWithConfig() calls
-        cleanupQueue = initHeadlineQueue(null as unknown as ActorWithFedBLS);
-      });
+    cleanupQueue = initHeadlineQueue(null as unknown as ActorWithFedBLS);
 
     const initialTimeout = setTimeout(() => {
       runTick();

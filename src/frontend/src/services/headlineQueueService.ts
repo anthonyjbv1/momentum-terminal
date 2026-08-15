@@ -29,6 +29,8 @@ export interface QueuedHeadline {
   engagementScore?: number;
   /** Reddit comment count (data.num_comments). Optional — only present for Reddit-sourced headlines. */
   commentCount?: number;
+  /** When true, neutral impact suppression is skipped — headline always dispatches. Used for structured data sources (Forbes, YouTube, Twitch, Spotify). */
+  sourceLabelOverride?: boolean;
 }
 
 // ─── In-memory queue ─────────────────────────────────────────────────────────
@@ -921,6 +923,7 @@ async function fetchForbesBatch(): Promise<void> {
         sourceTier: 1,
         source: "forbes",
         forcedIndex,
+        sourceLabelOverride: true,
       };
       const blockReason1 = shouldBlockHeadline(rankHeadline.text);
       if (blockReason1) {
@@ -943,6 +946,7 @@ async function fetchForbesBatch(): Promise<void> {
             sourceTier: 1,
             source: "forbes",
             forcedIndex,
+            sourceLabelOverride: true,
           };
           const blockReason2 = shouldBlockHeadline(changeHeadline.text);
           if (blockReason2) {
@@ -1107,7 +1111,7 @@ async function fetchYouTubeBatch(): Promise<void> {
         sourceTier: 2,
         source: "youtube",
         forcedIndex: meta.index,
-
+        sourceLabelOverride: true,
       };
       const block1 = shouldBlockHeadline(statsHeadline.text);
       if (block1) {
@@ -1126,7 +1130,7 @@ async function fetchYouTubeBatch(): Promise<void> {
           sourceTier: 2,
           source: "youtube",
           forcedIndex: meta.index,
-  
+          sourceLabelOverride: true,
         };
         const block2 = shouldBlockHeadline(growthHeadline.text);
         if (block2) {
@@ -1226,7 +1230,7 @@ async function fetchTwitchBatch(): Promise<void> {
               sourceTier: 2,
               source: "twitch",
               forcedIndex,
-      
+              sourceLabelOverride: true,
             };
           } else {
             // Offline — use Social Blade follower count from existing stored value as a proxy
@@ -1241,7 +1245,7 @@ async function fetchTwitchBatch(): Promise<void> {
               sourceTier: 2,
               source: "twitch",
               forcedIndex,
-      
+              sourceLabelOverride: true,
             };
           }
 
@@ -1332,7 +1336,7 @@ async function fetchSpotifyBatch(): Promise<void> {
             sourceTier: 2,
             source: "spotify",
             forcedIndex: meta.index,
-    
+            sourceLabelOverride: true,
           };
           const block1 = shouldBlockHeadline(snapshotHeadline.text);
           if (block1) {
@@ -1351,7 +1355,7 @@ async function fetchSpotifyBatch(): Promise<void> {
               sourceTier: 2,
               source: "spotify",
               forcedIndex: meta.index,
-      
+              sourceLabelOverride: true,
             };
             const block2 = shouldBlockHeadline(changeHeadline.text);
             if (block2) {

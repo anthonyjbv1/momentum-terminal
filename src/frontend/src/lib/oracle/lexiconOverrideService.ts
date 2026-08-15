@@ -2260,7 +2260,7 @@ export const LEXICON_OVERRIDES: LexiconOverride[] = [
     maxConfidence: 0.92,
   },
 
-  // Progressive Values — signals
+  // Progressivism — signals
   {
     patterns: ["ceo", "pay", "grew"],
     operator: "AND",
