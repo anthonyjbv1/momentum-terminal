@@ -1223,31 +1223,16 @@ async function fetchTwitchBatch(): Promise<void> {
           const displayName = DISPLAY_NAMES[username] ?? username;
           const stream = streamData.data?.[0];
 
-          let headline: QueuedHeadline;
-          if (stream) {
-            headline = {
-              text: `${displayName} is live on Twitch streaming ${stream.game_name} with ${stream.viewer_count.toLocaleString()} concurrent viewers`,
-              sourceTier: 2,
-              source: "twitch",
-              forcedIndex,
-              sourceLabelOverride: true,
-            };
-          } else {
-            // Offline — use Social Blade follower count from existing stored value as a proxy
-            const sbStored: Record<string, number> = (() => {
-              try { return JSON.parse(localStorage.getItem("mt_socialblade_values") ?? "{}") as Record<string, number>; }
-              catch { return {}; }
-            })();
-            const followers = sbStored[username];
-            const followerText = followers ? ` — ${followers.toLocaleString()} total followers` : "";
-            headline = {
-              text: `${displayName} is currently offline on Twitch${followerText}`,
-              sourceTier: 2,
-              source: "twitch",
-              forcedIndex,
-              sourceLabelOverride: true,
-            };
-          }
+          // Only generate a headline when the streamer is live — offline status is not a signal
+          if (!stream) return;
+
+          const headline: QueuedHeadline = {
+            text: `${displayName} is live on Twitch streaming ${stream.game_name} with ${stream.viewer_count.toLocaleString()} concurrent viewers`,
+            sourceTier: 2,
+            source: "twitch",
+            forcedIndex,
+            sourceLabelOverride: true,
+          };
 
           const blockReason = shouldBlockHeadline(headline.text);
           if (blockReason) {
