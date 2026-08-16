@@ -1346,11 +1346,12 @@ export function PortfolioHeader({
                 return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
               return d.toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
             };
-            // Thin to ≤400 points for performance
+            // Thin to ≤400 points for performance; strip zero/corrupt values first
             const thinned = (() => {
-              if (smoothedHistory.length <= 400) return smoothedHistory;
-              const step = Math.ceil(smoothedHistory.length / 400);
-              return smoothedHistory.filter((_, i) => i % step === 0 || i === smoothedHistory.length - 1);
+              const clean = smoothedHistory.filter((p) => p.value > 0);
+              if (clean.length <= 400) return clean;
+              const step = Math.ceil(clean.length / 400);
+              return clean.filter((_, i) => i % step === 0 || i === clean.length - 1);
             })();
 
             const TIME_TABS = ["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
@@ -1412,7 +1413,7 @@ export function PortfolioHeader({
                           strokeDasharray="3 3"
                         />
                         <YAxis
-                          domain={[(d: number) => Math.max(0, d * 0.998), (d: number) => d * 1.002]}
+                          domain={[(d: number) => d * 0.98, (d: number) => d * 1.02]}
                           hide
                         />
                         <Tooltip
