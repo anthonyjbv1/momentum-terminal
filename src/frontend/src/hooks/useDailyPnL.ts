@@ -154,10 +154,15 @@ export function useDailyPnL(
     liveRedeemPriceFnRef.current = liveRedeemPriceFn!;
   }
 
-  // Snapshot: write opening prices on first load of new calendar day (new mode only)
+  // Snapshot: write opening prices on first load of new calendar day (new mode only).
+  // Guard: don't write until at least one holding with units > 0 is present so we
+  // don't persist an empty {} snapshot before holdingsData has resolved.
   useEffect(() => {
     if (isLegacy) return;
     if (snapshotWrittenRef.current) return;
+
+    const hasLoadedHoldings = holdingsRef.current.some(([, h]) => h.units > 0);
+    if (!hasLoadedHoldings) return; // wait for the next render when data arrives
 
     const existing = loadTodayOpeningPrices();
     if (!existing) {
@@ -172,7 +177,7 @@ export function useDailyPnL(
     }
 
     snapshotWrittenRef.current = true;
-  }, [isLegacy]); // isLegacy is stable — won't cause re-runs
+  }); // no dep array — run every render until snapshotWrittenRef is true
 
   // Add new holdings to snapshot as they are created (new mode only)
   useEffect(() => {

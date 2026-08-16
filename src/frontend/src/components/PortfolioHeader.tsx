@@ -805,6 +805,7 @@ export function PortfolioHeader({
   const { finalScores, platformAllocatedByIndex, tickCount } = useOracleTick();
 
   const [isDepositOpen, setIsDepositOpen] = useState(false);
+  const shortHoldingsTotalRef = useRef(0);
   const [shortHoldingsTotal, setShortHoldingsTotal] = useState(0);
   const [pnlToggle, setPnlToggle] = useState<PnLToggle>(() =>
     loadTogglePreference(userId),
@@ -849,30 +850,35 @@ export function PortfolioHeader({
     }
   }, [PORTFOLIO_HISTORY_KEY]);
 
-  // Portfolio history accumulator — push on each Oracle tick
+  // Portfolio history accumulator — push on each Oracle tick.
+  // Reads from refs (not closure-captured state) so the value is always
+  // current-tick rather than one render behind.
   useEffect(() => {
-    if (totalPortfolioValue <= 0) return;
+    const currentValue = cash + holdingsTotal + shortHoldingsTotalRef.current;
+    if (currentValue <= 0) return;
     const prev = portfolioHistoryRef.current;
     const last = prev[prev.length - 1];
     // Always record; skip only exact duplicates within the same minute
     const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
-    if (sameMinute && last.value === totalPortfolioValue) return;
-    const entry = { value: Math.round(totalPortfolioValue * 100) / 100, ts: Date.now() };
-    portfolioHistoryRef.current = [
-      ...portfolioHistoryRef.current,
-      entry,
-    ].slice(-525600); // up to 1Y at 1 tick/min
+    if (sameMinute && last.value === Math.round(currentValue * 100) / 100) return;
+    const entry = { value: Math.round(currentValue * 100) / 100, ts: Date.now() };
+    const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1 tick/min
+    portfolioHistoryRef.current = next;
     if (PORTFOLIO_HISTORY_KEY) {
       try {
-        localStorage.setItem(
-          PORTFOLIO_HISTORY_KEY,
-          JSON.stringify(portfolioHistoryRef.current),
-        );
+        localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
       } catch {
-        // quota exceeded — skip
+        // Quota exceeded — trim oldest quarter and retry once
+        try {
+          const trimmed = next.slice(Math.floor(next.length / 4));
+          portfolioHistoryRef.current = trimmed;
+          localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(trimmed));
+        } catch {
+          // Still failing — history won't persist but in-memory ref stays intact
+        }
       }
     }
-  }, [tickCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tickCount, cash, holdingsTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isLoading = holdingsLoading || pricesLoading;
 
@@ -904,68 +910,78 @@ export function PortfolioHeader({
   );
 
   // ── Build redeemPriceMap ────────────────────────────────────────────────────
-  const redeemPriceMap: Record<string, number> = {};
-  if (assetPrices) {
-    for (const ap of assetPrices) {
-      const liveScore = finalScores.get(ap.name);
-      if (liveScore !== undefined) {
-        const spreadOffset = ap.buyPrice - ap.baseScore;
-        redeemPriceMap[ap.name] =
-          Math.round((liveScore - spreadOffset) * 100) / 100;
-      } else {
-        redeemPriceMap[ap.name] = ap.redeemPrice;
+  const redeemPriceMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (assetPrices) {
+      for (const ap of assetPrices) {
+        const liveScore = finalScores.get(ap.name);
+        if (liveScore !== undefined) {
+          const spreadOffset = ap.buyPrice - ap.baseScore;
+          map[ap.name] = Math.round((liveScore - spreadOffset) * 100) / 100;
+        } else {
+          map[ap.name] = ap.redeemPrice;
+        }
       }
     }
-  }
-  for (const [indexName, baseScore] of Object.entries(GOD_TIER_BASE_SCORES)) {
-    if (redeemPriceMap[indexName] !== undefined) continue;
-    const liveScore = finalScores.get(indexName);
-    if (liveScore !== undefined) {
-      redeemPriceMap[indexName] = Math.round((liveScore - SPREAD) * 100) / 100;
-    } else {
-      redeemPriceMap[indexName] = Math.round((baseScore - SPREAD) * 100) / 100;
+    for (const [indexName, baseScore] of Object.entries(GOD_TIER_BASE_SCORES)) {
+      if (map[indexName] !== undefined) continue;
+      const liveScore = finalScores.get(indexName);
+      if (liveScore !== undefined) {
+        map[indexName] = Math.round((liveScore - SPREAD) * 100) / 100;
+      } else {
+        map[indexName] = Math.round((baseScore - SPREAD) * 100) / 100;
+      }
     }
-  }
+    return map;
+  }, [assetPrices, finalScores]);
 
   // ── Active holdings (units > 0, God-Tier only) ──────────────────────────────
-  const GOD_TIER = new Set(FALLBACK_ASSET_DEFS.map((d) => d.name));
+  const GOD_TIER = useMemo(
+    () => new Set(FALLBACK_ASSET_DEFS.map((d) => d.name)),
+    [],
+  );
 
-  const activeHoldings: Array<{ name: string; holding: Holding }> = [];
-  let holdingsTotal = 0;
+  const { activeHoldings, holdingsTotal } = useMemo(() => {
+    const holdings: Array<{ name: string; holding: Holding }> = [];
+    let total = 0;
 
-  if (holdingsData) {
-    for (const [name, holding] of holdingsData) {
-      if (holding.units > 0) {
-        const rawScore =
-          finalScores.get(name) ??
-          GOD_TIER_BASE_SCORES[name] ??
-          redeemPriceMap[name] ??
-          0;
-        const livePrice = Math.max(0.01, rawScore - SPREAD);
-        holdingsTotal += (holding.units + holding.accruedYield) * livePrice;
-        activeHoldings.push({ name, holding });
+    if (holdingsData) {
+      for (const [name, holding] of holdingsData) {
+        if (holding.units > 0) {
+          const rawScore =
+            finalScores.get(name) ??
+            GOD_TIER_BASE_SCORES[name] ??
+            redeemPriceMap[name] ??
+            0;
+          const livePrice = Math.max(0.01, rawScore - SPREAD);
+          total += (holding.units + holding.accruedYield) * livePrice;
+          holdings.push({ name, holding });
+        }
       }
     }
-  }
 
-  // Include indexes where user has only a short (LOW) position — these have
-  // no long units so they're absent from holdingsData but must still render.
-  const longNames = new Set(activeHoldings.map((h) => h.name));
-  for (const [name] of shortPositions) {
-    if (!longNames.has(name)) {
-      const EMPTY_HOLDING: Holding = {
-        units: 0,
-        accruedYield: 0,
-        yieldStartTime: BigInt(0),
-        allocationTimestamp: BigInt(0),
-        assetName: name,
-      };
-      activeHoldings.push({ name, holding: EMPTY_HOLDING });
+    // Include indexes where user has only a short (LOW) position — these have
+    // no long units so they're absent from holdingsData but must still render.
+    const longNames = new Set(holdings.map((h) => h.name));
+    for (const [name] of shortPositions) {
+      if (!longNames.has(name)) {
+        const EMPTY_HOLDING: Holding = {
+          units: 0,
+          accruedYield: 0,
+          yieldStartTime: BigInt(0),
+          allocationTimestamp: BigInt(0),
+          assetName: name,
+        };
+        holdings.push({ name, holding: EMPTY_HOLDING });
+      }
     }
-  }
 
-  const filteredHoldings = activeHoldings.filter(({ name }) =>
-    GOD_TIER.has(name),
+    return { activeHoldings: holdings, holdingsTotal: total };
+  }, [holdingsData, finalScores, redeemPriceMap, shortPositions]);
+
+  const filteredHoldings = useMemo(
+    () => activeHoldings.filter(({ name }) => GOD_TIER.has(name)),
+    [activeHoldings, GOD_TIER],
   );
 
   // Holdings as Array<[string, Holding]> for useDailyPnL
@@ -974,7 +990,6 @@ export function PortfolioHeader({
       filteredHoldings.map(
         ({ name, holding }) => [name, holding] as [string, Holding],
       ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [filteredHoldings],
   );
 
@@ -1010,10 +1025,25 @@ export function PortfolioHeader({
   const cash = localCashBalance;
   const totalPortfolioValue = cash + holdingsTotal + shortHoldingsTotal;
 
-  // Filtered chart history based on selected time range (real wall-clock time)
-  // biome-ignore lint/correctness/useExhaustiveDependencies: tickCount triggers recompute on each tick
+  // Snapshot of portfolioHistoryRef as reactive state — updated after every
+  // history write so filteredHistory re-derives from fresh data each tick.
+  const [portfolioHistorySnapshot, setPortfolioHistorySnapshot] = useState<Array<{ value: number; ts: number }>>([]);
+
+  // Sync snapshot after each tick's accumulator write.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: tickCount drives the sync
+  useEffect(() => {
+    setPortfolioHistorySnapshot(portfolioHistoryRef.current.slice());
+  }, [tickCount]);
+
+  // Also sync once after the initial localStorage restore.
+  useEffect(() => {
+    if (portfolioHistoryRef.current.length > 0) {
+      setPortfolioHistorySnapshot(portfolioHistoryRef.current.slice());
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const filteredHistory = useMemo(() => {
-    const all = portfolioHistoryRef.current;
+    const all = portfolioHistorySnapshot;
     const now = Date.now();
     const MS = (h: number) => h * 60 * 60 * 1000;
     const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
@@ -1038,7 +1068,7 @@ export function PortfolioHeader({
       }
     }
     return sliceFor(timeRange); // best effort — fewer than 5 in all windows
-  }, [timeRange, tickCount]);
+  }, [timeRange, portfolioHistorySnapshot]);
 
   // If fewer than 10 real points, interpolate 2 synthetic points between each pair for a smoother line
   // biome-ignore lint/correctness/useExhaustiveDependencies: depends on filteredHistory
@@ -1067,7 +1097,10 @@ export function PortfolioHeader({
   );
 
   // Stable callback for the short MTM aggregator to report its running total.
+  // Write to ref immediately (no re-render) so the history accumulator sees the
+  // correct value on the same tick without a stale-closure lag.
   const handleShortTotal = useCallback((total: number) => {
+    shortHoldingsTotalRef.current = total;
     setShortHoldingsTotal((prev) => (prev === total ? prev : total));
   }, []);
 
@@ -1396,8 +1429,10 @@ export function PortfolioHeader({
                       <LineChart
                         data={thinned}
                         margin={{ top: 4, right: 2, bottom: 4, left: 2 }}
-                        onMouseMove={(e: { activePayload?: Array<{ value: number; payload: { ts: number } }> }) => {
-                          if (e?.activePayload?.[0]) setScrubbedValue(e.activePayload[0].value);
+                        onMouseMove={(e: { activePayload?: Array<{ value: number; payload: { ts: number; synthetic?: boolean } }> }) => {
+                          if (e?.activePayload?.[0] && !e.activePayload[0].payload.synthetic) {
+                            setScrubbedValue(e.activePayload[0].value);
+                          }
                         }}
                         onMouseLeave={() => setScrubbedValue(null)}
                       >
@@ -1420,7 +1455,8 @@ export function PortfolioHeader({
                           cursor={{ stroke: chartColor, strokeWidth: 1, strokeOpacity: 0.5 }}
                           content={({ active, payload }) => {
                             if (!active || !payload?.length) return null;
-                            const pt = payload[0].payload as { value: number; ts: number };
+                            const pt = payload[0].payload as { value: number; ts: number; synthetic?: boolean };
+                            if (pt.synthetic) return null;
                             return (
                               <div className="bg-black/90 border border-white/10 rounded px-2 py-1.5 text-[11px] font-mono text-white flex flex-col gap-0.5 shadow-lg">
                                 <span className="text-white/50 text-[10px]">{fmtTs(pt.ts)}</span>
