@@ -357,6 +357,9 @@ const SOURCE_LABEL_MAP: Record<string, string> = {
   social: "SOCIAL",
   youtube: "YOUTUBE",
   omdb: "ENTERTAINMENT DATA",
+  billboard: "BILLBOARD",
+  polymarket: "POLYMARKET",
+  kalshi: "KALSHI",
 };
 
 const getSourceLabel = (event: DisplayEvent): string => {

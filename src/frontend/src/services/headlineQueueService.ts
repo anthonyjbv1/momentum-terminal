@@ -118,6 +118,9 @@ let _isFetchingSocialBlade = false;
 let _isFetchingYouTube = false;
 let _isFetchingTwitch = false;
 let _isFetchingSpotify = false;
+let _isFetchingBillboard = false;
+let _isFetchingPolymarket = false;
+let _isFetchingKalshi = false;
 
 const LOW_WATER_MARK = 5;
 
@@ -1367,6 +1370,285 @@ async function fetchSpotifyBatch(): Promise<void> {
   }
 }
 
+// ─── Billboard Hot 100 batch fetch ───────────────────────────────────────────
+const BILLBOARD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const BILLBOARD_LS_KEY = "mt_billboard_last_fetch";
+
+async function fetchBillboardBatch(): Promise<void> {
+  if (_isFetchingBillboard) return;
+  const lastFetch = Number(localStorage.getItem(BILLBOARD_LS_KEY) ?? "0");
+  if (Date.now() - lastFetch < BILLBOARD_FETCH_INTERVAL_MS) return;
+  _isFetchingBillboard = true;
+  try {
+    const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
+    if (!key) { console.warn("[BillboardService] VITE_RAPIDAPI_KEY not set."); return; }
+    const resp = await fetch(
+      "https://billboard-api2.p.rapidapi.com/hot-100?date=2024-06-01&range=1-10",
+      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "billboard-api2.p.rapidapi.com" } },
+    );
+    if (!resp.ok) { console.warn("[BillboardService] API error", resp.status); return; }
+    const data = await resp.json() as { content?: Array<Record<string, unknown>> };
+    const entries = data.content ?? [];
+    const mapped: QueuedHeadline[] = [];
+
+    for (const entry of entries) {
+      const rank = Number(entry.rank ?? entry.Rank ?? 0);
+      const title = String(entry.title ?? entry.Title ?? "");
+      const artist = String(entry.artist ?? entry.Artist ?? "");
+      const lastWeekRaw = entry.last_week ?? entry["Last Week"] ?? entry.last_week_position;
+      const peakPos = Number(entry.peak_pos ?? entry["Peak Pos"] ?? 0);
+      const wksOnChart = Number(entry.wks_on_chart ?? entry["Wks on Chart"] ?? 0);
+      void peakPos;
+
+      const ARTIST_MAP: Array<{ match: string; index: string; displayName: string }> = [
+        { match: "drake",   index: "Drake Sentiment",          displayName: "Drake" },
+        { match: "kendrick", index: "Kendrick Lamar Sentiment", displayName: "Kendrick Lamar" },
+      ];
+
+      for (const am of ARTIST_MAP) {
+        if (!artist.toLowerCase().includes(am.match)) continue;
+
+        // 1. Chart position
+        const posLabel: "positive" | "neutral" | "negative" =
+          rank <= 5 ? "positive" : rank <= 20 ? "neutral" : "negative";
+        const posHeadline: QueuedHeadline = {
+          text: `${am.displayName} '${title}' is #${rank} on the Billboard Hot 100 this week`,
+          sourceTier: 2,
+          source: "billboard",
+          forcedIndex: am.index,
+          sourceLabelOverride: true,
+          sentimentScore: posLabel === "positive" ? 0.85 : posLabel === "negative" ? -0.85 : 0,
+        };
+        if (!shouldBlockHeadline(posHeadline.text)) { mapped.push(posHeadline); _queue.push(posHeadline); }
+
+        // 2. Week-over-week movement
+        const lastWeekNum = Number(lastWeekRaw);
+        if (lastWeekRaw !== null && lastWeekRaw !== undefined && lastWeekRaw !== "NEW" && !isNaN(lastWeekNum) && lastWeekNum !== 0) {
+          if (rank < lastWeekNum) {
+            const h: QueuedHeadline = { text: `${am.displayName} '${title}' climbs from #${lastWeekNum} to #${rank} on Billboard Hot 100`, sourceTier: 2, source: "billboard", forcedIndex: am.index, sourceLabelOverride: true, sentimentScore: 0.87 };
+            if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+          } else if (rank > lastWeekNum) {
+            const h: QueuedHeadline = { text: `${am.displayName} '${title}' falls from #${lastWeekNum} to #${rank} on Billboard Hot 100`, sourceTier: 2, source: "billboard", forcedIndex: am.index, sourceLabelOverride: true, sentimentScore: -0.87 };
+            if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+          }
+        }
+
+        // 3. Longevity
+        if (wksOnChart >= 10) {
+          const h: QueuedHeadline = { text: `${am.displayName} '${title}' spends ${wksOnChart} weeks on Billboard Hot 100`, sourceTier: 2, source: "billboard", forcedIndex: am.index, sourceLabelOverride: true, sentimentScore: 0.82 };
+          if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+        }
+
+        // 4. Debut
+        const isDebut = lastWeekRaw === "NEW" || lastWeekRaw === 0 || lastWeekRaw === null || lastWeekRaw === undefined;
+        if (isDebut) {
+          const debutLabel: "positive" | "neutral" = rank <= 10 ? "positive" : "neutral";
+          const h: QueuedHeadline = { text: `${am.displayName} '${title}' debuts at #${rank} on Billboard Hot 100`, sourceTier: 2, source: "billboard", forcedIndex: am.index, sourceLabelOverride: true, sentimentScore: debutLabel === "positive" ? 0.88 : 0 };
+          if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+        }
+      }
+    }
+
+    localStorage.setItem(BILLBOARD_LS_KEY, String(Date.now()));
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[BillboardService] Enqueued ${mapped.length} headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[BillboardService] Fetch failed.", err);
+  } finally {
+    _isFetchingBillboard = false;
+  }
+}
+
+// ─── Polymarket batch fetch ───────────────────────────────────────────────────
+const PREDICTION_MARKET_KEYWORD_MAP: Record<string, string[]> = {
+  "Fed Policy Sentiment": ["federal reserve", "fed rate", "fomc", "interest rate", "rate cut", "rate hike", "inflation", "cpi", "basis points", "monetary policy"],
+  "MENA Stability Sentiment": ["iran", "israel", "hormuz", "middle east", "saudi", "gaza", "ceasefire", "opec", "nuclear deal", "hezbollah"],
+  "AI Regulation Risk Sentiment": ["ai regulation", "artificial intelligence", "openai", "anthropic", "chatgpt", "ai safety", "ai bill", "ai act"],
+  "Traditionalism Sentiment": ["abortion", "second amendment", "religious freedom", "pro-life", "supreme court gun"],
+  "Progressivism Sentiment": ["lgbtq", "voting rights", "dei ", "reproductive rights", "transgender"],
+  "Obesity Drug Sentiment": ["ozempic", "glp-1", "wegovy", "semaglutide"],
+  "Elon Musk Sentiment": ["spacex", "tesla ceo", "elon musk", "grok", "starlink"],
+  "Kansas City Chiefs Sentiment": ["kansas city chiefs", "chiefs nfl", "super bowl chiefs"],
+  "Denver Broncos Sentiment": ["denver broncos", "broncos nfl"],
+  "F1 Constructor Sentiment": ["formula 1 champion", "f1 champion", "grand prix winner"],
+  "NASCAR Sentiment": ["nascar", "daytona 500", "cup series"],
+  "Drake Sentiment": ["drake rapper", "drizzy", "aubrey graham"],
+  "Kendrick Lamar Sentiment": ["kendrick lamar"],
+  "United States Sentiment": ["us president", "us recession", "us gdp", "us election 2026", "us midterm"],
+  "California Sentiment": ["california governor", "california election", "newsom"],
+  "Texas Sentiment": ["texas governor", "texas election", "abbott governor"],
+  "Germany Sentiment": ["germany election", "bundestag", "german chancellor", "merz"],
+  "China Sentiment": ["china taiwan", "china trade", "pboc", "xi jinping"],
+};
+
+function matchPredictionMarketIndex(question: string): string | null {
+  const lq = question.toLowerCase();
+  for (const [index, keywords] of Object.entries(PREDICTION_MARKET_KEYWORD_MAP)) {
+    if (keywords.some((kw) => lq.includes(kw))) return index;
+  }
+  return null;
+}
+
+async function fetchPolymarketBatch(): Promise<void> {
+  if (_isFetchingPolymarket) return;
+  _isFetchingPolymarket = true;
+  try {
+    const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
+    if (!key) { console.warn("[PolymarketService] VITE_RAPIDAPI_KEY not set."); return; }
+    const resp = await fetch(
+      "https://polymarket-api2.p.rapidapi.com/api/v1/markets/search?limit=50&active=true&closed=false",
+      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "polymarket-api2.p.rapidapi.com" } },
+    );
+    if (!resp.ok) { console.warn("[PolymarketService] API error", resp.status); return; }
+    const markets = await resp.json() as Array<{
+      question: string;
+      conditionId: string;
+      outcomePrices?: string[];
+      outcomes?: string[];
+      volume?: number;
+      active?: boolean;
+    }>;
+
+    const seenRaw = (() => { try { return JSON.parse(localStorage.getItem("mt_polymarket_seen") ?? "[]") as string[]; } catch { return [] as string[]; } })();
+    const seen = new Set(seenRaw);
+    const mapped: QueuedHeadline[] = [];
+
+    let processed = 0;
+    for (const market of markets) {
+      if (processed >= 20) break;
+      if ((market.volume ?? 0) <= 1000) continue;
+      if (seen.has(market.conditionId)) continue;
+      const forcedIndex = matchPredictionMarketIndex(market.question);
+      if (!forcedIndex) continue;
+      const yesPct = Math.round(parseFloat(market.outcomePrices?.[0] ?? "0.5") * 100);
+      const label: "positive" | "neutral" | "negative" = yesPct >= 60 ? "positive" : yesPct <= 40 ? "negative" : "neutral";
+      const h: QueuedHeadline = {
+        text: `${market.question} — ${yesPct}% probability according to Polymarket`,
+        sourceTier: 1,
+        source: "polymarket",
+        forcedIndex,
+        sourceLabelOverride: true,
+        sentimentScore: label === "positive" ? 0.85 : label === "negative" ? -0.85 : 0,
+      };
+      if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+      seen.add(market.conditionId);
+      processed++;
+    }
+
+    const updatedSeen = [...seen].slice(-100);
+    try { localStorage.setItem("mt_polymarket_seen", JSON.stringify(updatedSeen)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[PolymarketService] Enqueued ${mapped.length} headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[PolymarketService] Fetch failed.", err);
+  } finally {
+    _isFetchingPolymarket = false;
+  }
+}
+
+// ─── Kalshi batch fetch ───────────────────────────────────────────────────────
+const KALSHI_EXTRA_KEYWORDS: Record<string, string[]> = {
+  "Fed Policy Sentiment": ["fed funds", "fomc meeting", "rate decision", "pce", "unemployment rate"],
+  "MENA Stability Sentiment": ["oil price", "strait of hormuz", "opec production"],
+  "United States Sentiment": ["us debt ceiling", "government shutdown", "us gdp growth"],
+};
+
+function matchKalshiIndex(title: string): string | null {
+  const lq = title.toLowerCase();
+  for (const [index, keywords] of Object.entries(PREDICTION_MARKET_KEYWORD_MAP)) {
+    if (keywords.some((kw) => lq.includes(kw))) return index;
+    const extra = KALSHI_EXTRA_KEYWORDS[index];
+    if (extra?.some((kw) => lq.includes(kw))) return index;
+  }
+  return null;
+}
+
+async function fetchKalshiBatch(): Promise<void> {
+  if (_isFetchingKalshi) return;
+  _isFetchingKalshi = true;
+  try {
+    const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
+    if (!key) { console.warn("[KalshiService] VITE_RAPIDAPI_KEY not set."); return; }
+
+    type KalshiMarket = { yes_bid?: number; yes_ask?: number; volume?: number; ticker?: string };
+    type KalshiEvent = { title?: string; event_ticker?: string; category?: string; markets?: KalshiMarket[] };
+
+    let events: Array<{ title: string; ticker: string; yesMid: number; volume: number }> = [];
+
+    const primaryResp = await fetch(
+      "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/events?limit=100&status=open",
+      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" } },
+    );
+
+    if (primaryResp.ok) {
+      console.info("[KalshiService] Using /events endpoint.");
+      const data = await primaryResp.json() as { events?: KalshiEvent[] };
+      for (const ev of (data.events ?? [])) {
+        const m = ev.markets?.[0];
+        if (!m || (m.volume ?? 0) <= 500) continue;
+        const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
+        events.push({ title: ev.title ?? "", ticker: ev.event_ticker ?? "", yesMid, volume: m.volume ?? 0 });
+      }
+    } else if (primaryResp.status === 404 || primaryResp.status === 401) {
+      console.info("[KalshiService] /events returned", primaryResp.status, "— falling back to /markets.");
+      const fallbackResp = await fetch(
+        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/markets?limit=100&status=open",
+        { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" } },
+      );
+      if (!fallbackResp.ok) { console.warn("[KalshiService] Fallback also failed", fallbackResp.status); return; }
+      const data = await fallbackResp.json() as { markets?: Array<{ title?: string; ticker?: string; yes_bid?: number; yes_ask?: number; volume?: number }> };
+      for (const m of (data.markets ?? [])) {
+        if ((m.volume ?? 0) <= 500) continue;
+        const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
+        events.push({ title: m.title ?? "", ticker: m.ticker ?? "", yesMid, volume: m.volume ?? 0 });
+      }
+    } else {
+      console.warn("[KalshiService] API error", primaryResp.status); return;
+    }
+
+    const seenRaw = (() => { try { return JSON.parse(localStorage.getItem("mt_kalshi_seen") ?? "[]") as string[]; } catch { return [] as string[]; } })();
+    const seen = new Set(seenRaw);
+    const mapped: QueuedHeadline[] = [];
+
+    let processed = 0;
+    for (const ev of events) {
+      if (processed >= 20) break;
+      if (seen.has(ev.ticker)) continue;
+      const forcedIndex = matchKalshiIndex(ev.title);
+      if (!forcedIndex) continue;
+      const label: "positive" | "neutral" | "negative" = ev.yesMid >= 60 ? "positive" : ev.yesMid <= 40 ? "negative" : "neutral";
+      const h: QueuedHeadline = {
+        text: `${ev.title} — ${ev.yesMid}% implied probability per Kalshi`,
+        sourceTier: 1,
+        source: "kalshi",
+        forcedIndex,
+        sourceLabelOverride: true,
+        sentimentScore: label === "positive" ? 0.85 : label === "negative" ? -0.85 : 0,
+      };
+      if (!shouldBlockHeadline(h.text)) { mapped.push(h); _queue.push(h); }
+      seen.add(ev.ticker);
+      processed++;
+    }
+
+    const updatedSeen = [...seen].slice(-100);
+    try { localStorage.setItem("mt_kalshi_seen", JSON.stringify(updatedSeen)); } catch { /* ignore */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[KalshiService] Enqueued ${mapped.length} headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[KalshiService] Fetch failed.", err);
+  } finally {
+    _isFetchingKalshi = false;
+  }
+}
+
 const RSS_FEEDS = [
   // Fed Policy
   "https://www.federalreserve.gov/feeds/press_all.xml",
@@ -2332,6 +2614,18 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchOMDBBatch();
   const omdbIntervalId = setInterval(fetchOMDBBatch, OMDB_FETCH_INTERVAL_MS);
 
+  // Billboard Hot 100 — fire immediately (guarded by 7-day localStorage check), then weekly
+  void fetchBillboardBatch();
+  const billboardIntervalId = setInterval(fetchBillboardBatch, 168 * 60 * 60 * 1000);
+
+  // Polymarket — fire immediately, then every 6 hours
+  void fetchPolymarketBatch();
+  const polymarketIntervalId = setInterval(fetchPolymarketBatch, 360 * 60 * 1000);
+
+  // Kalshi — fire immediately, then every 6 hours
+  void fetchKalshiBatch();
+  const kalshiIntervalId = setInterval(fetchKalshiBatch, 360 * 60 * 1000);
+
   return () => {
     clearInterval(newsIntervalId);
     clearInterval(blsIntervalId);
@@ -2348,6 +2642,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(youTubeIntervalId);
     clearInterval(twitchIntervalId);
     clearInterval(spotifyIntervalId);
+    clearInterval(billboardIntervalId);
+    clearInterval(polymarketIntervalId);
+    clearInterval(kalshiIntervalId);
     _initialized = false;
   };
 }
@@ -2394,7 +2691,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch(), fetchYouTubeBatch(), fetchTwitchBatch(), fetchSpotifyBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch(), fetchYouTubeBatch(), fetchTwitchBatch(), fetchSpotifyBatch(), fetchBillboardBatch(), fetchPolymarketBatch(), fetchKalshiBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
