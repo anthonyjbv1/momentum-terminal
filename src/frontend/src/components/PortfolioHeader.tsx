@@ -850,6 +850,8 @@ export function PortfolioHeader({
     }
   }, [PORTFOLIO_HISTORY_KEY]);
 
+  const cash = localCashBalance;
+
   // Portfolio history accumulator — push on each Oracle tick.
   // Reads from refs (not closure-captured state) so the value is always
   // current-tick rather than one render behind.
@@ -1022,7 +1024,6 @@ export function PortfolioHeader({
     saveTogglePreference(userId, value);
   };
 
-  const cash = localCashBalance;
   const totalPortfolioValue = cash + holdingsTotal + shortHoldingsTotal;
 
   // Snapshot of portfolioHistoryRef as reactive state — updated after every
