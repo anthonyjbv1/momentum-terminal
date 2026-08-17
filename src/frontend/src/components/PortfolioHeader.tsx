@@ -852,36 +852,6 @@ export function PortfolioHeader({
 
   const cash = localCashBalance;
 
-  // Portfolio history accumulator — push on each Oracle tick.
-  // Reads from refs (not closure-captured state) so the value is always
-  // current-tick rather than one render behind.
-  useEffect(() => {
-    const currentValue = cash + holdingsTotal + shortHoldingsTotalRef.current;
-    if (currentValue <= 0) return;
-    const prev = portfolioHistoryRef.current;
-    const last = prev[prev.length - 1];
-    // Always record; skip only exact duplicates within the same minute
-    const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
-    if (sameMinute && last.value === Math.round(currentValue * 100) / 100) return;
-    const entry = { value: Math.round(currentValue * 100) / 100, ts: Date.now() };
-    const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1 tick/min
-    portfolioHistoryRef.current = next;
-    if (PORTFOLIO_HISTORY_KEY) {
-      try {
-        localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
-      } catch {
-        // Quota exceeded — trim oldest quarter and retry once
-        try {
-          const trimmed = next.slice(Math.floor(next.length / 4));
-          portfolioHistoryRef.current = trimmed;
-          localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(trimmed));
-        } catch {
-          // Still failing — history won't persist but in-memory ref stays intact
-        }
-      }
-    }
-  }, [tickCount, cash, holdingsTotal]); // eslint-disable-line react-hooks/exhaustive-deps
-
   const isLoading = holdingsLoading || pricesLoading;
 
   // ── liveRedeemPrice function — memoised, stable reference ───────────────────
@@ -980,6 +950,36 @@ export function PortfolioHeader({
 
     return { activeHoldings: holdings, holdingsTotal: total };
   }, [holdingsData, finalScores, redeemPriceMap, shortPositions]);
+
+  // Portfolio history accumulator — push on each Oracle tick.
+  // Reads from refs (not closure-captured state) so the value is always
+  // current-tick rather than one render behind.
+  useEffect(() => {
+    const currentValue = cash + holdingsTotal + shortHoldingsTotalRef.current;
+    if (currentValue <= 0) return;
+    const prev = portfolioHistoryRef.current;
+    const last = prev[prev.length - 1];
+    // Always record; skip only exact duplicates within the same minute
+    const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
+    if (sameMinute && last.value === Math.round(currentValue * 100) / 100) return;
+    const entry = { value: Math.round(currentValue * 100) / 100, ts: Date.now() };
+    const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1 tick/min
+    portfolioHistoryRef.current = next;
+    if (PORTFOLIO_HISTORY_KEY) {
+      try {
+        localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
+      } catch {
+        // Quota exceeded — trim oldest quarter and retry once
+        try {
+          const trimmed = next.slice(Math.floor(next.length / 4));
+          portfolioHistoryRef.current = trimmed;
+          localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(trimmed));
+        } catch {
+          // Still failing — history won't persist but in-memory ref stays intact
+        }
+      }
+    }
+  }, [tickCount, cash, holdingsTotal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredHoldings = useMemo(
     () => activeHoldings.filter(({ name }) => GOD_TIER.has(name)),
