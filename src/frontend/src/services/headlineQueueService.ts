@@ -5,6 +5,7 @@
  */
 
 import { createActorWithConfig } from "../config";
+import { saveMetricSnapshot, getDeltaHeadlines } from "../lib/oracle/metricHistory";
 
 export type SentimentLabel = "positive" | "negative" | "neutral";
 
@@ -121,6 +122,13 @@ let _isFetchingSpotify = false;
 let _isFetchingBillboard = false;
 let _isFetchingPolymarket = false;
 let _isFetchingKalshi = false;
+let _isFetchingWorldBank = false;
+let _isFetchingNBSChina = false;
+let _isFetchingAPISportsSoccer = false;
+let _isFetchingAPISportsNFL = false;
+let _isFetchingAPISportsF1 = false;
+let _isFetchingFotMob = false;
+let _isFetchingCollegeScorecard = false;
 
 const LOW_WATER_MARK = 5;
 
@@ -664,59 +672,67 @@ async function fetchFREDBatch(): Promise<void> {
     if (!apiKey) return;
 
     const FRED_SERIES = [
-      { id: "CPIAUCSL", label: "US Consumer Price Index", unit: "", index: "Fed Policy Sentiment" },
-      { id: "UNRATE",   label: "US Unemployment Rate",   unit: "%", index: "Fed Policy Sentiment" },
-      { id: "FEDFUNDS", label: "Federal Funds Rate",     unit: "%", index: "Fed Policy Sentiment" },
-      { id: "PCE",      label: "US PCE Inflation",       unit: "",  index: "Fed Policy Sentiment" },
+      { id: "CPIAUCSL", label: "US Consumer Price Index",            entity: "United States", index: "Fed Policy Sentiment" },
+      { id: "PCEPILFE", label: "US PCE Inflation Index",             entity: "United States", index: "Fed Policy Sentiment" },
+      { id: "UNRATE",   label: "US Unemployment Rate",               entity: "United States", index: "United States Sentiment" },
+      { id: "FEDFUNDS", label: "Federal Funds Rate",                 entity: "United States", index: "Fed Policy Sentiment" },
+      { id: "GS10",     label: "10-Year Treasury Yield",             entity: "United States", index: "Fed Policy Sentiment" },
+      { id: "CAUR",     label: "California unemployment rate",       entity: "California",    index: "California Sentiment" },
+      { id: "CASTHPI",  label: "California house price index",       entity: "California",    index: "California Sentiment" },
+      { id: "NYUR",     label: "New York unemployment rate",         entity: "New York",      index: "New York Sentiment" },
+      { id: "NYSTHPI",  label: "New York house price index",         entity: "New York",      index: "New York Sentiment" },
+      { id: "FLUR",     label: "Florida unemployment rate",          entity: "Florida",       index: "Florida Sentiment" },
+      { id: "FLSTHPI",  label: "Florida house price index",          entity: "Florida",       index: "Florida Sentiment" },
+      { id: "TXUR",     label: "Texas unemployment rate",            entity: "Texas",         index: "Texas Sentiment" },
+      { id: "TXSTHPI",  label: "Texas house price index",            entity: "Texas",         index: "Texas Sentiment" },
     ];
 
-    const stored: Record<string, number> = (() => {
-      try { return JSON.parse(localStorage.getItem("mt_fred_values") ?? "{}") as Record<string, number>; }
-      catch { return {}; }
-    })();
+    const mapped: QueuedHeadline[] = [];
 
-    const results = await Promise.all(
-      FRED_SERIES.map(async (series) => {
-        try {
-          const resp = await fetch(
-            `/api/data-proxy?url=${encodeURIComponent(`https://api.stlouisfed.org/fred/series/observations?series_id=${series.id}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`)}`,
-          );
-          if (!resp.ok) return [];
-          const data = await resp.json() as { observations?: Array<{ value: string }> };
-          const valueStr = data.observations?.[0]?.value;
-          if (!valueStr || valueStr === ".") return [];
-          const value = Number.parseFloat(valueStr);
-          if (Number.isNaN(value)) return [];
+    for (const series of FRED_SERIES) {
+      try {
+        const url = `https://api.stlouisfed.org/fred/series/observations?series_id=${series.id}&api_key=${apiKey}&file_type=json&limit=1&sort_order=desc`;
+        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) { await new Promise((r) => setTimeout(r, 200)); continue; }
+        const data = await resp.json() as { observations?: Array<{ value: string; date: string }> };
+        const obs = data.observations?.[0];
+        if (!obs || !obs.value || obs.value === ".") { await new Promise((r) => setTimeout(r, 200)); continue; }
+        const value = Number.parseFloat(obs.value);
+        if (Number.isNaN(value)) { await new Promise((r) => setTimeout(r, 200)); continue; }
 
-          const prev = stored[series.id];
-          stored[series.id] = value;
-
-          if (prev === undefined || prev === value) return [];
-
-          const text = series.unit
-            ? `${series.label} at ${value}${series.unit} — ${series.id === "UNRATE" ? "labor market signal" : "monetary policy signal"}`
-            : series.id === "PCE"
-              ? `${series.label} at ${value} — Fed preferred inflation measure`
-              : `${series.label} at ${value} — Fed Policy signal`;
-
-          return [{ text, sourceTier: 1 as const, source: "fred" as const, forcedIndex: series.index }];
-        } catch {
-          return [];
+        const metricKey = `fred:${series.id}`;
+        const snapshotItem: QueuedHeadline = {
+          text: `${series.label} latest reading: ${value} as of ${obs.date} - FRED`,
+          sourceTier: 2,
+          source: "fred",
+          forcedIndex: series.index,
+          sourceLabelOverride: true,
+          sentimentScore: 0,
+        };
+        const blockReason = shouldBlockHeadline(snapshotItem.text);
+        if (blockReason) {
+          blockedHeadlines.push({ text: snapshotItem.text, reason: blockReason, blockedAt: Date.now() });
+        } else {
+          mapped.push(snapshotItem);
+          _queue.push(snapshotItem);
         }
-      }),
-    );
 
-    try { localStorage.setItem("mt_fred_values", JSON.stringify(stored)); } catch { /* ignore */ }
-
-    const mapped: QueuedHeadline[] = results.flat() as QueuedHeadline[];
-    for (const item of mapped) {
-      const blockReason = shouldBlockHeadline(item.text);
-      if (blockReason) {
-        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
-      } else {
-        _queue.push(item);
-      }
+        saveMetricSnapshot(metricKey, value, series.label, "FRED");
+        const deltas = getDeltaHeadlines(metricKey, value, series.entity, `FRED ${series.label}`, series.index);
+        for (const d of deltas) {
+          const dr = shouldBlockHeadline(d.text);
+          if (dr) {
+            blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() });
+          } else {
+            const dh = d as unknown as QueuedHeadline;
+            mapped.push(dh);
+            _queue.push(dh);
+          }
+        }
+      } catch { /* skip this series */ }
+      await new Promise((r) => setTimeout(r, 200));
     }
+
     if (mapped.length > 0) {
       saveHeadlinesToCache(mapped);
       console.info(`[FREDService] Enqueued ${mapped.length} FRED economic headlines. Queue depth: ${_queue.length}`);
@@ -736,44 +752,53 @@ async function fetchBLSBatch(): Promise<void> {
     const apiKey = import.meta.env.VITE_BLS_API_KEY ?? "";
     if (!apiKey) return;
 
-    const BLS_SERIES = [
-      { id: "CUUR0000SA0",  label: "US CPI",         unit: "",  index: "Fed Policy Sentiment",     headline: (v: number) => `US CPI at ${v} — inflation signal` },
-      { id: "LNS14000000",  label: "US Unemployment", unit: "%", index: "United States Sentiment",  headline: (v: number) => `US Unemployment at ${v}% — labor market signal` },
+    const BLS_SERIES: Array<{ id: string; name: string; index: string }> = [
+      { id: "CUUR0000SA0", name: "US Consumer Price Index (CPI)", index: "Fed Policy Sentiment" },
+      { id: "WPUFD4",      name: "US Producer Price Index (PPI)", index: "Fed Policy Sentiment" },
+      { id: "LNS14000000", name: "US Unemployment Rate",          index: "United States Sentiment" },
     ];
 
-    const stored: Record<string, number> = (() => {
-      try { return JSON.parse(localStorage.getItem("mt_bls_values") ?? "{}") as Record<string, number>; }
-      catch { return {}; }
-    })();
-
-    const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent("https://api.bls.gov/publicAPI/v2/timeseries/data/")}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        seriesid: BLS_SERIES.map((s) => s.id),
-        registrationkey: apiKey,
-        startyear: "2026",
-        endyear: "2026",
-      }),
-    });
+    const resp = await fetch(
+      `/api/data-proxy?url=${encodeURIComponent("https://api.bls.gov/publicAPI/v2/timeseries/data/")}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seriesid: BLS_SERIES.map((s) => s.id),
+          registrationkey: apiKey,
+          startyear: "2026",
+          endyear: "2026",
+        }),
+      },
+    );
     if (!resp.ok) return;
-    const data = await resp.json() as { Results?: { series?: Array<{ seriesID: string; data?: Array<{ value: string }> }> } };
-    const series = data.Results?.series ?? [];
+    const data = await resp.json() as {
+      Results?: {
+        series?: Array<{
+          seriesID: string;
+          data?: Array<{ value: string; periodName: string; year: string }>;
+        }>;
+      };
+    };
+    const seriesList = data.Results?.series ?? [];
 
     const mapped: QueuedHeadline[] = [];
-    for (const s of series) {
+    for (const s of seriesList) {
       const meta = BLS_SERIES.find((b) => b.id === s.seriesID);
       if (!meta) continue;
-      const valueStr = s.data?.[0]?.value;
-      if (!valueStr) continue;
-      const value = Number.parseFloat(valueStr);
+      const latest = s.data?.[0];
+      if (!latest?.value) continue;
+      const value = Number.parseFloat(latest.value);
       if (Number.isNaN(value)) continue;
 
-      const prev = stored[s.seriesID];
-      stored[s.seriesID] = value;
-      if (prev === undefined || prev === value) continue;
-
-      const item: QueuedHeadline = { text: meta.headline(value), sourceTier: 1, source: "bls", forcedIndex: meta.index };
+      const item: QueuedHeadline = {
+        text: `${meta.name} reading: ${value} for ${latest.periodName} ${latest.year} - BLS`,
+        sourceTier: 2,
+        source: "bls",
+        forcedIndex: meta.index,
+        sourceLabelOverride: true,
+        sentimentScore: 0,
+      };
       const blockReason = shouldBlockHeadline(item.text);
       if (blockReason) {
         blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
@@ -781,9 +806,21 @@ async function fetchBLSBatch(): Promise<void> {
         mapped.push(item);
         _queue.push(item);
       }
-    }
 
-    try { localStorage.setItem("mt_bls_values", JSON.stringify(stored)); } catch { /* ignore */ }
+      const metricKey = `bls:${s.seriesID}`;
+      saveMetricSnapshot(metricKey, value, meta.name, "BLS");
+      const deltas = getDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
+      for (const d of deltas) {
+        const dr = shouldBlockHeadline(d.text);
+        if (dr) {
+          blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() });
+        } else {
+          const dh = d as unknown as QueuedHeadline;
+          mapped.push(dh);
+          _queue.push(dh);
+        }
+      }
+    }
 
     if (mapped.length > 0) {
       saveHeadlinesToCache(mapped);
@@ -804,63 +841,68 @@ async function fetchBEABatch(): Promise<void> {
     const apiKey = import.meta.env.VITE_BEA_API_KEY ?? "";
     if (!apiKey) return;
 
-    const BEA_STATE_MAP: Record<string, string> = {
-      CA: "California Sentiment",
-      NY: "New York Sentiment",
-      TX: "Texas Sentiment",
-      FL: "Florida Sentiment",
-    };
+    const BEA_STATES: Array<{ index: string; fips: string; stateName: string }> = [
+      { index: "California Sentiment", fips: "06000", stateName: "California" },
+      { index: "New York Sentiment",   fips: "36000", stateName: "New York" },
+      { index: "Florida Sentiment",    fips: "12000", stateName: "Florida" },
+      { index: "Texas Sentiment",      fips: "48000", stateName: "Texas" },
+    ];
 
-    const stored: Record<string, number> = (() => {
-      try { return JSON.parse(localStorage.getItem("mt_bea_values") ?? "{}") as Record<string, number>; }
-      catch { return {}; }
-    })();
-
-    const resp = await fetch(
-      `https://apps.bea.gov/api/data/?UserID=${apiKey}&method=GetData&datasetname=Regional&TableName=SQGDP2&LineCode=1&GeoFips=STATE&Year=2026&ResultFormat=JSON`,
-    );
-    if (!resp.ok) return;
-    const data = await resp.json() as {
-      BEAAPI?: { Results?: { Data?: Array<{ GeoFips: string; GeoName: string; DataValue: string; TimePeriod: string }> } }
-    };
-    const rows = data.BEAAPI?.Results?.Data ?? [];
-
-    const stateMap: Record<string, { name: string; value: number }> = {};
-    for (const row of rows) {
-      const fips = row.GeoFips;
-      const val = Number.parseFloat(row.DataValue.replace(/,/g, ""));
-      if (Number.isNaN(val)) continue;
-      if (!stateMap[fips] || row.TimePeriod > (stateMap[fips] as { name: string; value: number; period?: string }).period!) {
-        stateMap[fips] = { name: row.GeoName, value: val };
-      }
-    }
-
-    const FIPS_TO_ABBR: Record<string, string> = { "06000": "CA", "36000": "NY", "48000": "TX", "12000": "FL" };
     const mapped: QueuedHeadline[] = [];
 
-    for (const [fips, abbr] of Object.entries(FIPS_TO_ABBR)) {
-      const entry = stateMap[fips];
-      if (!entry) continue;
-      const index = BEA_STATE_MAP[abbr];
-      if (!index) continue;
+    for (const state of BEA_STATES) {
+      try {
+        const url = `https://apps.bea.gov/api/data/?UserID=${apiKey}&method=GetData&datasetname=Regional&TableName=SQGDP2&LineCode=1&GeoFIPS=${state.fips}&Year=LAST5&ResultFormat=JSON`;
+        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) continue;
+        const data = await resp.json() as {
+          BEAAPI?: {
+            Results?: {
+              Data?: Array<{ DataValue: string; TimePeriod: string }>;
+            };
+          };
+        };
 
-      const prev = stored[abbr];
-      stored[abbr] = entry.value;
-      if (prev === undefined || prev === entry.value) continue;
+        const rows = (data.BEAAPI?.Results?.Data ?? [])
+          .filter((r) => r.DataValue && r.DataValue.trim() !== "")
+          .sort((a, b) => b.TimePeriod.localeCompare(a.TimePeriod));
 
-      const pct = prev > 0 ? (((entry.value - prev) / prev) * 100).toFixed(1) : "0.0";
-      const text = `${entry.name} GDP growth ${pct}% — regional economic signal`;
-      const item: QueuedHeadline = { text, sourceTier: 1, source: "bea", forcedIndex: index };
-      const blockReason = shouldBlockHeadline(item.text);
-      if (blockReason) {
-        blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
-      } else {
-        mapped.push(item);
-        _queue.push(item);
-      }
+        const latest = rows[0];
+        if (!latest) continue;
+        const gdpFloat = Number.parseFloat(latest.DataValue.replace(/,/g, "")) / 1000;
+        if (Number.isNaN(gdpFloat)) continue;
+
+        const item: QueuedHeadline = {
+          text: `${state.stateName} state GDP: $${gdpFloat.toFixed(1)}B for ${latest.TimePeriod} - BEA`,
+          sourceTier: 2,
+          source: "bea",
+          forcedIndex: state.index,
+          sourceLabelOverride: true,
+          sentimentScore: 0,
+        };
+        const blockReason = shouldBlockHeadline(item.text);
+        if (blockReason) {
+          blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+        } else {
+          mapped.push(item);
+          _queue.push(item);
+        }
+
+        const metricKey = `bea:${state.index}:gdp`;
+        saveMetricSnapshot(metricKey, gdpFloat, `${state.stateName} state GDP`, "BEA");
+        const deltas = getDeltaHeadlines(metricKey, gdpFloat, state.stateName, "BEA state GDP", state.index);
+        for (const d of deltas) {
+          const dr = shouldBlockHeadline(d.text);
+          if (dr) {
+            blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() });
+          } else {
+            const dh = d as unknown as QueuedHeadline;
+            mapped.push(dh);
+            _queue.push(dh);
+          }
+        }
+      } catch { /* skip this state */ }
     }
-
-    try { localStorage.setItem("mt_bea_values", JSON.stringify(stored)); } catch { /* ignore */ }
 
     if (mapped.length > 0) {
       saveHeadlinesToCache(mapped);
@@ -870,6 +912,881 @@ async function fetchBEABatch(): Promise<void> {
     console.warn("[BEAService] BEA fetch failed.", err);
   } finally {
     _isFetchingBEA = false;
+  }
+}
+
+// ─── World Bank batch fetch ───────────────────────────────────────────────────
+async function fetchWorldBankBatch(): Promise<void> {
+  if (_isFetchingWorldBank) return;
+  _isFetchingWorldBank = true;
+  try {
+    const INDICATORS: Array<{ code: string; label: string }> = [
+      { code: "NY.GDP.MKTP.KD.ZG", label: "GDP growth (annual %)" },
+      { code: "FP.CPI.TOTL.ZG",    label: "Inflation, consumer prices (annual %)" },
+      { code: "SL.UEM.TOTL.ZS",    label: "Unemployment rate (% of labor force)" },
+    ];
+    const COUNTRIES: Array<{ code: string; name: string; index: string }> = [
+      { code: "DEU", name: "Germany", index: "Germany Sentiment" },
+      { code: "CHN", name: "China",   index: "China Sentiment" },
+    ];
+
+    const mapped: QueuedHeadline[] = [];
+
+    for (const country of COUNTRIES) {
+      for (const indicator of INDICATORS) {
+        try {
+          const url = `https://api.worldbank.org/v2/country/${country.code}/indicator/${indicator.code}?format=json&per_page=5`;
+          const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
+          if (!resp.ok) { await new Promise((r) => setTimeout(r, 300)); continue; }
+          const raw = await resp.json() as [unknown, Array<{ value: number | null; date: string }> | undefined];
+          const records = raw[1] ?? [];
+          const latest = records.find((r) => r.value !== null && r.value !== undefined);
+          if (!latest || latest.value === null) { await new Promise((r) => setTimeout(r, 300)); continue; }
+
+          const item: QueuedHeadline = {
+            text: `${country.name} ${indicator.label}: ${latest.value.toFixed(2)} for ${latest.date} - World Bank`,
+            sourceTier: 2,
+            source: "worldbank",
+            forcedIndex: country.index,
+            sourceLabelOverride: true,
+            sentimentScore: 0,
+          };
+          const blockReason = shouldBlockHeadline(item.text);
+          if (blockReason) {
+            blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+          } else {
+            mapped.push(item);
+            _queue.push(item);
+          }
+
+          const metricKey = `worldbank:${country.code}:${indicator.code}`;
+          saveMetricSnapshot(metricKey, latest.value, `${country.name} ${indicator.label}`, "World Bank");
+          const deltas = getDeltaHeadlines(metricKey, latest.value, country.name, `World Bank ${indicator.label}`, country.index);
+          for (const d of deltas) {
+            const dr = shouldBlockHeadline(d.text);
+            if (dr) {
+              blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() });
+            } else {
+              const dh = d as unknown as QueuedHeadline;
+              mapped.push(dh);
+              _queue.push(dh);
+            }
+          }
+        } catch { /* skip this combo */ }
+        await new Promise((r) => setTimeout(r, 300));
+      }
+    }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[WorldBankService] Enqueued ${mapped.length} World Bank headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[WorldBankService] World Bank fetch failed.", err);
+  } finally {
+    _isFetchingWorldBank = false;
+  }
+}
+
+// ─── NBS China batch fetch ────────────────────────────────────────────────────
+async function fetchNBSChinaBatch(): Promise<void> {
+  if (_isFetchingNBSChina) return;
+  _isFetchingNBSChina = true;
+  try {
+    const DATASETS: Array<{ slug: string; label: string }> = [
+      { slug: "china-gdp", label: "China GDP" },
+      { slug: "china-cpi", label: "China CPI (Consumer Price Index)" },
+    ];
+
+    const mapped: QueuedHeadline[] = [];
+
+    for (const dataset of DATASETS) {
+      try {
+        const url = `https://chinadata.live/api/v2/data/${dataset.slug}`;
+        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
+        if (!resp.ok) { await new Promise((r) => setTimeout(r, 500)); continue; }
+        const raw = await resp.json() as {
+          data?: { data?: Array<{ date: string; value: number | string }>; unit?: string };
+        };
+        const points = raw.data?.data ?? [];
+        const unit = raw.data?.unit ?? "";
+        if (!points.length) { await new Promise((r) => setTimeout(r, 500)); continue; }
+
+        const latest = points[points.length - 1];
+        if (!latest) { await new Promise((r) => setTimeout(r, 500)); continue; }
+        const numericValue = typeof latest.value === "string"
+          ? Number.parseFloat(latest.value)
+          : latest.value;
+        if (Number.isNaN(numericValue)) { await new Promise((r) => setTimeout(r, 500)); continue; }
+
+        const item: QueuedHeadline = {
+          text: `${dataset.label}: ${latest.value} ${unit} as of ${latest.date} - NBS China`,
+          sourceTier: 2,
+          source: "nbschina",
+          forcedIndex: "China Sentiment",
+          sourceLabelOverride: true,
+          sentimentScore: 0,
+        };
+        const blockReason = shouldBlockHeadline(item.text);
+        if (blockReason) {
+          blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
+        } else {
+          mapped.push(item);
+          _queue.push(item);
+        }
+
+        const metricKey = `nbschina:${dataset.slug}`;
+        saveMetricSnapshot(metricKey, numericValue, dataset.label, "NBS China");
+        const deltas = getDeltaHeadlines(metricKey, numericValue, "China", `NBS China ${dataset.label}`, "China Sentiment");
+        for (const d of deltas) {
+          const dr = shouldBlockHeadline(d.text);
+          if (dr) {
+            blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() });
+          } else {
+            const dh = d as unknown as QueuedHeadline;
+            mapped.push(dh);
+            _queue.push(dh);
+          }
+        }
+      } catch { /* skip this dataset */ }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[NBSChinaService] Enqueued ${mapped.length} NBS China headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[NBSChinaService] NBS China fetch failed.", err);
+  } finally {
+    _isFetchingNBSChina = false;
+  }
+}
+
+// ─── API-Sports Soccer batch fetch ───────────────────────────────────────────
+async function fetchAPISportsSoccerBatch(): Promise<void> {
+  if (_isFetchingAPISportsSoccer) return;
+  _isFetchingAPISportsSoccer = true;
+  try {
+    const apiKey = import.meta.env.VITE_APISPORTS_KEY ?? "";
+    if (!apiKey) return;
+
+    const SOCCER_TEAMS: Array<{ teamId: number; name: string; index: string }> = [
+      { teamId: 529, name: "FC Barcelona",        index: "FC Barcelona Sentiment" },
+      { teamId: 541, name: "Real Madrid CF",       index: "Real Madrid CF Sentiment" },
+      { teamId: 2,   name: "France National Team", index: "France National Team Sentiment" },
+      { teamId: 9,   name: "Spain National Team",  index: "Spain National Team Sentiment" },
+    ];
+
+    const headers = { "x-apisports-key": apiKey };
+    const mapped: QueuedHeadline[] = [];
+
+    for (const team of SOCCER_TEAMS) {
+      try {
+        // Call 1 — last 5 fixtures
+        const fixtResp = await fetch(
+          `/api/data-proxy?url=${encodeURIComponent(`https://v3.football.api-sports.io/fixtures?team=${team.teamId}&last=5`)}`,
+          { headers },
+        );
+        if (fixtResp.ok) {
+          const fixtData = await fixtResp.json() as {
+            response?: Array<{
+              fixture: { date: string; status: { short: string } };
+              league: { name: string };
+              teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+              goals: { home: number | null; away: number | null };
+            }>;
+          };
+          for (const fix of fixtData.response ?? []) {
+            if (fix.fixture.status.short !== "FT") continue;
+            const isHome = fix.teams.home.id === team.teamId;
+            const opponent = isHome ? fix.teams.away.name : fix.teams.home.name;
+            const scored = isHome ? (fix.goals.home ?? 0) : (fix.goals.away ?? 0);
+            const conceded = isHome ? (fix.goals.away ?? 0) : (fix.goals.home ?? 0);
+            const date = fix.fixture.date.slice(0, 10);
+            let text: string;
+            let sentimentScore: number;
+            if (scored > conceded) {
+              text = `${team.name} defeated ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              sentimentScore = 0.85;
+            } else if (scored < conceded) {
+              text = `${team.name} lost to ${opponent} ${conceded}-${scored} on ${date} - API-Sports`;
+              sentimentScore = -0.85;
+            } else {
+              text = `${team.name} drew ${scored}-${conceded} with ${opponent} on ${date} - API-Sports`;
+              sentimentScore = 0;
+            }
+            const item: QueuedHeadline = {
+              text,
+              sourceTier: 2,
+              source: "apisports-soccer",
+              forcedIndex: team.index,
+              sourceLabelOverride: true,
+              sentimentScore,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+
+        // Call 2 — next fixture
+        const nextResp = await fetch(
+          `/api/data-proxy?url=${encodeURIComponent(`https://v3.football.api-sports.io/fixtures?team=${team.teamId}&next=1`)}`,
+          { headers },
+        );
+        if (nextResp.ok) {
+          const nextData = await nextResp.json() as {
+            response?: Array<{
+              fixture: { date: string };
+              league: { name: string };
+              teams: { home: { name: string }; away: { name: string } };
+            }>;
+          };
+          const next = nextData.response?.[0];
+          if (next) {
+            const date = next.fixture.date.slice(0, 10);
+            const item: QueuedHeadline = {
+              text: `${team.name} next fixture: ${next.teams.home.name} vs ${next.teams.away.name} on ${date} in ${next.league.name} - API-Sports`,
+              sourceTier: 2,
+              source: "apisports-soccer",
+              forcedIndex: team.index,
+              sourceLabelOverride: true,
+              sentimentScore: 0,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+      } catch { /* skip this team */ }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[APISportsSoccerService] Enqueued ${mapped.length} soccer headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[APISportsSoccerService] fetch failed.", err);
+  } finally {
+    _isFetchingAPISportsSoccer = false;
+  }
+}
+
+// ─── API-Sports NFL batch fetch ───────────────────────────────────────────────
+async function fetchAPISportsNFLBatch(): Promise<void> {
+  if (_isFetchingAPISportsNFL) return;
+  _isFetchingAPISportsNFL = true;
+  try {
+    const apiKey = import.meta.env.VITE_APISPORTS_KEY ?? "";
+    if (!apiKey) return;
+
+    const NFL_TEAMS: Array<{ teamId: number; name: string; index: string }> = [
+      { teamId: 17, name: "Kansas City Chiefs", index: "Kansas City Chiefs Sentiment" },
+      { teamId: 28, name: "Denver Broncos",     index: "Denver Broncos Sentiment" },
+    ];
+
+    const headers = { "x-apisports-key": apiKey };
+    const mapped: QueuedHeadline[] = [];
+
+    for (const team of NFL_TEAMS) {
+      try {
+        // Call 1 — recent games
+        const gamesResp = await fetch(
+          `/api/data-proxy?url=${encodeURIComponent(`https://v1.american-football.api-sports.io/games?team=${team.teamId}&season=2025&league=1`)}`,
+          { headers },
+        );
+        if (gamesResp.ok) {
+          const gamesData = await gamesResp.json() as {
+            response?: Array<{
+              game: { date: { date: string }; status: { short: string } };
+              teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+              scores: { home: { total: number | null }; away: { total: number | null } };
+            }>;
+          };
+          const finished = (gamesData.response ?? [])
+            .filter((g) => g.game.status.short === "FT" || g.game.status.short === "F")
+            .sort((a, b) => b.game.date.date.localeCompare(a.game.date.date))
+            .slice(0, 5);
+
+          for (const game of finished) {
+            const isHome = game.teams.home.id === team.teamId;
+            const opponent = isHome ? game.teams.away.name : game.teams.home.name;
+            const scored = isHome ? (game.scores.home.total ?? 0) : (game.scores.away.total ?? 0);
+            const conceded = isHome ? (game.scores.away.total ?? 0) : (game.scores.home.total ?? 0);
+            const date = game.game.date.date;
+            let text: string;
+            let sentimentScore: number;
+            if (scored > conceded) {
+              text = `${team.name} defeated ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              sentimentScore = 0.85;
+            } else if (scored < conceded) {
+              text = `${team.name} lost to ${opponent} ${conceded}-${scored} on ${date} - API-Sports`;
+              sentimentScore = -0.85;
+            } else {
+              text = `${team.name} tied ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              sentimentScore = 0;
+            }
+            const item: QueuedHeadline = {
+              text, sourceTier: 2, source: "apisports-nfl",
+              forcedIndex: team.index, sourceLabelOverride: true, sentimentScore,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Call 2 — standings
+        const standResp = await fetch(
+          `/api/data-proxy?url=${encodeURIComponent(`https://v1.american-football.api-sports.io/standings?team=${team.teamId}&season=2025&league=1`)}`,
+          { headers },
+        );
+        if (standResp.ok) {
+          const standData = await standResp.json() as {
+            response?: Array<Array<{
+              won: number; lost: number; pct: string; position: number;
+              group: { name: string };
+            }>>;
+          };
+          const entry = standData.response?.[0]?.[0];
+          if (entry) {
+            const { won, lost, pct, position } = entry;
+            const divisionName = entry.group?.name ?? "division";
+            const winRate = won / Math.max(won + lost, 1);
+            const trend = winRate >= 0.6 ? "strong" : winRate < 0.4 ? "struggling" : "average";
+            const sentimentScore = winRate >= 0.6 ? 0.82 : winRate < 0.4 ? -0.82 : 0;
+            const item: QueuedHeadline = {
+              text: `${team.name} ${won}-${lost} record (${pct} win pct), #${position} in ${divisionName} — ${trend} season form - API-Sports`,
+              sourceTier: 2, source: "apisports-nfl",
+              forcedIndex: team.index, sourceLabelOverride: true, sentimentScore,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+      } catch { /* skip this team */ }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    // Patrick Mahomes stats
+    try {
+      const statsResp = await fetch(
+        `/api/data-proxy?url=${encodeURIComponent("https://v1.american-football.api-sports.io/players/statistics?id=1197&season=2025")}`,
+        { headers },
+      );
+      if (statsResp.ok) {
+        const statsData = await statsResp.json() as {
+          response?: Array<{
+            statistics?: Array<{
+              passing?: { touchdowns?: { total?: number }; interceptions?: { total?: number }; yards?: { total?: number }; rating?: { total?: number } };
+            }>;
+          }>;
+        };
+        const stats = statsData.response?.[0]?.statistics?.[0]?.passing;
+        if (stats) {
+          const tds = stats.touchdowns?.total ?? 0;
+          const ints = stats.interceptions?.total ?? 0;
+          const yards = stats.yards?.total ?? 0;
+          const rating = stats.rating?.total ?? 0;
+          if (yards > 0) {
+            const sentimentScore = rating >= 95 ? 0.82 : 0;
+            const item: QueuedHeadline = {
+              text: `Patrick Mahomes 2025 season stats: ${tds} TDs, ${ints} INTs, ${yards} passing yards, ${rating.toFixed(1)} passer rating - API-Sports`,
+              sourceTier: 2, source: "apisports-nfl",
+              forcedIndex: "Patrick Mahomes Sentiment", sourceLabelOverride: true, sentimentScore,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+      }
+    } catch { /* skip mahomes */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[APISportsNFLService] Enqueued ${mapped.length} NFL headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[APISportsNFLService] fetch failed.", err);
+  } finally {
+    _isFetchingAPISportsNFL = false;
+  }
+}
+
+// ─── API-Sports F1 batch fetch ────────────────────────────────────────────────
+async function fetchAPISportsF1Batch(): Promise<void> {
+  if (_isFetchingAPISportsF1) return;
+  _isFetchingAPISportsF1 = true;
+  try {
+    const apiKey = import.meta.env.VITE_APISPORTS_KEY ?? "";
+    if (!apiKey) return;
+
+    const F1_CONSTRUCTORS: Array<{ constructorId: number; name: string; index: string }> = [
+      { constructorId: 3, name: "Ferrari",   index: "Ferrari Sentiment" },
+      { constructorId: 2, name: "McLaren",   index: "McLaren Sentiment" },
+      { constructorId: 5, name: "Mercedes",  index: "Mercedes Sentiment" },
+    ];
+
+    const headers = { "x-apisports-key": apiKey };
+    const mapped: QueuedHeadline[] = [];
+    const constructorSet = new Set(F1_CONSTRUCTORS.map((c) => c.constructorId));
+
+    // Call 1 — constructor standings
+    try {
+      const standResp = await fetch(
+        `/api/data-proxy?url=${encodeURIComponent("https://v1.formula-1.api-sports.io/rankings/teams?season=2026")}`,
+        { headers },
+      );
+      if (standResp.ok) {
+        const standData = await standResp.json() as {
+          response?: Array<{
+            team: { id: number; name: string };
+            position: number;
+            points: number;
+            wins: number;
+          }>;
+        };
+        for (const entry of standData.response ?? []) {
+          if (!constructorSet.has(entry.team.id)) continue;
+          const meta = F1_CONSTRUCTORS.find((c) => c.constructorId === entry.team.id);
+          if (!meta) continue;
+          const { position: pos, points, wins } = entry;
+          const positionLabel = pos === 1 ? "leading" : pos <= 3 ? "contending" : pos <= 6 ? "midfield" : "trailing";
+          const sentimentScore = pos <= 3 ? 0.85 : pos <= 6 ? 0 : -0.85;
+          const item: QueuedHeadline = {
+            text: `${meta.name} #${pos} in 2026 F1 constructor standings with ${points} points and ${wins} wins — ${positionLabel} championship position - API-Sports`,
+            sourceTier: 2, source: "apisports-f1",
+            forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore,
+          };
+          const br = shouldBlockHeadline(item.text);
+          if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+          else { mapped.push(item); _queue.push(item); }
+
+          const metricKey = `apisports:f1:${meta.index}:constructor_pos`;
+          saveMetricSnapshot(metricKey, pos, `${meta.name} F1 constructor position`, "API-Sports F1");
+          const deltas = getDeltaHeadlines(metricKey, pos, meta.name, "API-Sports F1 constructor position", meta.index);
+          for (const d of deltas) {
+            const dr = shouldBlockHeadline(d.text);
+            if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
+            else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
+          }
+        }
+      }
+    } catch { /* skip standings */ }
+
+    await new Promise((r) => setTimeout(r, 500));
+
+    // Call 2 — recent race results
+    try {
+      const racesResp = await fetch(
+        `/api/data-proxy?url=${encodeURIComponent("https://v1.formula-1.api-sports.io/rankings/races?season=2026")}`,
+        { headers },
+      );
+      if (racesResp.ok) {
+        const racesData = await racesResp.json() as {
+          response?: Array<{
+            race: { name: string };
+            driver: { name: string };
+            team: { id: number };
+            position: number;
+            points: number;
+          }>;
+        };
+        const allResults = racesData.response ?? [];
+        // group by race name, take last 3 unique races
+        const raceNames: string[] = [];
+        for (const r of allResults) {
+          if (!raceNames.includes(r.race.name)) raceNames.push(r.race.name);
+        }
+        const last3Races = raceNames.slice(-3);
+
+        for (const raceName of last3Races) {
+          const raceResults = allResults.filter((r) => r.race.name === raceName);
+          for (const result of raceResults) {
+            if (!constructorSet.has(result.team.id)) continue;
+            const meta = F1_CONSTRUCTORS.find((c) => c.constructorId === result.team.id);
+            if (!meta) continue;
+            const pos = result.position;
+            let resultLabel: string;
+            let sentimentScore: number;
+            if (pos <= 3) { resultLabel = `podium finish (P${pos})`; sentimentScore = 0.85; }
+            else if (pos <= 10) { resultLabel = `points finish (P${pos})`; sentimentScore = 0.82; }
+            else { resultLabel = `out of points (P${pos})`; sentimentScore = -0.85; }
+            const item: QueuedHeadline = {
+              text: `${meta.name} ${result.driver.name} achieved ${resultLabel} at ${raceName}, scoring ${result.points} championship points - API-Sports F1`,
+              sourceTier: 2, source: "apisports-f1",
+              forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore,
+            };
+            const br = shouldBlockHeadline(item.text);
+            if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+            else { mapped.push(item); _queue.push(item); }
+          }
+        }
+      }
+    } catch { /* skip races */ }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[APISportsF1Service] Enqueued ${mapped.length} F1 headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[APISportsF1Service] fetch failed.", err);
+  } finally {
+    _isFetchingAPISportsF1 = false;
+  }
+}
+
+// ─── FotMob live match batch fetch ────────────────────────────────────────────
+async function fetchFotMobBatch(): Promise<void> {
+  if (_isFetchingFotMob) return;
+  _isFetchingFotMob = true;
+  try {
+    const FOTMOB_TEAMS: Record<number, { name: string; index: string }> = {
+      242: { name: "FC Barcelona",        index: "FC Barcelona Sentiment" },
+      86:  { name: "Real Madrid CF",      index: "Real Madrid CF Sentiment" },
+      37:  { name: "France National Team",index: "France National Team Sentiment" },
+      45:  { name: "Spain National Team", index: "Spain National Team Sentiment" },
+    };
+
+    const fotmobHeaders = {
+      "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+      "Accept": "application/json, text/plain, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Referer": "https://www.fotmob.com/",
+      "Origin": "https://www.fotmob.com",
+    };
+
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+    const endpoints = [
+      `https://www.fotmob.com/api/matches?date=${today}`,
+      `https://www.fotmob.com/api/v2/matches?date=${today}`,
+      `https://www.fotmob.com/api/data/matches?date=${today}`,
+    ];
+
+    type FotMobMatchesResponse = {
+      leagues?: Array<{
+        matches?: Array<{
+          id: number | string;
+          home: { id: number; name: string };
+          away: { id: number; name: string };
+          status: { finished?: boolean; ongoing?: boolean };
+          home_score?: { current?: number };
+          away_score?: { current?: number };
+          leagueName?: string;
+        }>;
+        name?: string;
+      }>;
+    };
+
+    let matchesData: FotMobMatchesResponse | null = null;
+
+    for (const endpoint of endpoints) {
+      try {
+        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(endpoint)}`, { headers: fotmobHeaders });
+        if (resp.ok) {
+          matchesData = await resp.json() as FotMobMatchesResponse;
+          break;
+        }
+      } catch { /* try next endpoint */ }
+    }
+
+    if (!matchesData) {
+      console.warn("[FotMobService] All endpoints failed for today's matches.");
+      return;
+    }
+
+    const mapped: QueuedHeadline[] = [];
+    const trackedIds = new Set(Object.keys(FOTMOB_TEAMS).map(Number));
+
+    for (const league of matchesData.leagues ?? []) {
+      const leagueName = league.name ?? "Unknown League";
+      for (const match of league.matches ?? []) {
+        const homeId = match.home?.id;
+        const awayId = match.away?.id;
+        const matchedId = trackedIds.has(homeId) ? homeId : trackedIds.has(awayId) ? awayId : null;
+        if (matchedId === null) continue;
+        const meta = FOTMOB_TEAMS[matchedId];
+        if (!meta) continue;
+
+        const isHome = homeId === matchedId;
+        const homeName = match.home?.name ?? "";
+        const awayName = match.away?.name ?? "";
+        const homeScore = match.home_score?.current ?? 0;
+        const awayScore = match.away_score?.current ?? 0;
+        const scored = isHome ? homeScore : awayScore;
+        const conceded = isHome ? awayScore : homeScore;
+        const opponent = isHome ? awayName : homeName;
+
+        if (match.status?.finished) {
+          let text: string;
+          let sentimentScore: number;
+          if (scored > conceded) {
+            text = `${meta.name} defeated ${opponent} ${scored}-${conceded} in ${leagueName} - FotMob`;
+            sentimentScore = 0.85;
+          } else if (scored < conceded) {
+            text = `${meta.name} lost to ${opponent} ${conceded}-${scored} in ${leagueName} - FotMob`;
+            sentimentScore = -0.85;
+          } else {
+            text = `${meta.name} drew ${scored}-${conceded} with ${opponent} in ${leagueName} - FotMob`;
+            sentimentScore = 0;
+          }
+          const item: QueuedHeadline = {
+            text, sourceTier: 2, source: "fotmob",
+            forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore,
+          };
+          const br = shouldBlockHeadline(item.text);
+          if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+          else { mapped.push(item); _queue.push(item); }
+
+          // Fetch match details for stats
+          try {
+            const detailResp = await fetch(
+              `/api/data-proxy?url=${encodeURIComponent(`https://www.fotmob.com/api/matchDetails?matchId=${match.id}`)}`,
+              { headers: fotmobHeaders },
+            );
+            if (detailResp.ok) {
+              const detail = await detailResp.json() as {
+                stats?: Array<{
+                  stats?: Array<{
+                    title?: string;
+                    stats?: Array<{ home?: string | number; away?: string | number }>;
+                  }>;
+                }>;
+              };
+              for (const statGroup of detail.stats ?? []) {
+                for (const statItem of statGroup.stats ?? []) {
+                  const title = (statItem.title ?? "").toLowerCase();
+                  const statValues = statItem.stats?.[0];
+                  if (!statValues) continue;
+                  const homeVal = statValues.home;
+                  const awayVal = statValues.away;
+                  if (homeVal === undefined || awayVal === undefined) continue;
+
+                  let statText: string | null = null;
+                  if (title === "possession") {
+                    statText = `${leagueName}: ${homeName} ${homeVal}% possession vs ${awayName} ${awayVal}%`;
+                  } else if (title.includes("expected goals") || title === "xg") {
+                    const hxg = Number.parseFloat(String(homeVal));
+                    const axg = Number.parseFloat(String(awayVal));
+                    if (!Number.isNaN(hxg) && !Number.isNaN(axg)) {
+                      const dominant = hxg >= axg ? homeName : awayName;
+                      const higher = Math.max(hxg, axg).toFixed(2);
+                      const lower = Math.min(hxg, axg).toFixed(2);
+                      statText = `${leagueName}: ${dominant} dominated with ${higher} xG vs ${lower} xG`;
+                    }
+                  } else if (title === "shots on target") {
+                    statText = `${leagueName}: ${homeName} ${homeVal} shots on target vs ${awayName} ${awayVal}`;
+                  } else if (title === "big chances") {
+                    statText = `${leagueName}: ${homeName} ${homeVal} big chances vs ${awayName} ${awayVal}`;
+                  }
+                  if (!statText) continue;
+                  const statItem2: QueuedHeadline = {
+                    text: statText, sourceTier: 2, source: "fotmob",
+                    forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore: 0,
+                  };
+                  const br2 = shouldBlockHeadline(statItem2.text);
+                  if (br2) { blockedHeadlines.push({ text: statItem2.text, reason: br2, blockedAt: Date.now() }); }
+                  else { mapped.push(statItem2); _queue.push(statItem2); }
+                }
+              }
+            }
+          } catch { /* skip detail stats */ }
+          await new Promise((r) => setTimeout(r, 200));
+
+        } else if (match.status?.ongoing) {
+          const item: QueuedHeadline = {
+            text: `${homeName} vs ${awayName} live in ${leagueName} — current score ${homeScore}-${awayScore}`,
+            sourceTier: 2, source: "fotmob",
+            forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore: 0,
+          };
+          const br = shouldBlockHeadline(item.text);
+          if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+          else { mapped.push(item); _queue.push(item); }
+        }
+      }
+    }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[FotMobService] Enqueued ${mapped.length} FotMob headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[FotMobService] fetch failed.", err);
+  } finally {
+    _isFetchingFotMob = false;
+  }
+}
+
+// ─── College Scorecard batch fetch ───────────────────────────────────────────
+async function fetchCollegeScorecardBatch(): Promise<void> {
+  if (_isFetchingCollegeScorecard) return;
+  _isFetchingCollegeScorecard = true;
+  try {
+    const apiKey = import.meta.env.VITE_COLLEGE_SCORECARD_KEY ?? "";
+    if (!apiKey) return;
+
+    const UNIVERSITIES: Array<{ unitId: number; name: string; index: string }> = [
+      { unitId: 170976, name: "University of Michigan", index: "University of Michigan Sentiment" },
+      { unitId: 204796, name: "Ohio State University",  index: "Ohio State University Sentiment" },
+      { unitId: 130794, name: "Yale University",        index: "Yale University Sentiment" },
+      { unitId: 166027, name: "Harvard University",     index: "Harvard University Sentiment" },
+    ];
+
+    const US_NEWS_RANKS: Record<string, { rank: number }> = {
+      "University of Michigan Sentiment": { rank: 21 },
+      "Ohio State University Sentiment":  { rank: 35 },
+      "Yale University Sentiment":        { rank: 5 },
+      "Harvard University Sentiment":     { rank: 3 },
+    };
+
+    const ENDOWMENTS: Record<string, { val: number }> = {
+      "University of Michigan Sentiment": { val: 18.6 },
+      "Ohio State University Sentiment":  { val: 9.7 },
+      "Yale University Sentiment":        { val: 41.4 },
+      "Harvard University Sentiment":     { val: 53.2 },
+    };
+
+    const fields = [
+      "school.name",
+      "latest.admissions.admission_rate.overall",
+      "latest.student.size",
+      "latest.completion.completion_rate_4yr_150_pooled",
+      "latest.earnings.10_yrs_after_entry.median",
+      "latest.cost.avg_net_price.public",
+      "latest.cost.avg_net_price.private",
+    ].join(",");
+
+    const mapped: QueuedHeadline[] = [];
+
+    const enqueueItem = (item: QueuedHeadline) => {
+      const br = shouldBlockHeadline(item.text);
+      if (br) { blockedHeadlines.push({ text: item.text, reason: br, blockedAt: Date.now() }); }
+      else { mapped.push(item); _queue.push(item); }
+    };
+
+    for (const uni of UNIVERSITIES) {
+      try {
+        const url = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${apiKey}&id=${uni.unitId}&fields=${fields}&_per_page=1`;
+        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
+        if (resp.ok) {
+          const data = await resp.json() as {
+            results?: Array<{
+              "school.name"?: string;
+              "latest.admissions.admission_rate.overall"?: number | null;
+              "latest.student.size"?: number | null;
+              "latest.completion.completion_rate_4yr_150_pooled"?: number | null;
+              "latest.earnings.10_yrs_after_entry.median"?: number | null;
+            }>;
+          };
+          const r = data.results?.[0];
+          if (r) {
+            const schoolName = r["school.name"] ?? uni.name;
+
+            const admRate = r["latest.admissions.admission_rate.overall"];
+            if (admRate !== null && admRate !== undefined && !Number.isNaN(admRate)) {
+              const admPct = admRate * 100;
+              const selectivity = admPct < 10 ? "highly selective" : admPct < 25 ? "selective" : admPct < 50 ? "moderately selective" : "accessible";
+              enqueueItem({
+                text: `${schoolName} admission rate: ${admPct.toFixed(1)}% (${selectivity}) per College Scorecard`,
+                sourceTier: 2, source: "scorecard",
+                forcedIndex: uni.index, sourceLabelOverride: true,
+                sentimentScore: admPct < 10 ? 0.75 : 0,
+              });
+              const metricKey = `scorecard:${uni.index}:admission_rate`;
+              saveMetricSnapshot(metricKey, admPct, `${schoolName} admission rate`, "College Scorecard");
+              const deltas = getDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
+              for (const d of deltas) {
+                const dr = shouldBlockHeadline(d.text);
+                if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
+                else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
+              }
+            }
+
+            const enrollment = r["latest.student.size"];
+            if (enrollment !== null && enrollment !== undefined) {
+              enqueueItem({
+                text: `${schoolName} enrolled ${enrollment.toLocaleString()} students per College Scorecard`,
+                sourceTier: 2, source: "scorecard",
+                forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore: 0,
+              });
+            }
+
+            const gradRate = r["latest.completion.completion_rate_4yr_150_pooled"];
+            if (gradRate !== null && gradRate !== undefined && !Number.isNaN(gradRate)) {
+              const gradPct = gradRate * 100;
+              const perf = gradPct >= 90 ? "strong" : gradPct >= 80 ? "good" : gradPct >= 70 ? "moderate" : "concerning";
+              const sentimentScore = gradPct >= 90 ? 0.75 : gradPct >= 70 ? 0 : -0.75;
+              enqueueItem({
+                text: `${schoolName} 4-year graduation rate: ${gradPct.toFixed(1)}% (${perf} academic completion) per College Scorecard`,
+                sourceTier: 2, source: "scorecard",
+                forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore,
+              });
+            }
+
+            const earnings = r["latest.earnings.10_yrs_after_entry.median"];
+            if (earnings !== null && earnings !== undefined) {
+              enqueueItem({
+                text: `${schoolName} graduates earn a median $${earnings.toLocaleString()} annually 10 years after enrollment per College Scorecard`,
+                sourceTier: 2, source: "scorecard",
+                forcedIndex: uni.index, sourceLabelOverride: true,
+                sentimentScore: earnings >= 80000 ? 0.75 : 0,
+              });
+            }
+          }
+        }
+      } catch { /* skip this university */ }
+
+      // Static US News rankings
+      const rankData = US_NEWS_RANKS[uni.index];
+      if (rankData) {
+        const { rank } = rankData;
+        const rankLabel = rank <= 5 ? "elite" : rank <= 10 ? "top-10" : rank <= 25 ? "top-25" : "top-50";
+        enqueueItem({
+          text: `${uni.name} ranked #${rank} nationally (${rankLabel} tier) in 2026 US News Best Colleges rankings`,
+          sourceTier: 2, source: "scorecard",
+          forcedIndex: uni.index, sourceLabelOverride: true,
+          sentimentScore: rank <= 10 ? 0.72 : 0,
+        });
+      }
+
+      // Static endowment values
+      const endowData = ENDOWMENTS[uni.index];
+      if (endowData) {
+        const { val } = endowData;
+        const tier = val >= 30 ? "mega-endowment" : val >= 10 ? "large-endowment" : "significant-endowment";
+        enqueueItem({
+          text: `${uni.name} endowment: $${val}B (${tier}) for fiscal year 2025`,
+          sourceTier: 2, source: "scorecard",
+          forcedIndex: uni.index, sourceLabelOverride: true,
+          sentimentScore: val >= 30 ? 0.72 : 0,
+        });
+        const metricKey = `endowment:${uni.index}:value`;
+        saveMetricSnapshot(metricKey, val, `${uni.name} endowment`, "College Scorecard");
+        const deltas = getDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
+        for (const d of deltas) {
+          const dr = shouldBlockHeadline(d.text);
+          if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
+          else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
+        }
+      }
+
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    if (mapped.length > 0) {
+      saveHeadlinesToCache(mapped);
+      console.info(`[CollegeScorecardService] Enqueued ${mapped.length} college headlines. Queue depth: ${_queue.length}`);
+    }
+  } catch (err) {
+    console.warn("[CollegeScorecardService] fetch failed.", err);
+  } finally {
+    _isFetchingCollegeScorecard = false;
   }
 }
 
@@ -2584,13 +3501,19 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   const redditApifyIntervalId = setInterval(fetchRedditApifyBatch, 3_600_000);
 
   void fetchFREDBatch();
-  const fredIntervalId = setInterval(fetchFREDBatch, 3_600_000);
+  const fredIntervalId = setInterval(fetchFREDBatch, 360 * 60 * 1000);
 
   void fetchBLSBatch();
-  const blsIntervalId = setInterval(fetchBLSBatch, 3_600_000);
+  const blsIntervalId = setInterval(fetchBLSBatch, 360 * 60 * 1000);
 
   void fetchBEABatch();
-  const beaIntervalId = setInterval(fetchBEABatch, 3_600_000);
+  const beaIntervalId = setInterval(fetchBEABatch, 720 * 60 * 1000);
+
+  void fetchWorldBankBatch();
+  const worldBankIntervalId = setInterval(fetchWorldBankBatch, 1440 * 60 * 1000);
+
+  void fetchNBSChinaBatch();
+  const nbsChinaIntervalId = setInterval(fetchNBSChinaBatch, 1440 * 60 * 1000);
 
   void fetchForbesBatch();
   const forbesIntervalId = setInterval(fetchForbesBatch, 3_600_000);
@@ -2626,6 +3549,26 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchKalshiBatch();
   const kalshiIntervalId = setInterval(fetchKalshiBatch, 360 * 60 * 1000);
 
+  // API-Sports Soccer — fire immediately, then every 6 hours
+  void fetchAPISportsSoccerBatch();
+  const apiSportsSoccerIntervalId = setInterval(fetchAPISportsSoccerBatch, 360 * 60 * 1000);
+
+  // API-Sports NFL — fire immediately, then every 6 hours
+  void fetchAPISportsNFLBatch();
+  const apiSportsNFLIntervalId = setInterval(fetchAPISportsNFLBatch, 360 * 60 * 1000);
+
+  // API-Sports F1 — fire immediately, then every 6 hours
+  void fetchAPISportsF1Batch();
+  const apiSportsF1IntervalId = setInterval(fetchAPISportsF1Batch, 360 * 60 * 1000);
+
+  // FotMob — fire immediately, then every 3 hours
+  void fetchFotMobBatch();
+  const fotmobIntervalId = setInterval(fetchFotMobBatch, 180 * 60 * 1000);
+
+  // College Scorecard — fire immediately, then every 72 hours
+  void fetchCollegeScorecardBatch();
+  const collegeScorecardIntervalId = setInterval(fetchCollegeScorecardBatch, 4320 * 60 * 1000);
+
   return () => {
     clearInterval(newsIntervalId);
     clearInterval(blsIntervalId);
@@ -2637,6 +3580,8 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(omdbIntervalId);
     clearInterval(fredIntervalId);
     clearInterval(beaIntervalId);
+    clearInterval(worldBankIntervalId);
+    clearInterval(nbsChinaIntervalId);
     clearInterval(forbesIntervalId);
     clearInterval(socialBladeIntervalId);
     clearInterval(youTubeIntervalId);
@@ -2645,6 +3590,11 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
     clearInterval(billboardIntervalId);
     clearInterval(polymarketIntervalId);
     clearInterval(kalshiIntervalId);
+    clearInterval(apiSportsSoccerIntervalId);
+    clearInterval(apiSportsNFLIntervalId);
+    clearInterval(apiSportsF1IntervalId);
+    clearInterval(fotmobIntervalId);
+    clearInterval(collegeScorecardIntervalId);
     _initialized = false;
   };
 }
@@ -2691,7 +3641,7 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
     // fallback), so measure queue depth across the call to tell whether the
     // live fetch actually produced anything.
     const depthBeforeFetch = getQueueLength();
-    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchForbesBatch(), fetchSocialBladeBatch(), fetchYouTubeBatch(), fetchTwitchBatch(), fetchSpotifyBatch(), fetchBillboardBatch(), fetchPolymarketBatch(), fetchKalshiBatch()]);
+    await Promise.all([fetchNewsBatch(), fetchNewsAPIBatch(), fetchRSSBatch(), fetchOddsAPIBatch(), fetchGoogleSearchBatch(), fetchRedditApifyBatch(), fetchFREDBatch(), fetchBLSBatch(), fetchBEABatch(), fetchWorldBankBatch(), fetchNBSChinaBatch(), fetchForbesBatch(), fetchSocialBladeBatch(), fetchYouTubeBatch(), fetchTwitchBatch(), fetchSpotifyBatch(), fetchBillboardBatch(), fetchPolymarketBatch(), fetchKalshiBatch(), fetchAPISportsSoccerBatch(), fetchAPISportsNFLBatch(), fetchAPISportsF1Batch(), fetchFotMobBatch(), fetchCollegeScorecardBatch()]);
     const liveEnqueued = getQueueLength() - depthBeforeFetch;
 
     if (liveEnqueued > 0) {
