@@ -232,7 +232,7 @@ function saveHeadlinesToCache(headlines: QueuedHeadline[]): void {
       if (seen.has(h.text)) return false;
       seen.add(h.text);
       return true;
-    }).slice(0, 15);
+    }).slice(0, 200);
     localStorage.setItem(HEADLINE_CACHE_KEY, JSON.stringify(deduped));
   } catch {}
 }

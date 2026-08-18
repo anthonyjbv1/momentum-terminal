@@ -860,7 +860,7 @@ export function NewsFeedSidebar() {
 
   useEffect(() => {
     const handleNewDispatch = () => {
-      const all = getAllDispatchedHeadlines(50)
+      const all = getAllDispatchedHeadlines(75)
         .map((e) => {
           // Fix 3 — forcedIndex fallback: if relatedIndex is missing or not in
           // the active set but the entry carries a forcedIndex that IS active,
@@ -883,7 +883,7 @@ export function NewsFeedSidebar() {
           return e;
         })
         .filter((e) => isActiveIndex(e.event.relatedIndex));
-      setRawEntries(all.slice(0, 50));
+      setRawEntries(all.slice(0, 75));
       setPinnedUpdateTick((t) => t + 1);
       setExpandedIndex((prev) => (prev !== null ? prev + 1 : null));
     };

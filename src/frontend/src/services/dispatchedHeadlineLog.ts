@@ -27,7 +27,7 @@ export interface DispatchedHeadlineEntry {
 }
 
 const STORAGE_KEY = "mt_dispatched_headline_log";
-const MAX_LOG_SIZE = 100;
+const MAX_LOG_SIZE = 350;
 // Only restore headlines from the last 24 hours so stale entries don't pile up
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
