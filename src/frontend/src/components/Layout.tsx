@@ -160,7 +160,7 @@ export function Layout({
                 Momentum
               </span>
               <span className="text-muted-foreground text-[9px] uppercase tracking-widest font-medium">
-                Oracle Terminal
+                Terminal
               </span>
             </div>
           </div>
