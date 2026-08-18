@@ -37,7 +37,6 @@ import {
   getSentimentDisplayLogic,
 } from "../utils/sentimentUtils";
 import { getCrisisHaltMessage } from "./AssetRow";
-import { useCountdown } from "../hooks/useCountdown";
 
 // ─── Source label helper ──────────────────────────────────────────────────────
 const AUDIT_SOURCE_LABEL_MAP: Record<string, string> = {
@@ -1891,8 +1890,6 @@ export default function OracleAuditModal({
   const [showConfidenceInfo, setShowConfidenceInfo] = useState(false);
   // Re-render trigger so unified log entries refresh when modal is open
   const [tickRefresh, setTickRefresh] = useState(0);
-  const [countdown, secondsLeft] = useCountdown(undefined, tickRefresh);
-  const isUrgent = secondsLeft <= 5;
   // Fallthrough Log accordion state
   const [fallthroughOpen, setFallthroughOpen] = useState(false);
   const [fallthroughLog, setFallthroughLog] = useState<FallthroughEntry[]>([]);
@@ -2135,20 +2132,6 @@ export default function OracleAuditModal({
               >
                 {getDisplayName(indexName)} Oracle Audit Trail
               </h2>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <span
-                  className="md:hidden"
-                  style={{
-                    fontFamily: "monospace",
-                    fontSize: "0.65rem",
-                    fontWeight: 600,
-                    letterSpacing: "0.05em",
-                    color: isUrgent ? "#f87171" : "#4a4a4a",
-                    transition: "color 0.15s",
-                  }}
-                >
-                  {countdown}
-                </span>
               <button
                 type="button"
                 onClick={onClose}
@@ -2177,7 +2160,6 @@ export default function OracleAuditModal({
               >
                 <X style={{ width: "18px", height: "18px" }} strokeWidth={2} />
               </button>
-              </div>
             </div>
 
             {/* Scrollable body */}
