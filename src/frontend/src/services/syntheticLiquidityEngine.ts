@@ -16,7 +16,7 @@
  *
  * THRESHOLD & LOGGING:
  *   Reflexive_Impact = Liquidity_Adjustment
- *   If |Reflexive_Impact| > 0.25 → write a 'Synthetic Liquidity (User Premium)' audit entry.
+ *   If |Reflexive_Impact| > 0.25 → write a 'Synthetic Liquidity (Open Interest)' audit entry.
  *
  * STRICT SAFETY:
  *   No imports of index.css, tailwind.config.js, or components.json.
@@ -55,7 +55,7 @@ export interface ReflexivePricingResult {
 export interface SyntheticLiquidityAuditEntry {
   indexName: string;
   timestamp: number;
-  label: "Synthetic Liquidity (User Premium)";
+  label: "Synthetic Liquidity (Open Interest)";
   oracleScore: number;
   finalBaseScore: number;
   reflexiveImpact: number;
@@ -145,7 +145,7 @@ export function applyReflexivePricing(
     auditEntry = {
       indexName,
       timestamp: nowMs,
-      label: "Synthetic Liquidity (User Premium)",
+      label: "Synthetic Liquidity (Open Interest)",
       oracleScore,
       finalBaseScore,
       reflexiveImpact,

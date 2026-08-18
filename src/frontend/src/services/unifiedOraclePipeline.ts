@@ -171,7 +171,7 @@ let _tickId = 0;
 /**
  * Reads the user's current allocation data fresh from localStorage on every call.
  * This replaces the stale cached holdings snapshot that was previously frozen at
- * session initialization, ensuring User Premium reflects the user's actual
+ * session initialization, ensuring Open Interest reflects the user's actual
  * live position on every tick.
  *
  * Reads from "sentimentam_local_holdings_v5" — the same key that
@@ -370,13 +370,13 @@ function runPipelineForIndex(
   postTidalScore =
     Math.round(Math.max(SCORE_FLOOR, postTidalScore) * 100) / 100;
 
-  // ── Step 4: User Premium (Open Interest Signal) ───────────────────────────
+  // ── Step 4: Open Interest Signal ──────────────────────────────────────────
   // Models concentration like open interest: high concentration signals conviction
   // (neutral-to-bullish), only extreme overconcentration signals resistance.
   //   0%–60%  → 0.00 (neutral, no pressure)
   //   60%–85% → small positive (+0.05 to +0.15) — conviction signal
   //   >85%    → small negative (-0.05 to -0.15) — overextension resistance
-  // Magnitude capped at ±0.30; User Premium is a supporting signal only.
+  // Magnitude capped at ±0.30; Open Interest is a supporting signal only.
   const allocationRatio = allocationRatios[indexName] ?? 0;
   let liquidityPremium: number;
   if (allocationRatio <= 0.60) {
@@ -550,7 +550,7 @@ export function runOraclePipelineForAll(
   const tidalDeltas = applyTidalPropagation(scoresWithNews);
 
   // 6. Compute allocation ratios once for all indices.
-  // User Premium fix: read allocation percentage LIVE from localStorage on every
+  // Open Interest fix: read allocation percentage LIVE from localStorage on every
   // tick so it reflects the user's actual current position rather than the
   // stale holdings snapshot captured at session initialization.
   // readLiveAllocationRatios() returns {} when no capital is deployed — in that

@@ -730,7 +730,7 @@ function SyntheticLiquidityEntry({
           <span style={{ color: "#93c5fd", fontWeight: 600 }}>
             Crowd Signal —{" "}
           </span>
-          Synthetic Liquidity (User Premium)
+          Synthetic Liquidity (Open Interest)
         </p>
 
         {/* Allocation ratio sub-line */}
@@ -813,7 +813,7 @@ function getPipelineSteps(entry: ExtendedTickEntry): PipelineStep[] {
     { symbol: "①", label: "Mean Reversion", delta: entry.thetaAdjustment },
     { symbol: "②", label: "Oracle News", delta: entry.rawNewsImpact },
     { symbol: "③", label: "Global Pulse", delta: entry.tidalDelta },
-    { symbol: "④", label: "User Premium", delta: entry.liquidityPremium },
+    { symbol: "④", label: "Open Interest", delta: entry.liquidityPremium },
     {
       symbol: "⚡",
       label: "Stream #4",
@@ -1064,7 +1064,7 @@ function UnifiedTickEntry({
             </span>
           </div>
 
-          {/* Step 4: User Premium (was Liquidity) */}
+          {/* Step 4: Open Interest (was Liquidity) */}
           <div
             className="flex flex-col sm:flex-row sm:justify-between"
             style={{
@@ -1074,7 +1074,7 @@ function UnifiedTickEntry({
             }}
           >
             <span style={{ color: "#64748b" }}>
-              ④ User Premium ({(entry.allocationRatio * 100).toFixed(1)}% alloc)
+              ④ Open Interest ({(entry.allocationRatio * 100).toFixed(1)}% alloc)
             </span>
             <span style={{ color: deltaColor(entry.liquidityPremium) }}>
               {fmt(entry.liquidityPremium)} →{" "}
@@ -1294,7 +1294,7 @@ const CONTRIBUTOR_LEGEND = [
   { label: "Mean Reversion", color: "#22c55e" },
   { label: "Oracle News", color: "#ef4444" },
   { label: "Global Pulse", color: "#f59e0b" },
-  { label: "User Premium", color: "#8b5cf6" },
+  { label: "Open Interest", color: "#8b5cf6" },
   { label: "Net Order Flow", color: "#3b82f6" },
 ];
 
@@ -1318,7 +1318,7 @@ const RADAR_AXES = [
     extractor: (e: ExtendedTickEntry) => e.tidalDelta ?? 0,
   },
   {
-    contributor: "User Premium",
+    contributor: "Open Interest",
     color: "#8b5cf6",
     extractor: (e: ExtendedTickEntry) => e.liquidityPremium ?? 0,
   },
@@ -1469,7 +1469,7 @@ function RadarSpider({
   // axis 0 Mean Reversion (-54°) → start
   // axis 1 Oracle News (18°) → start
   // axis 2 Global Pulse (54°) → middle
-  // axis 3 User Premium (90°) → end
+  // axis 3 Open Interest (90°) → end
   // axis 4 Net Order Flow (126°) → end
   const anchors: Array<"start" | "middle" | "end"> = [
     "start",
