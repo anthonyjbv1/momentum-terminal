@@ -396,7 +396,9 @@ export function Layout({
             )}
             {children}
           </div>
-          <NewsFeedSidebar />
+          <div className="hidden lg:flex lg:flex-col lg:shrink-0">
+            <NewsFeedSidebar />
+          </div>
         </div>
 
         {/* PORTFOLIO TAB — always mounted */}
