@@ -371,14 +371,13 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
         // Skip FinBERT for structured data sources (Forbes/YouTube/Twitch/Spotify)
         // that have a forcedIndex and sourceLabelOverride — they don't need Gradio classification.
         if (queued.forcedIndex && queued.sourceLabelOverride) {
+          const s = queued.sentimentScore;
           const label =
-            typeof queued.sentimentScore === "number"
-              ? queued.sentimentScore > 0
-                ? "positive"
-                : queued.sentimentScore < 0
-                  ? "negative"
-                  : "positive"
-              : "positive";
+            typeof s === "number" && s > 0
+              ? "positive"
+              : typeof s === "number" && s < 0
+                ? "negative"
+                : "neutral"; // zero or undefined → neutral so direction=0 and finalImpact=0
           return {
             ...queued,
             label: label as "positive" | "negative" | "neutral",
@@ -784,10 +783,14 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
         //
         // This is strictly fire-and-forget — the main tick cycle is never
         // blocked. Failures are silently swallowed.
+        // Structured data sources (YouTube subscriber counts, Twitch viewers, etc.)
+        // already carry the correct label — don't synthesize a social Oracle headline
+        // that would land in the same dedup bucket with a random tier-2 source name.
         const isSocialSource =
-          scored.source === "reddit" ||
-          scored.source === "youtube" ||
-          scored.source === "twitter";
+          !scored.sourceLabelOverride &&
+          (scored.source === "reddit" ||
+           scored.source === "youtube" ||
+           scored.source === "twitter");
 
         if (isSocialSource) {
           const sentimentDir =

@@ -120,9 +120,23 @@ let _isFetchingRSS = false;
 let _isFetchingOMDB = false;
 let _isFetchingFRED = false;
 let _isFetchingBLS = false;
-// Per-series snapshot display throttle — key → last enqueue timestamp ms
-const _snapshotLastShown = new Map<string, number>();
 const SNAPSHOT_DISPLAY_INTERVAL_MS = 12 * 60 * 60 * 1000; // show each series snapshot at most twice a day
+const SNAPSHOT_LS_KEY = "mt_snapshot_last_shown";
+// Persisted to localStorage so the throttle survives page reloads
+const _snapshotLastShown = new Map<string, number>(
+  (() => {
+    try {
+      return Object.entries(JSON.parse(localStorage.getItem(SNAPSHOT_LS_KEY) ?? "{}") as Record<string, number>);
+    } catch { return []; }
+  })()
+);
+function _persistSnapshotLastShown(key: string, ts: number): void {
+  _snapshotLastShown.set(key, ts);
+  try {
+    const obj = Object.fromEntries(_snapshotLastShown);
+    localStorage.setItem(SNAPSHOT_LS_KEY, JSON.stringify(obj));
+  } catch { /* ignore */ }
+}
 let _isFetchingBEA = false;
 let _isFetchingForbes = false;
 let _isFetchingSocialBlade = false;
@@ -743,7 +757,7 @@ async function fetchFREDBatch(): Promise<void> {
         } else if (Date.now() - lastShown >= SNAPSHOT_DISPLAY_INTERVAL_MS) {
           mapped.push(snapshotItem);
           _queue.push(snapshotItem);
-          _snapshotLastShown.set(metricKey, Date.now());
+          _persistSnapshotLastShown(metricKey, Date.now());
         }
 
         saveMetricSnapshot(metricKey, value, series.label, "FRED");
@@ -842,7 +856,7 @@ async function fetchBLSBatch(): Promise<void> {
       } else if (Date.now() - lastShownBls >= SNAPSHOT_DISPLAY_INTERVAL_MS) {
         mapped.push(item);
         _queue.push(item);
-        _snapshotLastShown.set(metricKey, Date.now());
+        _persistSnapshotLastShown(metricKey, Date.now());
       }
       saveMetricSnapshot(metricKey, value, meta.name, "BLS");
       const deltas = getDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
