@@ -303,8 +303,8 @@ function runPipelineForIndex(
     previousScore = decayState.previousScore;
     const deltaMs = Math.max(0, nowMs - decayState.lastUpdatedMs);
     deltaHours = deltaMs / (1000 * 60 * 60);
-    // Pass category-specific decay rate — applyDecay uses it as λ override.
-    decayedScore = applyDecay(previousScore, deltaHours, categoryDecayRate);
+    // Pass category-specific decay rate and indexName so applyDecay uses per-index revertTarget.
+    decayedScore = applyDecay(previousScore, deltaHours, categoryDecayRate, indexName);
   }
 
   const thetaAdjustment =
