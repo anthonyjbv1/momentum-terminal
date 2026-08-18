@@ -292,8 +292,8 @@ export function AssetList() {
           Narratives
         </h2>
         <p className="text-muted-foreground text-sm mt-1.5 max-w-lg">
-          Allocate capital to gain synthetic exposure to proprietary sentiment
-          indices. Prices are Oracle-driven and updated in real time.
+          Allocate capital to gain exposure to proprietary narrative indices.
+          Prices are Oracle-driven and updated in real time.
         </p>
       </div>
 
