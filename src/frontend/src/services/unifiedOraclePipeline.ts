@@ -452,8 +452,8 @@ function runPipelineForIndex(
     finalScore: finalScoreWithPreemption,
     scenario,
     scenarioLabel,
-    preemptionFired: preemptionResult.triggered,
-    preemptionAdjustment: preemptionResult.triggered
+    preemptionFired: preemptionResult.triggered && preemptionResult.adjustment !== 0,
+    preemptionAdjustment: preemptionResult.triggered && preemptionResult.adjustment !== 0
       ? preemptionResult.adjustment
       : 0,
     preemptionConfirmed: preemptionResult.confirmed,
