@@ -261,7 +261,7 @@ export default function GSIPulseModal({
                       margin: "6px 0 0 0",
                     }}
                   >
-                    Weighted composite of all 5 active indices
+                    Weighted composite of all {ACTIVE_INDICES.length} active indices
                   </p>
                 </div>
 
@@ -300,7 +300,7 @@ export default function GSIPulseModal({
                     <span style={{ color: "#f1f5f9", fontWeight: 600 }}>
                       Global Sentiment Index (GSI)
                     </span>{" "}
-                    is SentimentAM's proprietary macro pulse — a single
+                    is Momentum Terminal's proprietary macro pulse — a single
                     composite score that captures the aggregate sentiment state
                     of global markets. It is computed as a{" "}
                     <span style={{ color: "#86efac" }}>
