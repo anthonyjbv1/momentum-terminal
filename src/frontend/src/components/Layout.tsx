@@ -29,58 +29,15 @@ export interface LayoutProps {
   onOpenSearch?: () => void;
 }
 
-/** Momentum logo mark — two elliptical loops at ±35°, rounded caps, white on black, central diamond */
 export function MomentumLogoMark() {
   return (
-    <svg
-      role="img"
-      aria-label="Momentum logo"
-      viewBox="0 0 28 28"
+    <img
+      src="/logo.png"
+      alt="Momentum logo"
       width="28"
       height="28"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{ display: "block" }}
-    >
-      {/* Black background square with rounded corners */}
-      <rect width="28" height="28" rx="4" fill="#000000" />
-
-      {/* Ellipse 1 — rotated +35° */}
-      <ellipse
-        cx="14"
-        cy="14"
-        rx="8"
-        ry="3"
-        fill="none"
-        stroke="white"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        transform="rotate(35 14 14)"
-      />
-
-      {/* Ellipse 2 — rotated -35° */}
-      <ellipse
-        cx="14"
-        cy="14"
-        rx="8"
-        ry="3"
-        fill="none"
-        stroke="white"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        transform="rotate(-35 14 14)"
-      />
-
-      {/* Central diamond — small square rotated 45°, filled white */}
-      <rect
-        x="12.2"
-        y="12.2"
-        width="3.6"
-        height="3.6"
-        rx="0.4"
-        fill="white"
-        transform="rotate(45 14 14)"
-      />
-    </svg>
+      style={{ display: "block", width: "28px", height: "28px", objectFit: "contain" }}
+    />
   );
 }
 
