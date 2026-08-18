@@ -178,13 +178,14 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
           sentimentLabel: string;
           confidence: number;
           sourceTier: number;
+          source?: string;
           timestamp: number;
         }>;
         if (Array.isArray(parsed) && parsed.length > 0) {
           const sorted = [...parsed].sort((a, b) => a.timestamp - b.timestamp);
           for (const ph of sorted) {
             const tier = Math.max(1, Math.min(5, Number(ph.sourceTier))) as 1 | 2 | 3 | 4 | 5;
-            const sourceName = getSourceNameForTier(tier);
+            const sourceName = ph.source ?? getSourceNameForTier(tier);
             recordDispatchedHeadline({
               headline: ph.text,
               sentimentScore: ph.impact,
@@ -981,6 +982,7 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
             sentimentLabel: scored.label,
             confidence: scored.confidence,
             sourceTier: scored.sourceTier,
+            source: scored.source,
             timestamp: Date.now(),
           });
           const capped = stored.slice(-200);
