@@ -110,9 +110,9 @@ export function Layout({
       <header className="sticky top-0 z-50 w-full border-b border-border bg-black">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between overflow-x-auto scrollbar-hide sm:overflow-x-visible">
           {/* Logo */}
-          <div className="flex items-center gap-1 sm:gap-2.5">
+          <div className="flex items-center gap-2.5">
             <MomentumLogoMark />
-            <div className="flex flex-col leading-none">
+            <div className="hidden sm:flex flex-col leading-none">
               <span className="text-foreground font-bold text-sm tracking-tight">
                 Momentum
               </span>
