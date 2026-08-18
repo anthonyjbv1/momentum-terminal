@@ -123,20 +123,29 @@ export function Layout({
           : "#fbbf24";
 
   // ── Collapsible hero — only relevant on Markets tab ───────────────────────────
-  const [isHeroCollapsed, setIsHeroCollapsed] = useState(
-    typeof window !== "undefined" &&
-      localStorage.getItem(hasAllocKey) === "true",
-  );
+  const heroCollapseKey = "momentum_hero_collapsed";
+  const [isHeroCollapsed, setIsHeroCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem(heroCollapseKey);
+    if (saved !== null) return saved === "true";
+    return localStorage.getItem(hasAllocKey) === "true";
+  });
+
+  const toggleHeroCollapsed = useCallback((collapsed: boolean) => {
+    setIsHeroCollapsed(collapsed);
+    localStorage.setItem(heroCollapseKey, String(collapsed));
+  }, [heroCollapseKey]);
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === hasAllocKey && e.newValue === "true") {
         setIsHeroCollapsed(true);
+        localStorage.setItem(heroCollapseKey, "true");
       }
     };
     window.addEventListener("storage", handleStorageChange);
     return () => window.removeEventListener("storage", handleStorageChange);
-  }, [hasAllocKey]);
+  }, [hasAllocKey, heroCollapseKey]);
 
   return (
     <div className="min-h-screen lg:h-screen flex flex-col bg-background text-foreground sm:overflow-x-hidden lg:overflow-hidden">
@@ -331,7 +340,7 @@ export function Layout({
                     </div>
                     <button
                       type="button"
-                      onClick={() => setIsHeroCollapsed(false)}
+                      onClick={() => toggleHeroCollapsed(false)}
                       className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-white/5 transition-colors"
                       aria-label="Expand platform description"
                     >
@@ -368,7 +377,7 @@ export function Layout({
                       </div>
                       <button
                         type="button"
-                        onClick={() => setIsHeroCollapsed(true)}
+                        onClick={() => toggleHeroCollapsed(true)}
                         className="flex items-center gap-1 px-2 py-1 rounded-sm hover:bg-white/5 transition-colors mt-1"
                         aria-label="Collapse platform description"
                       >

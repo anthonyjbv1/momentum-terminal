@@ -168,23 +168,38 @@ export function AssetList() {
     !hasLoadedOnceRef.current && isLoading && !skeletonExpired;
 
   // ─── Collapsible info blocks ───────────────────────────────────────────────────
-  // Collapsed by default if the user has ever made an allocation.
-  // Reacts immediately in the same session via a custom storage event dispatched
-  // by AllocationModal after writing momentum_has_allocated to localStorage.
-  const [isSpreadInfoCollapsed, setIsSpreadInfoCollapsed] = useState(
-    typeof window !== "undefined" &&
-      localStorage.getItem(hasAllocKey) === "true",
-  );
-  const [isCooldownInfoCollapsed, setIsCooldownInfoCollapsed] = useState(
-    typeof window !== "undefined" &&
-      localStorage.getItem(hasAllocKey) === "true",
-  );
+  const spreadCollapseKey = "momentum_spread_collapsed";
+  const cooldownCollapseKey = "momentum_cooldown_collapsed";
+
+  const [isSpreadInfoCollapsed, setIsSpreadInfoCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem(spreadCollapseKey);
+    if (saved !== null) return saved === "true";
+    return localStorage.getItem(hasAllocKey) === "true";
+  });
+  const [isCooldownInfoCollapsed, setIsCooldownInfoCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem(cooldownCollapseKey);
+    if (saved !== null) return saved === "true";
+    return localStorage.getItem(hasAllocKey) === "true";
+  });
+
+  const toggleSpreadCollapsed = (collapsed: boolean) => {
+    setIsSpreadInfoCollapsed(collapsed);
+    localStorage.setItem(spreadCollapseKey, String(collapsed));
+  };
+  const toggleCooldownCollapsed = (collapsed: boolean) => {
+    setIsCooldownInfoCollapsed(collapsed);
+    localStorage.setItem(cooldownCollapseKey, String(collapsed));
+  };
 
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === hasAllocKey && e.newValue === "true") {
         setIsSpreadInfoCollapsed(true);
+        localStorage.setItem(spreadCollapseKey, "true");
         setIsCooldownInfoCollapsed(true);
+        localStorage.setItem(cooldownCollapseKey, "true");
       }
     };
     window.addEventListener("storage", handleStorageChange);
@@ -310,7 +325,7 @@ export function AssetList() {
           {/* Clickable header */}
           <button
             type="button"
-            onClick={() => setIsSpreadInfoCollapsed((prev) => !prev)}
+            onClick={() => toggleSpreadCollapsed(!isSpreadInfoCollapsed)}
             style={{
               width: "100%",
               display: "flex",
@@ -378,7 +393,7 @@ export function AssetList() {
         >
           <button
             type="button"
-            onClick={() => setIsSpreadInfoCollapsed((prev) => !prev)}
+            onClick={() => toggleSpreadCollapsed(!isSpreadInfoCollapsed)}
             style={{
               width: "100%",
               display: "flex",
@@ -448,7 +463,7 @@ export function AssetList() {
         {/* Clickable header */}
         <button
           type="button"
-          onClick={() => setIsCooldownInfoCollapsed((prev) => !prev)}
+          onClick={() => toggleCooldownCollapsed(!isCooldownInfoCollapsed)}
           style={{
             width: "100%",
             display: "flex",
@@ -499,7 +514,7 @@ export function AssetList() {
                   After allocating, you must wait for the next Oracle cycle
                   before redeeming. This ensures your position is priced through
                   at least one full sentiment cycle, maintaining Oracle
-                  integrity and preventing front-running of headline events.
+                  integrity.
                 </p>
               </div>
             </div>
