@@ -1074,7 +1074,7 @@ function UnifiedTickEntry({
             }}
           >
             <span style={{ color: "#64748b" }}>
-              ④ Open Interest ({(entry.allocationRatio * 100).toFixed(1)}% alloc)
+              ④ Open Interest ({(entry.allocationRatio * 100).toFixed(1)}% platform alloc)
             </span>
             <span style={{ color: deltaColor(entry.liquidityPremium) }}>
               {fmt(entry.liquidityPremium)} →{" "}

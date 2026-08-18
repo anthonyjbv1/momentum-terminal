@@ -166,6 +166,16 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
   // A ref so it mutates without triggering re-renders.
   const tickIdRef = useRef<number>(0);
 
+  // Session-wide headline count per index — accumulated across all ticks,
+  // persisted to mt_headline_counts so activityFactor survives page refresh.
+  const sessionHeadlineCountsRef = useRef<Record<string, number>>((() => {
+    try {
+      const raw = localStorage.getItem("mt_headline_counts");
+      if (raw) return JSON.parse(raw) as Record<string, number>;
+    } catch { /* ignore */ }
+    return {};
+  })());
+
   useEffect(() => {
     // ── Seed dispatched headline log from localStorage ────────────────────────
     try {
@@ -1013,10 +1023,24 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    // Accumulate session-wide headline counts and persist for activityFactor
+    for (const [idxName, entry] of headlineMap) {
+      const count = entry.headlineCount ?? 1;
+      sessionHeadlineCountsRef.current[idxName] =
+        (sessionHeadlineCountsRef.current[idxName] ?? 0) + count;
+    }
+    try {
+      localStorage.setItem(
+        "mt_headline_counts",
+        JSON.stringify(sessionHeadlineCountsRef.current),
+      );
+    } catch { /* ignore */ }
+
     const output = runOraclePipelineForAll({
       rawOracleScores,
       holdings,
       headlineMap,
+      platformAllocatedByIndex: platformAllocatedRef.current,
       nowMs: Date.now(),
     });
 

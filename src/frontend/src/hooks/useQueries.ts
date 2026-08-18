@@ -4,6 +4,8 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLoyalty } from "../contexts/LoyaltyContext";
 import { useOracleTick } from "../contexts/OracleTickContext";
 import { FALLBACK_ASSET_DEFS } from "../data/fallbackAssets";
+import { calculateConfidenceScore } from "../services/confidenceScoreEngine";
+import { getDispatchedHeadlinesForIndex } from "../services/dispatchedHeadlineLog";
 import type {
   AccountStatus,
   AssetPrice,
@@ -73,7 +75,7 @@ export function useAssetPrices() {
 
   // Read OracleTickContext scores — these are the sole pipeline output source.
   // useOracleTick() is called at hook level (valid), not inside queryFn.
-  const { finalScores } = useOracleTick();
+  const { finalScores, platformAllocatedByIndex } = useOracleTick();
 
   // Serialize finalScores into a stable string so TanStack Query treats each
   // new tick as a distinct query key and re-runs pricing automatically.
@@ -142,19 +144,12 @@ export function useAssetPrices() {
       if (!actor) return [];
       const roundTo2 = (n: number) => Math.round(n * 100) / 100;
 
-      // Read local holdings from localStorage to compute real per-index capacity usage
-      let localHoldingsMap: Record<string, { units: number }> = {};
+      // Load per-index session headline counts (persisted by OracleTickContext)
+      let sessionHeadlineCounts: Record<string, number> = {};
       try {
-        const raw = localStorage.getItem("sentimentam_local_holdings_v5");
-        if (raw) {
-          localHoldingsMap = JSON.parse(raw) as Record<
-            string,
-            { units: number }
-          >;
-        }
-      } catch {
-        /* ignore */
-      }
+        const raw = localStorage.getItem("mt_headline_counts");
+        if (raw) sessionHeadlineCounts = JSON.parse(raw) as Record<string, number>;
+      } catch { /* ignore */ }
 
       // Phase 1 skipped — all 53 assets built from FALLBACK_ASSET_DEFS in Phase 2.
       const result: AssetPriceWithCapacity[] = [];
@@ -183,23 +178,35 @@ export function useAssetPrices() {
             const base = roundTo2(resolvedBase);
 
             // ── Pricing for fallback-appended indices ───────────────────────
-            // These indices are absent from the backend response, so there are
-            // no backend-returned buy/redeem prices to use. The frontend
-            // applies a static BASE_SPREAD (reduced by loyalty tier) only — no
-            // LMSR override, no crisis override, no circuit-breaker re-pricing.
+            // Spread is driven by three platform-wide signals instead of
+            // per-user localStorage so shadow deployment sees real liquidity.
             const MINIMUM_SPREAD = 0.1;
             const MAX_SPREAD = 1.5;
             const loyaltyReduction = tier?.spreadReduction ?? 0;
 
-            // Compute currentAllocated first so spread can widen with utilization
-            const localUnits = localHoldingsMap[indexName]?.units ?? 0;
-            const effectiveCapacity = fallback.maxAllocation * (1 - fallback.volatilityBuffer);
-            // Rough allocated estimate using base score before spread is known
-            const currentAllocated = localUnits * (base - MINIMUM_SPREAD);
+            // SIGNAL 1 — Concentration (platform-wide allocated / maxAllocation)
+            const platformAlloc = platformAllocatedByIndex[indexName] ?? 0;
+            const concentration = fallback.maxAllocation > 0
+              ? Math.min(1, platformAlloc / fallback.maxAllocation)
+              : 0;
 
-            // Dynamic spread: widens linearly from BASE_SPREAD to MAX_SPREAD as utilization rises
-            const utilization = effectiveCapacity > 0 ? Math.min(1, currentAllocated / effectiveCapacity) : 0;
-            const dynamicSpread = BASE_SPREAD + (MAX_SPREAD - BASE_SPREAD) * utilization;
+            // SIGNAL 2 — Oracle confidence (lower confidence → wider spread)
+            const headlineEvents = getDispatchedHeadlinesForIndex(indexName, 20).map((e) => e.event);
+            const confidenceScore = calculateConfidenceScore(headlineEvents).score;
+            const confidenceFactor = 1 - (confidenceScore / 100) * 0.4; // 0.60–1.00
+
+            // SIGNAL 3 — Activity depth (more headlines → tighter spread)
+            const headlineCount = sessionHeadlineCounts[indexName] ?? 0;
+            const activityFactor = 1 - Math.min(headlineCount / 20, 0.3); // 0.70–1.00
+
+            const rawSpread =
+              BASE_SPREAD * confidenceFactor * activityFactor +
+              (MAX_SPREAD - BASE_SPREAD) * concentration;
+            const dynamicSpread = Math.max(BASE_SPREAD, Math.min(MAX_SPREAD, rawSpread));
+
+            // currentAllocated = platform-wide allocated units (drives capacity display)
+            const currentAllocated = platformAlloc;
+
             const fallbackSpread = Math.max(
               MINIMUM_SPREAD,
               dynamicSpread - loyaltyReduction,

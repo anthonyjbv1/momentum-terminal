@@ -482,6 +482,12 @@ export interface OraclePipelineInput {
   currentHeadline?: TickHeadline | null;
   /** Current timestamp in ms (injectable for testing). Defaults to Date.now(). */
   nowMs?: number;
+  /**
+   * Platform-wide allocated units per index from the canister aggregate.
+   * When provided, used to compute Step 4 allocation ratios instead of
+   * per-user localStorage holdings.
+   */
+  platformAllocatedByIndex?: Record<string, number>;
 }
 
 export interface OraclePipelineOutput {
@@ -508,6 +514,7 @@ export function runOraclePipelineForAll(
     headlineMap,
     currentHeadline: legacyHeadline,
     nowMs = Date.now(),
+    platformAllocatedByIndex,
   } = input;
 
   // Clear pre-emptions from the previous tick before this tick fires
@@ -550,16 +557,25 @@ export function runOraclePipelineForAll(
   const tidalDeltas = applyTidalPropagation(scoresWithNews);
 
   // 6. Compute allocation ratios once for all indices.
-  // Open Interest fix: read allocation percentage LIVE from localStorage on every
-  // tick so it reflects the user's actual current position rather than the
-  // stale holdings snapshot captured at session initialization.
-  // readLiveAllocationRatios() returns {} when no capital is deployed — in that
-  // case computeAllocationRatios(holdings) is used as a safe fallback.
-  const liveRatios = readLiveAllocationRatios();
-  const allocationRatios =
-    Object.keys(liveRatios).length > 0
-      ? liveRatios
-      : computeAllocationRatios(holdings);
+  // Use platform-wide canister data when available — each index's ratio is
+  // its total allocated units divided by that index's maxAllocation cap.
+  // Falls back to per-user localStorage → then equal-weight default.
+  let allocationRatios: Record<string, number>;
+  if (platformAllocatedByIndex && Object.keys(platformAllocatedByIndex).length > 0) {
+    allocationRatios = {};
+    for (const def of FALLBACK_ASSET_DEFS) {
+      const allocated = platformAllocatedByIndex[def.name] ?? 0;
+      allocationRatios[def.name] = def.maxAllocation > 0
+        ? Math.min(1, allocated / def.maxAllocation)
+        : 0;
+    }
+  } else {
+    const liveRatios = readLiveAllocationRatios();
+    allocationRatios =
+      Object.keys(liveRatios).length > 0
+        ? liveRatios
+        : computeAllocationRatios(holdings);
+  }
 
   // Store current GSI for next tick's "before" reference
   _prevGSI = gsiAfterTick;
