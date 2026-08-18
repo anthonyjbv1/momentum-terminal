@@ -2073,6 +2073,9 @@ export default function OracleAuditModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onClose();
+          }}
           style={{
             position: "fixed",
             top: 0,
@@ -2085,30 +2088,15 @@ export default function OracleAuditModal({
             justifyContent: "center",
             padding: "16px",
             fontFamily: "'Inter', system-ui, sans-serif",
+            background: "rgba(0, 0, 0, 0.80)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
           }}
         >
-          {/* Solid opaque backdrop */}
-          <div
-            onClick={onClose}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") onClose();
-            }}
-            role="presentation"
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: "rgba(0, 0, 0, 0.80)",
-              backdropFilter: "blur(8px)",
-              WebkitBackdropFilter: "blur(8px)",
-              zIndex: 0,
-            }}
-          />
 
           {/* Modal panel */}
           <div
             style={{
-              position: "relative",
-              zIndex: 1,
               width: "100%",
               maxWidth: "520px",
               maxHeight: "88vh",
