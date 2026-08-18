@@ -120,6 +120,9 @@ let _isFetchingRSS = false;
 let _isFetchingOMDB = false;
 let _isFetchingFRED = false;
 let _isFetchingBLS = false;
+// Per-series snapshot display throttle — key → last enqueue timestamp ms
+const _snapshotLastShown = new Map<string, number>();
+const SNAPSHOT_DISPLAY_INTERVAL_MS = 12 * 60 * 60 * 1000; // show each series snapshot at most twice a day
 let _isFetchingBEA = false;
 let _isFetchingForbes = false;
 let _isFetchingSocialBlade = false;
@@ -734,11 +737,13 @@ async function fetchFREDBatch(): Promise<void> {
           sentimentScore: 0,
         };
         const blockReason = shouldBlockHeadline(snapshotItem.text);
+        const lastShown = _snapshotLastShown.get(metricKey) ?? 0;
         if (blockReason) {
           blockedHeadlines.push({ text: snapshotItem.text, reason: blockReason, blockedAt: Date.now() });
-        } else {
+        } else if (Date.now() - lastShown >= SNAPSHOT_DISPLAY_INTERVAL_MS) {
           mapped.push(snapshotItem);
           _queue.push(snapshotItem);
+          _snapshotLastShown.set(metricKey, Date.now());
         }
 
         saveMetricSnapshot(metricKey, value, series.label, "FRED");
@@ -829,15 +834,16 @@ async function fetchBLSBatch(): Promise<void> {
         sourceLabelOverride: true,
         sentimentScore: 0,
       };
+      const metricKey = `bls:${s.seriesID}`;
       const blockReason = shouldBlockHeadline(item.text);
+      const lastShownBls = _snapshotLastShown.get(metricKey) ?? 0;
       if (blockReason) {
         blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
-      } else {
+      } else if (Date.now() - lastShownBls >= SNAPSHOT_DISPLAY_INTERVAL_MS) {
         mapped.push(item);
         _queue.push(item);
+        _snapshotLastShown.set(metricKey, Date.now());
       }
-
-      const metricKey = `bls:${s.seriesID}`;
       saveMetricSnapshot(metricKey, value, meta.name, "BLS");
       const deltas = getDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
       for (const d of deltas) {
@@ -1920,12 +1926,15 @@ async function fetchForbesBatch(): Promise<void> {
         const change_pct = ((finalWorth - estWorthPrev) / estWorthPrev) * 100;
         if (Math.abs(change_pct) >= 0.5) {
           const direction = change_abs >= 0 ? "rose" : "fell";
+          // Scale: a 5% daily net-worth swing earns full sentiment weight
+          const forbesSentiment = Math.max(-1, Math.min(1, change_pct / 5));
           const changeHeadline: QueuedHeadline = {
             text: `${name} net worth ${direction} $${Math.abs(change_abs).toFixed(1)}B (${change_pct >= 0 ? "+" : ""}${change_pct.toFixed(2)}%) since prior trading day per Forbes Real-Time Billionaires`,
             sourceTier: 1,
             source: "forbes",
             forcedIndex,
             sourceLabelOverride: true,
+            sentimentScore: forbesSentiment,
           };
           const blockReason2 = shouldBlockHeadline(changeHeadline.text);
           if (blockReason2) {
@@ -2104,12 +2113,16 @@ async function fetchYouTubeBatch(): Promise<void> {
       const prev = stored[item.id];
       stored[item.id] = subs;
       if (prev !== undefined && subs > prev) {
+        // Scale: 1% sub growth per cycle earns full positive sentiment
+        const ytGrowthPct = ((subs - prev) / prev) * 100;
+        const ytSentiment = Math.min(1, ytGrowthPct / 1);
         const growthHeadline: QueuedHeadline = {
           text: `${meta.displayName} gains subscribers, now at ${formatCompact(subs)} on YouTube`,
           sourceTier: 2,
           source: "youtube",
           forcedIndex: meta.index,
           sourceLabelOverride: true,
+          sentimentScore: ytSentiment,
         };
         const block2 = shouldBlockHeadline(growthHeadline.text);
         if (block2) {
@@ -2205,12 +2218,15 @@ async function fetchTwitchBatch(): Promise<void> {
           // Only generate a headline when the streamer is live — offline status is not a signal
           if (!stream) return;
 
+          // Scale: 50k concurrent viewers earns full positive sentiment
+          const twitchSentiment = Math.min(1, stream.viewer_count / 50_000);
           const headline: QueuedHeadline = {
             text: `${displayName} is live on Twitch streaming ${stream.game_name} with ${stream.viewer_count.toLocaleString()} concurrent viewers`,
             sourceTier: 2,
             source: "twitch",
             forcedIndex,
             sourceLabelOverride: true,
+            sentimentScore: twitchSentiment,
           };
 
           const blockReason = shouldBlockHeadline(headline.text);
@@ -2313,6 +2329,9 @@ async function fetchSpotifyBatch(): Promise<void> {
           const prev = stored[artistId];
           stored[artistId] = followers;
           if (prev !== undefined && prev !== followers) {
+            // Scale: 1% follower change per cycle earns full sentiment weight
+            const spotifyChangePct = ((followers - prev) / prev) * 100;
+            const spotifySentiment = Math.max(-1, Math.min(1, spotifyChangePct / 1));
             const changeHeadline: QueuedHeadline = {
               text: followers > prev
                 ? `${meta.displayName}'s Spotify following continues to climb, now at ${formatCompact(followers)}`
@@ -2321,6 +2340,7 @@ async function fetchSpotifyBatch(): Promise<void> {
               source: "spotify",
               forcedIndex: meta.index,
               sourceLabelOverride: true,
+              sentimentScore: spotifySentiment,
             };
             const block2 = shouldBlockHeadline(changeHeadline.text);
             if (block2) {

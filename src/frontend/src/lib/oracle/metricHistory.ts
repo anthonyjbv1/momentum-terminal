@@ -54,12 +54,22 @@ export function saveMetricSnapshot(
   }
 }
 
+// Scales a percent-change into a [-1, 1] sentiment score.
+// maxPct defines the move size that earns full weight (±1.0).
+function scaleSentiment(pct: number, maxPct: number): number {
+  const raw = pct / maxPct;
+  return Math.max(-1, Math.min(1, raw));
+}
+
 export function getDeltaHeadlines(
   key: string,
   currentValue: number,
   entityName: string,
   sourceLabel: string,
   targetIndex: string,
+  // maxPct for weekly and monthly — a move of this size earns sentiment ±1.0
+  weeklyMaxPct = 5,
+  monthlyMaxPct = 10,
 ): DeltaHeadline[] {
   const headlines: DeltaHeadline[] = [];
   try {
@@ -89,7 +99,7 @@ export function getDeltaHeadlines(
           source: sourceKey,
           forcedIndex: targetIndex,
           sourceLabelOverride: true,
-          sentimentScore: delta >= 0 ? 0.82 : -0.82,
+          sentimentScore: scaleSentiment(pct, weeklyMaxPct),
         });
       }
     }
@@ -113,7 +123,7 @@ export function getDeltaHeadlines(
           source: sourceKey,
           forcedIndex: targetIndex,
           sourceLabelOverride: true,
-          sentimentScore: delta >= 0 ? 0.82 : -0.82,
+          sentimentScore: scaleSentiment(pct, monthlyMaxPct),
         });
       }
     }

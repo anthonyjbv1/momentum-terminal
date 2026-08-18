@@ -315,12 +315,17 @@ function runPipelineForIndex(
   const hasHeadline =
     tickHeadline !== null && tickHeadline.indexName === indexName;
 
-  // Base impact: baseImpact × tierMultiplier × correlationWeight × direction
+  // Base impact: baseImpact × tierMultiplier × correlationWeight × sentiment
+  // sentimentScore is clamped to [-1, 1] so magnitude is preserved — a 0.15
+  // score (small macro move) hits softer than a 0.9 score (large shock).
+  const clampedSentiment = hasHeadline
+    ? Math.max(-1, Math.min(1, tickHeadline!.sentimentScore ?? 0))
+    : 0;
   const baseRawImpact = hasHeadline
     ? (tickHeadline!.baseImpact ?? 1.0) *
       (tickHeadline!.tierMultiplier ?? 1.0) *
       (tickHeadline!.correlationWeight ?? 1.0) *
-      Math.sign(tickHeadline!.sentimentScore ?? 0)
+      clampedSentiment
     : 0;
 
   // Confidence-weighted scaling: multiply by classification confidence (0–1).
