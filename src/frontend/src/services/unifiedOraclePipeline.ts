@@ -231,12 +231,6 @@ let _prevGSI: number | null = null;
 
 // ─── Pipeline Constants ───────────────────────────────────────────────────────────
 
-/**
- * Liquidity drag scalar: allocationFraction × scalar → mild friction signal.
- * At 10% allocation: -0.04 drag. At 50%: -0.20. At 100%: -0.40.
- * Target range: ±0.05 to ±0.20 per tick at typical allocation levels.
- */
-const LIQUIDITY_DRAG_SCALAR = 0.4;
 const THETA_AUDIT_THRESHOLD = 0.1;
 
 /** Minimum score floor — prevents indexes from collapsing to zero. */
@@ -376,13 +370,26 @@ function runPipelineForIndex(
   postTidalScore =
     Math.round(Math.max(SCORE_FLOOR, postTidalScore) * 100) / 100;
 
-  // ── Step 4: Synthetic Liquidity (Mild Friction) ────────────────────────────
-  // Liquidity_Drag = -(allocationFraction * LIQUIDITY_DRAG_SCALAR)
-  // Produces mild friction: 0% → 0.00, 14.3% → -0.057, 50% → -0.20, 100% → -0.40
-  // No recursive decay — applied once per tick as a signal, not a suppressant.
+  // ── Step 4: User Premium (Open Interest Signal) ───────────────────────────
+  // Models concentration like open interest: high concentration signals conviction
+  // (neutral-to-bullish), only extreme overconcentration signals resistance.
+  //   0%–60%  → 0.00 (neutral, no pressure)
+  //   60%–85% → small positive (+0.05 to +0.15) — conviction signal
+  //   >85%    → small negative (-0.05 to -0.15) — overextension resistance
+  // Magnitude capped at ±0.30; User Premium is a supporting signal only.
   const allocationRatio = allocationRatios[indexName] ?? 0;
-  const liquidityPremium =
-    Math.round(-(allocationRatio * LIQUIDITY_DRAG_SCALAR) * 100) / 100;
+  let liquidityPremium: number;
+  if (allocationRatio <= 0.60) {
+    liquidityPremium = 0;
+  } else if (allocationRatio <= 0.85) {
+    // Scale linearly from +0.05 at 60% to +0.15 at 85%
+    const t = (allocationRatio - 0.60) / 0.25;
+    liquidityPremium = Math.round((0.05 + t * 0.10) * 100) / 100;
+  } else {
+    // Scale linearly from -0.05 just above 85% to -0.15 at 100%, capped at -0.30
+    const t = Math.min((allocationRatio - 0.85) / 0.15, 1);
+    liquidityPremium = Math.round(-(0.05 + t * 0.10) * 100) / 100;
+  }
   const rawFinal = postTidalScore + liquidityPremium;
   const finalScore = Math.round(Math.max(SCORE_FLOOR, rawFinal) * 100) / 100;
 
