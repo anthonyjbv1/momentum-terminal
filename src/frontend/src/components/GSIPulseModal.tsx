@@ -39,7 +39,7 @@ function SensitivityRow({ name }: { name: string }) {
         gap: "12px",
         alignItems: "center",
         padding: "8px 0",
-        borderBottom: "1px solid rgba(255,255,255,0.05)",
+        borderBottom: "1px solid #1a1a1a",
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: "0.75rem",
       }}
@@ -123,7 +123,9 @@ export default function GSIPulseModal({
             style={{
               position: "absolute",
               inset: 0,
-              background: "rgba(0,0,0,0.92)",
+              background: "rgba(0,0,0,0.80)",
+              backdropFilter: "blur(8px)",
+              WebkitBackdropFilter: "blur(8px)",
               zIndex: 0,
             }}
           />
@@ -136,11 +138,10 @@ export default function GSIPulseModal({
               width: "100%",
               maxWidth: "540px",
               maxHeight: "90vh",
-              background: "#0d0d0d",
-              border: "1px solid rgba(255,255,255,0.12)",
+              background: "#000000",
+              border: "1px solid #2a2a2a",
               borderRadius: "16px",
-              boxShadow:
-                "0 25px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.05)",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.8)",
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
@@ -155,7 +156,7 @@ export default function GSIPulseModal({
                 alignItems: "center",
                 justifyContent: "space-between",
                 flexShrink: 0,
-                background: "#0d0d0d",
+                background: "#000000",
               }}
             >
               <div
@@ -221,8 +222,8 @@ export default function GSIPulseModal({
                 <div
                   style={{
                     borderRadius: "12px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    background: "#161616",
+                    border: "1px solid #2a2a2a",
+                    background: "#000000",
                     padding: "20px",
                     marginBottom: "16px",
                     textAlign: "center",
@@ -268,8 +269,8 @@ export default function GSIPulseModal({
                 <div
                   style={{
                     borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "#111",
+                    border: "1px solid #2a2a2a",
+                    background: "#000000",
                     padding: "16px",
                     marginBottom: "14px",
                   }}
@@ -318,8 +319,8 @@ export default function GSIPulseModal({
                 <div
                   style={{
                     borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "#111",
+                    border: "1px solid #2a2a2a",
+                    background: "#000000",
                     padding: "16px",
                     marginBottom: "14px",
                   }}
@@ -386,8 +387,8 @@ export default function GSIPulseModal({
                 <div
                   style={{
                     borderRadius: "10px",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    background: "#111",
+                    border: "1px solid #2a2a2a",
+                    background: "#000000",
                     padding: "16px",
                   }}
                 >
