@@ -2,6 +2,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, TrendingDown, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useOracleTick } from "../contexts/OracleTickContext";
+import { useCountdown } from "../hooks/useCountdown";
 import { createPortal } from "react-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
@@ -95,6 +97,9 @@ export function ShortModal({
   const userId = userAccount?.email ?? "";
   const temperature = useMomentumTemperature(assetName, category);
   const queryClient = useQueryClient();
+  const { tickCount } = useOracleTick();
+  const [countdown, secondsLeft] = useCountdown(undefined, tickCount);
+  const isUrgent = secondsLeft <= 5;
 
   // Derived limit values — short-specific: cap is shortPositionCap (default 500)
   const userRemainingAllowance = Math.max(
@@ -405,22 +410,37 @@ export function ShortModal({
               >
                 {assetName}
               </h2>
-              <button
-                type="button"
-                onClick={handleClose}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#6b6b6b",
-                  padding: "0.25rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <X size={18} />
-              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span
+                  className="md:hidden"
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.05em",
+                    color: isUrgent ? "#f87171" : "#4a4a4a",
+                    transition: "color 0.15s",
+                  }}
+                >
+                  {countdown}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#6b6b6b",
+                    padding: "0.25rem",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
             </div>
 
             {/* ── Scrollable Body: all content between header and confirm button ── */}

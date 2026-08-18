@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOracleTick } from "../contexts/OracleTickContext";
+import { useCountdown } from "../hooks/useCountdown";
 import {
   Area,
   CartesianGrid,
@@ -125,6 +127,10 @@ export function ScoreHistoryModal({
   currentScore,
   scores = [],
 }: ScoreHistoryModalProps) {
+  const { tickCount } = useOracleTick();
+  const [countdown, secondsLeft] = useCountdown(undefined, tickCount);
+  const isUrgent = secondsLeft <= 5;
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) onClose();
@@ -268,6 +274,20 @@ export function ScoreHistoryModal({
                   {indexSubLabel}
                 </p>
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexShrink: 0 }}>
+                <span
+                  className="md:hidden"
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: "0.65rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.05em",
+                    color: isUrgent ? "#f87171" : "#4a4a4a",
+                    transition: "color 0.15s",
+                  }}
+                >
+                  {countdown}
+                </span>
               <button
                 type="button"
                 onClick={onClose}
@@ -295,6 +315,7 @@ export function ScoreHistoryModal({
               >
                 ✕
               </button>
+              </div>
             </div>
 
             {/* Stats Row */}
