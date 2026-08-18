@@ -289,7 +289,7 @@ export function AssetList() {
           </span>
         </div>
         <h2 className="text-foreground text-2xl font-bold tracking-tight">
-          Sentiment Assets
+          Narratives
         </h2>
         <p className="text-muted-foreground text-sm mt-1.5 max-w-lg">
           Allocate capital to gain synthetic exposure to proprietary sentiment

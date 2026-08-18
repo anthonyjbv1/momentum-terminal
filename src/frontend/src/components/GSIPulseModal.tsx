@@ -111,13 +111,6 @@ export default function GSIPulseModal({
             justifyContent: "center",
             padding: "16px",
             fontFamily: "'Inter', system-ui, sans-serif",
-            background: "none",
-            border: "none",
-            margin: 0,
-            maxWidth: "none",
-            maxHeight: "none",
-            width: "100%",
-            height: "100%",
           }}
         >
           {/* Backdrop */}
