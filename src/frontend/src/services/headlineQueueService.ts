@@ -702,7 +702,24 @@ async function fetchFREDBatch(): Promise<void> {
 
         const metricKey = `fred:${series.id}`;
         const snapshotItem: QueuedHeadline = {
-          text: `${series.label} latest reading: ${value} as of ${obs.date} - FRED`,
+          text: (() => {
+            const d = obs.date; // "YYYY-MM-DD"
+            const monthYear = new Date(d + "T12:00:00Z").toLocaleDateString("en-US", { month: "long", year: "numeric" });
+            if (series.id === "CPIAUCSL") return `US inflation index holds at ${value.toFixed(1)} as of ${monthYear}`;
+            if (series.id === "PCEPILFE") return `Core consumer prices index at ${value.toFixed(1)} as of ${monthYear}`;
+            if (series.id === "UNRATE")   return `National unemployment sits at ${value.toFixed(1)}% as of ${monthYear}`;
+            if (series.id === "FEDFUNDS") return `The Fed funds rate holds at ${value.toFixed(2)}% as of ${monthYear}`;
+            if (series.id === "GS10")     return `10-year Treasury yield sits at ${value.toFixed(2)}% as of ${monthYear}`;
+            if (series.id === "CAUR")     return `California unemployment sits at ${value.toFixed(1)}% as of ${monthYear}`;
+            if (series.id === "CASTHPI")  return `California home prices index at ${value.toFixed(1)} as of ${monthYear}`;
+            if (series.id === "NYUR")     return `New York unemployment sits at ${value.toFixed(1)}% as of ${monthYear}`;
+            if (series.id === "NYSTHPI")  return `New York home prices index at ${value.toFixed(1)} as of ${monthYear}`;
+            if (series.id === "FLUR")     return `Florida unemployment sits at ${value.toFixed(1)}% as of ${monthYear}`;
+            if (series.id === "FLSTHPI")  return `Florida home prices index at ${value.toFixed(1)} as of ${monthYear}`;
+            if (series.id === "TXUR")     return `Texas unemployment sits at ${value.toFixed(1)}% as of ${monthYear}`;
+            if (series.id === "TXSTHPI")  return `Texas home prices index at ${value.toFixed(1)} as of ${monthYear}`;
+            return `${series.entity} ${series.label.toLowerCase()} at ${value.toFixed(2)} as of ${monthYear}`;
+          })(),
           sourceTier: 2,
           source: "fred",
           forcedIndex: series.index,
@@ -792,7 +809,13 @@ async function fetchBLSBatch(): Promise<void> {
       if (Number.isNaN(value)) continue;
 
       const item: QueuedHeadline = {
-        text: `${meta.name} reading: ${value} for ${latest.periodName} ${latest.year} - BLS`,
+        text: (() => {
+            const period = `${latest.periodName} ${latest.year}`;
+            if (s.seriesID === "CUUR0000SA0") return `Consumer prices read ${value.toFixed(1)} in ${period}`;
+            if (s.seriesID === "WPUFD4")      return `Producer prices index at ${value.toFixed(1)} in ${period}`;
+            if (s.seriesID === "LNS14000000") return `National unemployment sits at ${value.toFixed(1)}% in ${period}`;
+            return `${meta.name.replace(/\(.*?\)/g, "").trim()} reads ${value.toFixed(2)} in ${period}`;
+          })(),
         sourceTier: 2,
         source: "bls",
         forcedIndex: meta.index,
@@ -873,7 +896,7 @@ async function fetchBEABatch(): Promise<void> {
         if (Number.isNaN(gdpFloat)) continue;
 
         const item: QueuedHeadline = {
-          text: `${state.stateName} state GDP: $${gdpFloat.toFixed(1)}B for ${latest.TimePeriod} - BEA`,
+          text: `${state.stateName}'s economy produced $${gdpFloat.toFixed(1)}B in ${latest.TimePeriod}`,
           sourceTier: 2,
           source: "bea",
           forcedIndex: state.index,
@@ -944,7 +967,14 @@ async function fetchWorldBankBatch(): Promise<void> {
           if (!latest || latest.value === null) { await new Promise((r) => setTimeout(r, 300)); continue; }
 
           const item: QueuedHeadline = {
-            text: `${country.name} ${indicator.label}: ${latest.value.toFixed(2)} for ${latest.date} - World Bank`,
+            text: (() => {
+              const val = latest.value;
+              const year = latest.date;
+              if (indicator.code === "NY.GDP.MKTP.KD.ZG") return `${country.name}'s economy ${val >= 0 ? "grew" : "contracted"} ${Math.abs(val).toFixed(1)}% in ${year}`;
+              if (indicator.code === "FP.CPI.TOTL.ZG")    return `${country.name}'s inflation ran at ${val.toFixed(1)}% in ${year}`;
+              if (indicator.code === "SL.UEM.TOTL.ZS")    return `${country.name}'s unemployment stood at ${val.toFixed(1)}% in ${year}`;
+              return `${country.name} ${indicator.label.toLowerCase().replace(/\(.*?\)/g, "").trim()} at ${val.toFixed(2)} for ${year}`;
+            })(),
             sourceTier: 2,
             source: "worldbank",
             forcedIndex: country.index,
@@ -1020,7 +1050,13 @@ async function fetchNBSChinaBatch(): Promise<void> {
         if (Number.isNaN(numericValue)) { await new Promise((r) => setTimeout(r, 500)); continue; }
 
         const item: QueuedHeadline = {
-          text: `${dataset.label}: ${latest.value} ${unit} as of ${latest.date} - NBS China`,
+          text: (() => {
+            const v = numericValue.toFixed(2);
+            const d = latest.date;
+            if (dataset.slug === "china-gdp") return `China's economy grew ${v}%${unit ? " " + unit : ""} in ${d}`;
+            if (dataset.slug === "china-cpi") return `China's consumer prices read ${v}${unit ? " " + unit : ""} in ${d}`;
+            return `China ${dataset.label.replace(/\(.*?\)/g, "").trim().toLowerCase()} at ${v}${unit ? " " + unit : ""} as of ${d}`;
+          })(),
           sourceTier: 2,
           source: "nbschina",
           forcedIndex: "China Sentiment",
@@ -1106,14 +1142,15 @@ async function fetchAPISportsSoccerBatch(): Promise<void> {
             const date = fix.fixture.date.slice(0, 10);
             let text: string;
             let sentimentScore: number;
+            const shortName = team.name.replace(/^FC\s+/i, "").replace(/\s+CF$/i, "").replace(/\s+National Team$/i, "");
             if (scored > conceded) {
-              text = `${team.name} defeated ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              text = `${shortName} beat ${opponent} ${scored}-${conceded}`;
               sentimentScore = 0.85;
             } else if (scored < conceded) {
-              text = `${team.name} lost to ${opponent} ${conceded}-${scored} on ${date} - API-Sports`;
+              text = `${shortName} fell to ${opponent} ${conceded}-${scored}`;
               sentimentScore = -0.85;
             } else {
-              text = `${team.name} drew ${scored}-${conceded} with ${opponent} on ${date} - API-Sports`;
+              text = `${shortName} and ${opponent} shared the points in a ${scored}-${conceded} draw`;
               sentimentScore = 0;
             }
             const item: QueuedHeadline = {
@@ -1147,7 +1184,7 @@ async function fetchAPISportsSoccerBatch(): Promise<void> {
           if (next) {
             const date = next.fixture.date.slice(0, 10);
             const item: QueuedHeadline = {
-              text: `${team.name} next fixture: ${next.teams.home.name} vs ${next.teams.away.name} on ${date} in ${next.league.name} - API-Sports`,
+              text: `${next.teams.home.name} host ${next.teams.away.name} next in ${next.league.name}`,
               sourceTier: 2,
               source: "apisports-soccer",
               forcedIndex: team.index,
@@ -1219,13 +1256,13 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
             let text: string;
             let sentimentScore: number;
             if (scored > conceded) {
-              text = `${team.name} defeated ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              text = `${team.name} beat ${opponent} ${scored}-${conceded}`;
               sentimentScore = 0.85;
             } else if (scored < conceded) {
-              text = `${team.name} lost to ${opponent} ${conceded}-${scored} on ${date} - API-Sports`;
+              text = `${team.name} fell to ${opponent} ${conceded}-${scored}`;
               sentimentScore = -0.85;
             } else {
-              text = `${team.name} tied ${opponent} ${scored}-${conceded} on ${date} - API-Sports`;
+              text = `${team.name} and ${opponent} tied ${scored}-${conceded}`;
               sentimentScore = 0;
             }
             const item: QueuedHeadline = {
@@ -1260,7 +1297,13 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
             const trend = winRate >= 0.6 ? "strong" : winRate < 0.4 ? "struggling" : "average";
             const sentimentScore = winRate >= 0.6 ? 0.82 : winRate < 0.4 ? -0.82 : 0;
             const item: QueuedHeadline = {
-              text: `${team.name} ${won}-${lost} record (${pct} win pct), #${position} in ${divisionName} — ${trend} season form - API-Sports`,
+              text: position === 1
+                ? `${team.name} lead the ${divisionName} at ${won}-${lost} in the 2025 season`
+                : winRate >= 0.6
+                  ? `${team.name} sit at ${won}-${lost} in the ${divisionName}, in strong form`
+                  : winRate < 0.4
+                    ? `${team.name} are ${won}-${lost} in the ${divisionName}, looking for a turnaround`
+                    : `${team.name} are ${won}-${lost} in the ${divisionName} at the midpoint of the season`,
               sourceTier: 2, source: "apisports-nfl",
               forcedIndex: team.index, sourceLabelOverride: true, sentimentScore,
             };
@@ -1296,7 +1339,7 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
           if (yards > 0) {
             const sentimentScore = rating >= 95 ? 0.82 : 0;
             const item: QueuedHeadline = {
-              text: `Patrick Mahomes 2025 season stats: ${tds} TDs, ${ints} INTs, ${yards} passing yards, ${rating.toFixed(1)} passer rating - API-Sports`,
+              text: `Mahomes has thrown for ${yards.toLocaleString()} yards with ${tds} touchdowns and ${ints} interceptions in 2025`,
               sourceTier: 2, source: "apisports-nfl",
               forcedIndex: "Patrick Mahomes Sentiment", sourceLabelOverride: true, sentimentScore,
             };
@@ -1360,7 +1403,11 @@ async function fetchAPISportsF1Batch(): Promise<void> {
           const positionLabel = pos === 1 ? "leading" : pos <= 3 ? "contending" : pos <= 6 ? "midfield" : "trailing";
           const sentimentScore = pos <= 3 ? 0.85 : pos <= 6 ? 0 : -0.85;
           const item: QueuedHeadline = {
-            text: `${meta.name} #${pos} in 2026 F1 constructor standings with ${points} points and ${wins} wins — ${positionLabel} championship position - API-Sports`,
+            text: pos === 1
+              ? `${meta.name} lead the 2026 F1 constructors' championship with ${points} points`
+              : pos <= 3
+                ? `${meta.name} are P${pos} in the 2026 constructors' championship with ${points} points`
+                : `${meta.name} sit P${pos} in the 2026 F1 standings with ${points} points from ${wins} wins`,
             sourceTier: 2, source: "apisports-f1",
             forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore,
           };
@@ -1419,7 +1466,11 @@ async function fetchAPISportsF1Batch(): Promise<void> {
             else if (pos <= 10) { resultLabel = `points finish (P${pos})`; sentimentScore = 0.82; }
             else { resultLabel = `out of points (P${pos})`; sentimentScore = -0.85; }
             const item: QueuedHeadline = {
-              text: `${meta.name} ${result.driver.name} achieved ${resultLabel} at ${raceName}, scoring ${result.points} championship points - API-Sports F1`,
+              text: pos <= 3
+                ? `${result.driver.name} took a podium for ${meta.name} at the ${raceName}, finishing P${pos}`
+                : pos <= 10
+                  ? `${result.driver.name} scored points for ${meta.name} at the ${raceName} with a P${pos} finish`
+                  : `${result.driver.name} finished outside the points for ${meta.name} at the ${raceName}`,
               sourceTier: 2, source: "apisports-f1",
               forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore,
             };
@@ -1526,14 +1577,15 @@ async function fetchFotMobBatch(): Promise<void> {
         if (match.status?.finished) {
           let text: string;
           let sentimentScore: number;
+          const shortName = meta.name.replace(/^FC\s+/i, "").replace(/\s+CF$/i, "").replace(/\s+National Team$/i, "");
           if (scored > conceded) {
-            text = `${meta.name} defeated ${opponent} ${scored}-${conceded} in ${leagueName} - FotMob`;
+            text = `${shortName} beat ${opponent} ${scored}-${conceded} in ${leagueName}`;
             sentimentScore = 0.85;
           } else if (scored < conceded) {
-            text = `${meta.name} lost to ${opponent} ${conceded}-${scored} in ${leagueName} - FotMob`;
+            text = `${shortName} fell to ${opponent} ${conceded}-${scored} in ${leagueName}`;
             sentimentScore = -0.85;
           } else {
-            text = `${meta.name} drew ${scored}-${conceded} with ${opponent} in ${leagueName} - FotMob`;
+            text = `${shortName} and ${opponent} drew ${scored}-${conceded} in ${leagueName}`;
             sentimentScore = 0;
           }
           const item: QueuedHeadline = {
@@ -1570,20 +1622,20 @@ async function fetchFotMobBatch(): Promise<void> {
 
                   let statText: string | null = null;
                   if (title === "possession") {
-                    statText = `${leagueName}: ${homeName} ${homeVal}% possession vs ${awayName} ${awayVal}%`;
+                    statText = `${homeName} controlled ${homeVal}% of the ball against ${awayName} in ${leagueName}`;
                   } else if (title.includes("expected goals") || title === "xg") {
                     const hxg = Number.parseFloat(String(homeVal));
                     const axg = Number.parseFloat(String(awayVal));
                     if (!Number.isNaN(hxg) && !Number.isNaN(axg)) {
                       const dominant = hxg >= axg ? homeName : awayName;
-                      const higher = Math.max(hxg, axg).toFixed(2);
-                      const lower = Math.min(hxg, axg).toFixed(2);
-                      statText = `${leagueName}: ${dominant} dominated with ${higher} xG vs ${lower} xG`;
+                      const higher = Math.max(hxg, axg).toFixed(1);
+                      const lower = Math.min(hxg, axg).toFixed(1);
+                      statText = `${dominant} created ${higher} expected goals to ${lower} in ${leagueName}`;
                     }
                   } else if (title === "shots on target") {
-                    statText = `${leagueName}: ${homeName} ${homeVal} shots on target vs ${awayName} ${awayVal}`;
+                    statText = `${homeName} had ${homeVal} shots on target to ${awayName}'s ${awayVal} in ${leagueName}`;
                   } else if (title === "big chances") {
-                    statText = `${leagueName}: ${homeName} ${homeVal} big chances vs ${awayName} ${awayVal}`;
+                    statText = `${homeName} created ${homeVal} big chances against ${awayName}'s ${awayVal} in ${leagueName}`;
                   }
                   if (!statText) continue;
                   const statItem2: QueuedHeadline = {
@@ -1601,7 +1653,7 @@ async function fetchFotMobBatch(): Promise<void> {
 
         } else if (match.status?.ongoing) {
           const item: QueuedHeadline = {
-            text: `${homeName} vs ${awayName} live in ${leagueName} — current score ${homeScore}-${awayScore}`,
+            text: `${homeName} and ${awayName} are live in ${leagueName}, ${homeScore}-${awayScore}`,
             sourceTier: 2, source: "fotmob",
             forcedIndex: meta.index, sourceLabelOverride: true, sentimentScore: 0,
           };
@@ -1693,7 +1745,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
               const admPct = admRate * 100;
               const selectivity = admPct < 10 ? "highly selective" : admPct < 25 ? "selective" : admPct < 50 ? "moderately selective" : "accessible";
               enqueueItem({
-                text: `${schoolName} admission rate: ${admPct.toFixed(1)}% (${selectivity}) per College Scorecard`,
+                text: `${schoolName} admits ${admPct.toFixed(1)}% of applicants, making it ${selectivity}`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true,
                 sentimentScore: admPct < 10 ? 0.75 : 0,
@@ -1711,7 +1763,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
             const enrollment = r["latest.student.size"];
             if (enrollment !== null && enrollment !== undefined) {
               enqueueItem({
-                text: `${schoolName} enrolled ${enrollment.toLocaleString()} students per College Scorecard`,
+                text: `${schoolName} enrolls ${enrollment >= 10000 ? `nearly ${Math.round(enrollment / 1000)}k` : enrollment.toLocaleString()} students`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore: 0,
               });
@@ -1723,7 +1775,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
               const perf = gradPct >= 90 ? "strong" : gradPct >= 80 ? "good" : gradPct >= 70 ? "moderate" : "concerning";
               const sentimentScore = gradPct >= 90 ? 0.75 : gradPct >= 70 ? 0 : -0.75;
               enqueueItem({
-                text: `${schoolName} 4-year graduation rate: ${gradPct.toFixed(1)}% (${perf} academic completion) per College Scorecard`,
+                text: `${gradPct.toFixed(0)}% of ${schoolName} students graduate within four years`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore,
               });
@@ -1732,7 +1784,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
             const earnings = r["latest.earnings.10_yrs_after_entry.median"];
             if (earnings !== null && earnings !== undefined) {
               enqueueItem({
-                text: `${schoolName} graduates earn a median $${earnings.toLocaleString()} annually 10 years after enrollment per College Scorecard`,
+                text: `${schoolName} graduates earn a median $${Math.round(earnings / 1000)}k annually a decade after enrollment`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true,
                 sentimentScore: earnings >= 80000 ? 0.75 : 0,
@@ -1748,7 +1800,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
         const { rank } = rankData;
         const rankLabel = rank <= 5 ? "elite" : rank <= 10 ? "top-10" : rank <= 25 ? "top-25" : "top-50";
         enqueueItem({
-          text: `${uni.name} ranked #${rank} nationally (${rankLabel} tier) in 2026 US News Best Colleges rankings`,
+          text: `${uni.name} ranks #${rank} nationally in the 2026 US News Best Colleges list`,
           sourceTier: 2, source: "scorecard",
           forcedIndex: uni.index, sourceLabelOverride: true,
           sentimentScore: rank <= 10 ? 0.72 : 0,
@@ -1761,7 +1813,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
         const { val } = endowData;
         const tier = val >= 30 ? "mega-endowment" : val >= 10 ? "large-endowment" : "significant-endowment";
         enqueueItem({
-          text: `${uni.name} endowment: $${val}B (${tier}) for fiscal year 2025`,
+          text: `${uni.name} holds a $${val}B endowment, among the ${val >= 30 ? "largest" : "largest"} in higher education`,
           sourceTier: 2, source: "scorecard",
           forcedIndex: uni.index, sourceLabelOverride: true,
           sentimentScore: val >= 30 ? 0.72 : 0,
