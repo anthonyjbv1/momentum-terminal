@@ -110,12 +110,14 @@ export function ShortModal({
   // onClose() is called only after the exit animation completes.
   const [shouldRender, setShouldRender] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const closedByHandleClose = useRef(false);
 
   // Handle open/close with fade transitions
   useEffect(() => {
     if (isOpen) {
       setShouldRender(true);
       setIsVisible(true);
+      closedByHandleClose.current = false;
       setInputValue("");
       setErrorMsg("");
       setAllocInputMode("dollar");
@@ -128,6 +130,7 @@ export function ShortModal({
     setInputValue("");
     setErrorMsg("");
     setIsVisible(false);
+    closedByHandleClose.current = true;
     onClose(); // Reset parent state immediately — don't depend on animation completing
   }, [onClose]);
 
@@ -318,7 +321,9 @@ export function ShortModal({
           transition={{ duration: 0.3, ease: "easeOut" }}
           onAnimationComplete={(def) => {
             if (def === "exit") {
-              setShouldRender(false); // DOM cleanup only — onClose() already called in handleClose
+              setShouldRender(false);
+              if (!closedByHandleClose.current) onClose();
+              closedByHandleClose.current = false;
             }
           }}
           style={{
