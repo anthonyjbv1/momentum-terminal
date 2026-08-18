@@ -815,12 +815,6 @@ function AssetRowInner({
               >
                 {getDisplayName(asset.name)}
               </button>
-              {activePreemption?.triggered && (
-                <PreemptionBadge
-                  adjustment={activePreemption.adjustment}
-                  confirmed={activePreemption.confirmed}
-                />
-              )}
             </div>
 
             {displaySubtitle && (
