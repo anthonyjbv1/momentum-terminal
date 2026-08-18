@@ -1111,6 +1111,7 @@ function AssetRowInner({
               : `${asset.category} NARRATIVE`
           }
           currentScore={asset.baseScore}
+          scores={scoreHistoryMap.get(asset.name) ?? []}
         />
 
         {/* Allocation Modal */}

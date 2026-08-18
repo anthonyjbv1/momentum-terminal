@@ -12,14 +12,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { getSentimentLogScoresForIndex } from "../services/gsiCovarianceEngine";
-
 interface ScoreHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
   indexName: string;
   indexSubLabel: string;
   currentScore: number;
+  scores?: number[];
 }
 
 interface ChartPoint {
@@ -124,6 +123,7 @@ export function ScoreHistoryModal({
   indexName,
   indexSubLabel,
   currentScore,
+  scores = [],
 }: ScoreHistoryModalProps) {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
@@ -133,8 +133,7 @@ export function ScoreHistoryModal({
     return () => window.removeEventListener("keydown", handleKey);
   });
 
-  // Fetch live data on every render so the chart updates as Oracle ticks fire
-  const rawScores = getSentimentLogScoresForIndex(indexName);
+  const rawScores = scores;
   const chartData: ChartPoint[] = rawScores.map((value, i) => ({
     tick: i + 1,
     value,
