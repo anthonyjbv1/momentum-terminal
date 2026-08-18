@@ -44,6 +44,13 @@ export const blockedHeadlines: Array<{
   blockedAt: number;
 }> = [];
 
+function formatCompact(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace(/\.0$/, "")}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return n.toString();
+}
+
 function shouldBlockHeadline(text: string): string | null {
   const lower = text.toLowerCase();
   const BLOCKED_NAMES = ["jim cramer", "dan ives"];
@@ -2079,7 +2086,7 @@ async function fetchYouTubeBatch(): Promise<void> {
 
       // Headline 1 — always: snapshot stats
       const statsHeadline: QueuedHeadline = {
-        text: `${meta.displayName} YouTube channel: ${subs.toLocaleString()} subscribers, ${views.toLocaleString()} total views, ${videos.toLocaleString()} videos published`,
+        text: `${meta.displayName} crosses ${formatCompact(subs)} YouTube subscribers with over ${formatCompact(views)} total views`,
         sourceTier: 2,
         source: "youtube",
         forcedIndex: meta.index,
@@ -2098,7 +2105,7 @@ async function fetchYouTubeBatch(): Promise<void> {
       stored[item.id] = subs;
       if (prev !== undefined && subs > prev) {
         const growthHeadline: QueuedHeadline = {
-          text: `${meta.displayName} YouTube subscribers grew to ${subs.toLocaleString()} — positive growth signal`,
+          text: `${meta.displayName} gains subscribers, now at ${formatCompact(subs)} on YouTube`,
           sourceTier: 2,
           source: "youtube",
           forcedIndex: meta.index,
@@ -2289,7 +2296,7 @@ async function fetchSpotifyBatch(): Promise<void> {
           if (!followers) return;
 
           const snapshotHeadline: QueuedHeadline = {
-            text: `${meta.displayName} Spotify: ${followers.toLocaleString()} followers, popularity score ${popularity}/100`,
+            text: `${meta.displayName} sits at ${popularity}/100 popularity on Spotify with ${formatCompact(followers)} followers`,
             sourceTier: 2,
             source: "spotify",
             forcedIndex: meta.index,
@@ -2306,9 +2313,10 @@ async function fetchSpotifyBatch(): Promise<void> {
           const prev = stored[artistId];
           stored[artistId] = followers;
           if (prev !== undefined && prev !== followers) {
-            const direction = followers > prev ? "grew" : "declined";
             const changeHeadline: QueuedHeadline = {
-              text: `${meta.displayName} Spotify followers ${direction} to ${followers.toLocaleString()}`,
+              text: followers > prev
+                ? `${meta.displayName}'s Spotify following continues to climb, now at ${formatCompact(followers)}`
+                : `${meta.displayName}'s Spotify follower count slips, now at ${formatCompact(followers)}`,
               sourceTier: 2,
               source: "spotify",
               forcedIndex: meta.index,
