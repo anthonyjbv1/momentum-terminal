@@ -13,19 +13,76 @@ import type {
 import { getTierLabel, pickWeightedSource } from "./sourceCredibilityEngine";
 
 // ─── ACTIVE INDEX FILTER ──────────────────────────────────────────────────────
-// All seven God-Tier index names — only these are surfaced to the Oracle.
 const ACTIVE_INDEX_NAMES: Set<string> = new Set([
+  // God-Tier macro/cultural indexes
   "AI Regulation Risk Sentiment",
   "Fed Policy Sentiment",
   "MENA Stability Sentiment",
   "Traditionalism Sentiment",
+  "Traditionalism Sentiment Index",
   "Progressivism Sentiment",
+  "Progressivism Sentiment Index",
   "Masculism Sentiment",
   "Feminism Sentiment",
   "F1 Constructor Sentiment",
   "NASCAR Sentiment",
   "Obesity Drug Sentiment",
   "Whole Food & Wellness Sentiment",
+  // Sports
+  "Kansas City Chiefs Sentiment",
+  "Denver Broncos Sentiment",
+  "Patrick Mahomes Sentiment",
+  "FC Barcelona Sentiment",
+  "Real Madrid CF Sentiment",
+  "France National Team Sentiment",
+  "Spain National Team Sentiment",
+  "Ferrari Sentiment",
+  "McLaren Sentiment",
+  "Mercedes Sentiment",
+  "F1 Ferrari Sentiment",
+  "F1 McLaren Sentiment",
+  "F1 Mercedes Sentiment",
+  // Influencers / creators
+  "MrBeast Sentiment",
+  "Kai Cenat Sentiment",
+  "Adin Ross Sentiment",
+  "Drake Sentiment",
+  "Kendrick Lamar Sentiment",
+  // Forbes billionaires
+  "Elon Musk Sentiment",
+  "Jeff Bezos Sentiment",
+  "Mark Zuckerberg Sentiment",
+  "Jensen Huang Sentiment",
+  "Warren Buffett Sentiment",
+  "Larry Ellison Sentiment",
+  "Larry Page Sentiment",
+  "Sergey Brin Sentiment",
+  "Michael Dell Sentiment",
+  "Bernard Arnault Sentiment",
+  // Health / pharma
+  "Ozempic Sentiment",
+  "Wegovy Sentiment",
+  "Alzheimer's Sentiment",
+  "Cancer Research Sentiment",
+  "Mental Health Sentiment",
+  "Type 2 Diabetes Sentiment",
+  "Seasonal Influenza Sentiment",
+  "Adderall Sentiment",
+  "COVID Variant Sentiment",
+  "Long COVID Sentiment",
+  // Geo / macro
+  "China Sentiment",
+  "Germany Sentiment",
+  "United States Sentiment",
+  "California Sentiment",
+  "Texas Sentiment",
+  "Florida Sentiment",
+  "New York Sentiment",
+  // Universities
+  "Harvard University Sentiment",
+  "Yale University Sentiment",
+  "Ohio State University Sentiment",
+  "University of Michigan Sentiment",
 ]);
 
 export function isActiveIndex(relatedIndex?: string): boolean {
