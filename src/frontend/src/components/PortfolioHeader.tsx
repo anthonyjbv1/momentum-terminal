@@ -568,7 +568,7 @@ function IndexSlideOver({
       />
       <motion.div
         className="fixed right-0 top-0 z-50 w-full sm:w-96"
-        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}
+        style={{ height: "100svh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -627,7 +627,7 @@ function IndexSlideOver({
         </div>
 
         {/* ── Scrollable Body ── */}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "1rem 1.25rem", paddingBottom: "calc(1rem + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: "1rem", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", paddingTop: "1rem", paddingLeft: "1.25rem", paddingRight: "1.25rem", paddingBottom: "calc(2rem + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: "1rem", minHeight: 0 }}>
 
           {/* ── P&L Hero ── */}
           <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
@@ -726,10 +726,10 @@ function IndexSlideOver({
             </motion.div>
           )}
 
-          {/* ── Oracle Score ── */}
+          {/* ── Momentum Score ── */}
           <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
             <p style={{ color: "#6b6b6b", fontSize: "0.625rem", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 500, marginBottom: "0.5rem" }}>
-              Oracle Score
+              Momentum Score
             </p>
             <p style={{ fontSize: "2.5rem", fontWeight: 700, letterSpacing: "-0.04em", color: scoreIsHigh ? "#4ade80" : "#f87171", margin: 0 }}>
               {scoreValue.toFixed(1)}
