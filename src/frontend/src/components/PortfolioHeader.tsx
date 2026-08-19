@@ -568,7 +568,7 @@ function IndexSlideOver({
       />
       <motion.div
         className="fixed right-0 top-0 z-50 w-full sm:w-96"
-        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", display: "flex", flexDirection: "column", overflow: "hidden" }}
+        style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", overflow: "hidden" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
@@ -1642,6 +1642,7 @@ export function PortfolioHeader({
             {/* Panel */}
             <motion.div
               className="fixed right-0 top-0 h-full w-[360px] bg-zinc-950 border-l border-border flex flex-col z-50"
+              style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
