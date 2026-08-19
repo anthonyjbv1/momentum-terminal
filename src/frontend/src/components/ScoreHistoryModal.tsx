@@ -307,7 +307,7 @@ export function ScoreHistoryModal({
                     fontSize: "11px",
                     fontWeight: 400,
                     letterSpacing: "0.025em",
-                    color: isUrgent ? "#f87171" : "oklch(0.93 0.01 240 / 0.7)",
+                    color: isUrgent ? "#f87171" : "#ffffff",
                     transition: "color 0.15s",
                     fontVariantNumeric: "tabular-nums",
                   }}
