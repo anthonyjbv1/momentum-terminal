@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
 import { useWalletContext } from "../contexts/WalletContext";
+import { useOracleTick } from "../contexts/OracleTickContext";
+import { useCountdown } from "../hooks/useCountdown";
 import { useMomentumTemperature } from "../hooks/useMomentumTemperature";
 
 interface ShortModalProps {
@@ -102,6 +104,10 @@ export function ShortModal({
   const { userAccount } = useAuth();
   const { addShortCostBasis, openShort } = useLocalHoldings();
   const userId = userAccount?.email ?? "";
+  const { tickCount } = useOracleTick();
+  const [countdown, secondsLeft] = useCountdown(undefined, tickCount);
+  const isTimerUrgent = secondsLeft <= 5;
+
   const temperature = useMomentumTemperature(assetName, category);
   const queryClient = useQueryClient();
 
@@ -452,6 +458,39 @@ export function ShortModal({
               >
                 {assetName}
               </h2>
+              {/* Synced 30s countdown timer */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  padding: "0.375rem 0.625rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  border: "1px solid #2a2a2a",
+                  flexShrink: 0,
+                  marginLeft: "auto",
+                  marginRight: "0.5rem",
+                }}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6b6b6b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span
+                  style={{
+                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
+                    fontSize: "11px",
+                    fontWeight: 400,
+                    letterSpacing: "0.025em",
+                    color: isTimerUrgent ? "#f87171" : "#ffffff",
+                    transition: "color 0.15s",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {countdown}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={handleClose}
