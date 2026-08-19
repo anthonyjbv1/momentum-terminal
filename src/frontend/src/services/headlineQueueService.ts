@@ -5,7 +5,7 @@
  */
 
 import { createActorWithConfig } from "../config";
-import { saveMetricSnapshot, getDeltaHeadlines } from "../lib/oracle/metricHistory";
+import { saveMetricSnapshot, getDeltaHeadlines, getDailyDeltaHeadlines } from "../lib/oracle/metricHistory";
 
 export type SentimentLabel = "positive" | "negative" | "neutral";
 
@@ -766,7 +766,9 @@ async function fetchFREDBatch(): Promise<void> {
         }
 
         saveMetricSnapshot(metricKey, value, series.label, "FRED");
-        const deltas = getDeltaHeadlines(metricKey, value, series.entity, `FRED ${series.label}`, series.index);
+        const weeklyDeltas = getDeltaHeadlines(metricKey, value, series.entity, `FRED ${series.label}`, series.index);
+        const dailyDeltas = getDailyDeltaHeadlines(metricKey, value, series.entity, `FRED ${series.label}`, series.index);
+        const deltas = [...weeklyDeltas, ...dailyDeltas];
         for (const d of deltas) {
           const dr = shouldBlockHeadline(d.text);
           if (dr) {
@@ -864,7 +866,9 @@ async function fetchBLSBatch(): Promise<void> {
         _persistSnapshotLastShown(metricKey, Date.now());
       }
       saveMetricSnapshot(metricKey, value, meta.name, "BLS");
-      const deltas = getDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
+      const weeklyDeltas = getDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
+      const dailyDeltas = getDailyDeltaHeadlines(metricKey, value, "United States", `BLS ${meta.name}`, meta.index);
+      const deltas = [...weeklyDeltas, ...dailyDeltas];
       for (const d of deltas) {
         const dr = shouldBlockHeadline(d.text);
         if (dr) {
@@ -951,7 +955,9 @@ async function fetchBEABatch(): Promise<void> {
 
         const metricKey = `bea:${state.index}:gdp`;
         saveMetricSnapshot(metricKey, gdpFloat, `${state.stateName} state GDP`, "BEA");
-        const deltas = getDeltaHeadlines(metricKey, gdpFloat, state.stateName, "BEA state GDP", state.index);
+        const weeklyDeltas = getDeltaHeadlines(metricKey, gdpFloat, state.stateName, "BEA state GDP", state.index);
+        const dailyDeltas = getDailyDeltaHeadlines(metricKey, gdpFloat, state.stateName, "BEA state GDP", state.index);
+        const deltas = [...weeklyDeltas, ...dailyDeltas];
         for (const d of deltas) {
           const dr = shouldBlockHeadline(d.text);
           if (dr) {
@@ -1029,7 +1035,9 @@ async function fetchWorldBankBatch(): Promise<void> {
 
           const metricKey = `worldbank:${country.code}:${indicator.code}`;
           saveMetricSnapshot(metricKey, latest.value, `${country.name} ${indicator.label}`, "World Bank");
-          const deltas = getDeltaHeadlines(metricKey, latest.value, country.name, `World Bank ${indicator.label}`, country.index);
+          const weeklyDeltas = getDeltaHeadlines(metricKey, latest.value, country.name, `World Bank ${indicator.label}`, country.index);
+          const dailyDeltas = getDailyDeltaHeadlines(metricKey, latest.value, country.name, `World Bank ${indicator.label}`, country.index);
+          const deltas = [...weeklyDeltas, ...dailyDeltas];
           for (const d of deltas) {
             const dr = shouldBlockHeadline(d.text);
             if (dr) {
@@ -1118,7 +1126,9 @@ async function fetchNBSChinaBatch(): Promise<void> {
 
         const metricKey = `nbschina:${dataset.slug}`;
         saveMetricSnapshot(metricKey, numericValue, dataset.label, "NBS China");
-        const deltas = getDeltaHeadlines(metricKey, numericValue, "China", `NBS China ${dataset.label}`, "China Sentiment");
+        const weeklyDeltas = getDeltaHeadlines(metricKey, numericValue, "China", `NBS China ${dataset.label}`, "China Sentiment");
+        const dailyDeltas = getDailyDeltaHeadlines(metricKey, numericValue, "China", `NBS China ${dataset.label}`, "China Sentiment");
+        const deltas = [...weeklyDeltas, ...dailyDeltas];
         for (const d of deltas) {
           const dr = shouldBlockHeadline(d.text);
           if (dr) {
@@ -1462,7 +1472,9 @@ async function fetchAPISportsF1Batch(): Promise<void> {
 
           const metricKey = `apisports:f1:${meta.index}:constructor_pos`;
           saveMetricSnapshot(metricKey, pos, `${meta.name} F1 constructor position`, "API-Sports F1");
-          const deltas = getDeltaHeadlines(metricKey, pos, meta.name, "API-Sports F1 constructor position", meta.index);
+          const weeklyDeltas = getDeltaHeadlines(metricKey, pos, meta.name, "API-Sports F1 constructor position", meta.index);
+          const dailyDeltas = getDailyDeltaHeadlines(metricKey, pos, meta.name, "API-Sports F1 constructor position", meta.index);
+          const deltas = [...weeklyDeltas, ...dailyDeltas];
           for (const d of deltas) {
             const dr = shouldBlockHeadline(d.text);
             if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
@@ -1798,7 +1810,9 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
               });
               const metricKey = `scorecard:${uni.index}:admission_rate`;
               saveMetricSnapshot(metricKey, admPct, `${schoolName} admission rate`, "College Scorecard");
-              const deltas = getDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
+              const weeklyDeltas = getDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
+              const dailyDeltas = getDailyDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
+              const deltas = [...weeklyDeltas, ...dailyDeltas];
               for (const d of deltas) {
                 const dr = shouldBlockHeadline(d.text);
                 if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
@@ -1866,7 +1880,9 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
         });
         const metricKey = `endowment:${uni.index}:value`;
         saveMetricSnapshot(metricKey, val, `${uni.name} endowment`, "College Scorecard");
-        const deltas = getDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
+        const weeklyDeltas = getDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
+        const dailyDeltas = getDailyDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
+        const deltas = [...weeklyDeltas, ...dailyDeltas];
         for (const d of deltas) {
           const dr = shouldBlockHeadline(d.text);
           if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
@@ -2632,54 +2648,27 @@ async function fetchKalshiBatch(): Promise<void> {
   if (_isFetchingKalshi) return;
   _isFetchingKalshi = true;
   try {
-    const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
-    if (!key) { console.warn("[KalshiService] VITE_RAPIDAPI_KEY not set."); return; }
+    type KalshiMarket = { title?: string; ticker?: string; yes_bid?: number; yes_ask?: number; yes_price?: number; volume?: number; category?: string; close_time?: string };
 
-    type KalshiMarket = { yes_bid?: number; yes_ask?: number; volume?: number; ticker?: string };
-    type KalshiEvent = { title?: string; event_ticker?: string; category?: string; markets?: KalshiMarket[] };
+    const events: Array<{ title: string; ticker: string; yesMid: number; volume: number }> = [];
 
-    let events: Array<{ title: string; ticker: string; yesMid: number; volume: number }> = [];
-
-    const primaryResp = await fetch(
-      "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/events?limit=100&status=open",
-      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" } },
+    const resp = await fetch(
+      "https://api.elections.kalshi.com/trade-api/v2/markets?limit=100&status=open",
+      { headers: { "Content-Type": "application/json" } },
     );
 
-    if (primaryResp.ok) {
-      console.info("[KalshiService] Using /events endpoint.");
-      const data = await primaryResp.json() as { events?: KalshiEvent[] };
-      for (const ev of (data.events ?? [])) {
-        const m = ev.markets?.[0];
-        if (!m || (m.volume ?? 0) <= 500) continue;
-        const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
-        events.push({ title: ev.title ?? "", ticker: ev.event_ticker ?? "", yesMid, volume: m.volume ?? 0 });
-      }
-    } else {
-      const kalshiHeaders = { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" };
-      const kalshiFallbacks = [
-        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/markets?limit=100&status=open",
-        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/series",
-      ];
-      let kalshiFallbackSucceeded = false;
-      for (const url of kalshiFallbacks) {
-        try {
-          const r = await fetch(url, { headers: kalshiHeaders });
-          if (!r.ok) { console.warn(`[KalshiService] ${url} returned ${r.status}`); continue; }
-          console.info(`[KalshiService] Using fallback ${url}`);
-          const data = await r.json() as { markets?: Array<{ title?: string; ticker?: string; yes_bid?: number; yes_ask?: number; volume?: number }> };
-          for (const m of (data.markets ?? [])) {
-            if ((m.volume ?? 0) <= 500) continue;
-            const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
-            events.push({ title: m.title ?? "", ticker: m.ticker ?? "", yesMid, volume: m.volume ?? 0 });
-          }
-          kalshiFallbackSucceeded = true;
-          break;
-        } catch { /* try next */ }
-      }
-      if (!kalshiFallbackSucceeded) {
-        console.warn("[KalshiService] All endpoints failed — verify RapidAPI subscription is active for kalshi-trading-api");
-        return;
-      }
+    if (!resp.ok) {
+      console.warn("[KalshiService] Elections API unavailable — will retry next interval");
+      return;
+    }
+
+    const data = await resp.json() as { markets?: KalshiMarket[] };
+    for (const m of (data.markets ?? [])) {
+      if ((m.volume ?? 0) <= 500) continue;
+      const yesMid = m.yes_price !== undefined
+        ? Math.round(m.yes_price * 100)
+        : Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
+      events.push({ title: m.title ?? "", ticker: m.ticker ?? "", yesMid, volume: m.volume ?? 0 });
     }
 
     const seenRaw = (() => { try { return JSON.parse(localStorage.getItem("mt_kalshi_seen") ?? "[]") as string[]; } catch { return [] as string[]; } })();

@@ -1,7 +1,7 @@
 /**
  * metricHistory.ts
  *
- * Persistent metric snapshot system for week-over-week and month-over-month
+ * Persistent metric snapshot system for daily, week-over-week, and month-over-month
  * delta headline generation across live Oracle data sources.
  */
 
@@ -61,6 +61,66 @@ function scaleSentiment(pct: number, maxPct: number): number {
   return Math.max(-1, Math.min(1, raw));
 }
 
+export function getDailyDeltaHeadlines(
+  key: string,
+  currentValue: number,
+  entityName: string,
+  sourceLabel: string,
+  targetIndex: string,
+): DeltaHeadline[] {
+  const headlines: DeltaHeadline[] = [];
+  try {
+    const history: MetricSnapshot[] = JSON.parse(
+      localStorage.getItem(HISTORY_KEY) ?? "[]",
+    );
+    const entries = history.filter((e) => e.key === key);
+    const now = Date.now();
+    const sourceKey = sourceLabel.split(" ")[0].toLowerCase();
+    const isMacro = /^(fred|bls|bea)\b/i.test(sourceLabel);
+
+    // Jittered daily window: 20-28 hours ago
+    const minAge = 20 * 60 * 60 * 1000;
+    const maxAge = 28 * 60 * 60 * 1000;
+
+    const dailyEntry = entries
+      .slice()
+      .reverse()
+      .find((e) => {
+        const age = now - new Date(e.timestamp).getTime();
+        return age >= minAge && age <= maxAge;
+      });
+
+    if (dailyEntry && dailyEntry.value !== 0) {
+      const delta = currentValue - dailyEntry.value;
+      const pct = (delta / dailyEntry.value) * 100;
+      if (Math.abs(pct) >= 1.5) {
+        const absPct = Math.abs(pct).toFixed(1);
+        let text: string;
+        if (isMacro) {
+          text = pct >= 0
+            ? `${entityName} ticked higher overnight — up ${absPct}% day over day`
+            : `${entityName} eased overnight — down ${absPct}% from yesterday`;
+        } else {
+          text = pct >= 0
+            ? `${entityName} picked up ${Math.abs(delta).toFixed(2)} overnight — up ${absPct}% from yesterday`
+            : `${entityName} pulled back overnight — down ${absPct}% from yesterday's reading`;
+        }
+        headlines.push({
+          text,
+          sourceTier: 2,
+          source: sourceKey,
+          forcedIndex: targetIndex,
+          sourceLabelOverride: true,
+          sentimentScore: scaleSentiment(pct, 3),
+        });
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return headlines;
+}
+
 export function getDeltaHeadlines(
   key: string,
   currentValue: number,
@@ -80,6 +140,7 @@ export function getDeltaHeadlines(
     const now = Date.now();
     const sourceKey = sourceLabel.split(" ")[0].toLowerCase();
 
+    // Jittered weekly window: 5-9 days ago
     const weeklyEntry = entries
       .slice()
       .reverse()
@@ -92,9 +153,19 @@ export function getDeltaHeadlines(
       const delta = currentValue - weeklyEntry.value;
       const pct = (delta / weeklyEntry.value) * 100;
       if (Math.abs(pct) >= 0.25) {
-        const direction = delta >= 0 ? "grew" : "declined";
+        const absPct = Math.abs(pct).toFixed(1);
+        let text: string;
+        if (Math.abs(pct) >= 5) {
+          text = pct >= 0
+            ? `${entityName} surged ${absPct}% this week — strongest weekly gain in recent history`
+            : `${entityName} dropped ${absPct}% this week — sharpest weekly decline in recent history`;
+        } else {
+          text = pct >= 0
+            ? `${entityName} gained ground this week — up ${absPct}% over the past 7 days`
+            : `${entityName} lost momentum this week — down ${absPct}% week over week`;
+        }
         headlines.push({
-          text: `${entityName} ${sourceLabel} ${direction} by ${Math.abs(delta).toFixed(2)} week over week (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`,
+          text,
           sourceTier: 2,
           source: sourceKey,
           forcedIndex: targetIndex,
@@ -104,6 +175,7 @@ export function getDeltaHeadlines(
       }
     }
 
+    // Jittered monthly window: 25-35 days ago
     const monthlyEntry = entries
       .slice()
       .reverse()
@@ -116,9 +188,19 @@ export function getDeltaHeadlines(
       const delta = currentValue - monthlyEntry.value;
       const pct = (delta / monthlyEntry.value) * 100;
       if (Math.abs(pct) >= 1.0) {
-        const direction = delta >= 0 ? "grew" : "declined";
+        const absPct = Math.abs(pct).toFixed(1);
+        let text: string;
+        if (Math.abs(pct) >= 10) {
+          text = pct >= 0
+            ? `${entityName} up ${absPct}% month over month — one of the stronger monthly moves on the platform`
+            : `${entityName} down ${absPct}% month over month — meaningful trend worth watching`;
+        } else {
+          text = pct >= 0
+            ? `${entityName} climbed ${absPct}% over the past month — sustained upward momentum`
+            : `${entityName} declined ${absPct}% over the past month — sustained downward pressure`;
+        }
         headlines.push({
-          text: `${entityName} ${sourceLabel} ${direction} by ${Math.abs(delta).toFixed(2)} month over month (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%)`,
+          text,
           sourceTier: 2,
           source: sourceKey,
           forcedIndex: targetIndex,
