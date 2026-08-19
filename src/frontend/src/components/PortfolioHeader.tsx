@@ -627,7 +627,7 @@ function IndexSlideOver({
         </div>
 
         {/* ── Scrollable Body ── */}
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "1rem 1.25rem", display: "flex", flexDirection: "column", gap: "1rem", minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", overscrollBehavior: "contain", padding: "1rem 1.25rem", paddingBottom: "calc(1rem + env(safe-area-inset-bottom))", display: "flex", flexDirection: "column", gap: "1rem", minHeight: 0 }}>
 
           {/* ── P&L Hero ── */}
           <div style={{ borderRadius: "0.75rem", background: "#111111", border: "1px solid #1e1e1e", padding: "1rem" }}>
@@ -1684,7 +1684,7 @@ export function PortfolioHeader({
               </div>
 
               {/* Holdings list */}
-              <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-3">
+              <div className="flex-1 overflow-y-auto px-5 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-3">
                 {(categoryAllocations[selectedCategory]?.holdings ?? []).map(
                   ({ name, holding }) => {
                     const rawScore =
