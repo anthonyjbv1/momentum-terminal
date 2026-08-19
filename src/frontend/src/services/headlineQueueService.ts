@@ -2142,6 +2142,13 @@ async function fetchYouTubeBatch(): Promise<void> {
       const videos = parseInt(item.statistics.videoCount ?? "0", 10);
       if (!subs) continue;
 
+      const ytMetricKey = `yt_subs_${item.id}`;
+      saveMetricSnapshot(ytMetricKey, subs, meta.displayName, "YouTube");
+      const ytWeeklyDeltas = getDeltaHeadlines(ytMetricKey, subs, meta.displayName, "YouTube", meta.index);
+      const ytDailyDeltas = getDailyDeltaHeadlines(ytMetricKey, subs, meta.displayName, "YouTube", meta.index);
+      mapped.push(...ytWeeklyDeltas, ...ytDailyDeltas);
+      _queue.push(...ytWeeklyDeltas, ...ytDailyDeltas);
+
       // Headline 1 — always: snapshot stats
       const statsHeadline: QueuedHeadline = {
         text: `${meta.displayName} crosses ${formatCompact(subs)} YouTube subscribers with over ${formatCompact(views)} total views`,
@@ -2267,6 +2274,13 @@ async function fetchTwitchBatch(): Promise<void> {
           // Only generate a headline when the streamer is live — offline status is not a signal
           if (!stream) return;
 
+          const twitchMetricKey = `twitch_viewers_${username}`;
+          saveMetricSnapshot(twitchMetricKey, stream.viewer_count, displayName, "Twitch");
+          const twitchWeeklyDeltas = getDeltaHeadlines(twitchMetricKey, stream.viewer_count, displayName, "Twitch", forcedIndex);
+          const twitchDailyDeltas = getDailyDeltaHeadlines(twitchMetricKey, stream.viewer_count, displayName, "Twitch", forcedIndex);
+          mapped.push(...twitchWeeklyDeltas, ...twitchDailyDeltas);
+          _queue.push(...twitchWeeklyDeltas, ...twitchDailyDeltas);
+
           // Scale: 50k concurrent viewers earns full positive sentiment
           const twitchSentiment = Math.min(1, stream.viewer_count / 50_000);
           const headline: QueuedHeadline = {
@@ -2359,6 +2373,13 @@ async function fetchSpotifyBatch(): Promise<void> {
           const followers = data.followers?.total ?? 0;
           const popularity = data.popularity ?? 0;
           if (!followers) return;
+
+          const spotifyMetricKey = `spotify_followers_${artistId}`;
+          saveMetricSnapshot(spotifyMetricKey, followers, meta.displayName, "Spotify");
+          const spotifyWeeklyDeltas = getDeltaHeadlines(spotifyMetricKey, followers, meta.displayName, "Spotify", meta.index);
+          const spotifyDailyDeltas = getDailyDeltaHeadlines(spotifyMetricKey, followers, meta.displayName, "Spotify", meta.index);
+          mapped.push(...spotifyWeeklyDeltas, ...spotifyDailyDeltas);
+          _queue.push(...spotifyWeeklyDeltas, ...spotifyDailyDeltas);
 
           const snapshotHeadline: QueuedHeadline = {
             text: `${meta.displayName} sits at ${popularity}/100 popularity on Spotify with ${formatCompact(followers)} followers`,
