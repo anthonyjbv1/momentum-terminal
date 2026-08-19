@@ -1952,12 +1952,14 @@ async function fetchForbesBatch(): Promise<void> {
 
       const net_worth_b = finalWorth / 1000;
 
+      const rankSentiment = rank <= 3 ? 0.60 : rank <= 7 ? 0.35 : rank <= 15 ? 0.15 : rank <= 25 ? 0.00 : -0.10;
       const rankHeadline: QueuedHeadline = {
         text: `${name} net worth $${net_worth_b.toFixed(1)}B — Forbes Real-Time #${rank}`,
         sourceTier: 1,
         source: "forbes",
         forcedIndex,
         sourceLabelOverride: true,
+        sentimentScore: rankSentiment,
       };
       const blockReason1 = shouldBlockHeadline(rankHeadline.text);
       if (blockReason1) {
@@ -1975,8 +1977,8 @@ async function fetchForbesBatch(): Promise<void> {
         const change_pct = ((finalWorth - estWorthPrev) / estWorthPrev) * 100;
         if (Math.abs(change_pct) >= 0.5) {
           const direction = change_abs >= 0 ? "rose" : "fell";
-          // Scale: a 5% daily net-worth swing earns full sentiment weight
-          const forbesSentiment = Math.max(-1, Math.min(1, change_pct / 5));
+          // Scale: a 10% daily net-worth swing earns full sentiment weight
+          const forbesSentiment = Math.max(-1, Math.min(1, change_pct / 10));
           const changeHeadline: QueuedHeadline = {
             text: `${name} net worth ${direction} $${Math.abs(change_abs).toFixed(1)}B (${change_pct >= 0 ? "+" : ""}${change_pct.toFixed(2)}%) since prior trading day per Forbes Real-Time Billionaires`,
             sourceTier: 1,
