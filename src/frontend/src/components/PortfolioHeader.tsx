@@ -815,7 +815,6 @@ export function PortfolioHeader({
   const [sortMode, setSortMode] = useState<
     "default" | "newest" | "oldest" | "capital" | "pct_change"
   >("default");
-  const [timeRange, setTimeRange] = useState<"LIVE" | "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL">("1D");
   const [scrubbedValue, setScrubbedValue] = useState<number | null>(null);
 
   const PORTFOLIO_HISTORY_KEY = userId
@@ -951,17 +950,24 @@ export function PortfolioHeader({
     return { activeHoldings: holdings, holdingsTotal: total };
   }, [holdingsData, finalScores, redeemPriceMap, shortPositions]);
 
-  // Portfolio history accumulator — push on each Oracle tick.
-  // Reads from refs (not closure-captured state) so the value is always
-  // current-tick rather than one render behind.
+  // Portfolio history accumulator — push once per Oracle tick only.
+  // Keyed only on tickCount so a single tick never pushes multiple points.
+  // Reads shortHoldingsTotalRef directly so shorts are included without
+  // causing extra fires when the aggregator callback runs.
   useEffect(() => {
-    const currentValue = cash + holdingsTotal + shortHoldingsTotalRef.current;
-    if (currentValue <= 0) return;
+    const shortTotal = shortHoldingsTotalRef.current;
+    // Skip if short positions exist but aggregator hasn't reported yet (shortTotal still 0)
+    const hasShortPositions = shortPositions.size > 0;
+    if (hasShortPositions && shortTotal === 0) return;
+    const currentValue = cash + holdingsTotal + shortTotal;
+    if (currentValue <= 0 || !Number.isFinite(currentValue)) return;
     const prev = portfolioHistoryRef.current;
     const last = prev[prev.length - 1];
-    // Always record; skip only exact duplicates within the same minute
+    // Skip exact duplicate within the same minute
     const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
     if (sameMinute && last.value === Math.round(currentValue * 100) / 100) return;
+    // Skip outlier spikes: reject single-tick swings > 30% from last value
+    if (last && Math.abs(currentValue - last.value) / last.value > 0.3) return;
     const entry = { value: Math.round(currentValue * 100) / 100, ts: Date.now() };
     const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1 tick/min
     portfolioHistoryRef.current = next;
@@ -979,7 +985,7 @@ export function PortfolioHeader({
         }
       }
     }
-  }, [tickCount, cash, holdingsTotal]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tickCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredHoldings = useMemo(
     () => activeHoldings.filter(({ name }) => GOD_TIER.has(name)),
@@ -1045,31 +1051,16 @@ export function PortfolioHeader({
 
   const filteredHistory = useMemo(() => {
     const all = portfolioHistorySnapshot;
-    const now = Date.now();
-    const MS = (h: number) => h * 60 * 60 * 1000;
-    const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
-    const sliceFor = (tab: string) => {
-      if (tab === "LIVE") return all.filter((p) => p.ts >= now - MS(0.5));
-      if (tab === "1D")   return all.filter((p) => p.ts >= now - MS(24));
-      if (tab === "1W")   return all.filter((p) => p.ts >= now - MS(24 * 7));
-      if (tab === "1M")   return all.filter((p) => p.ts >= now - MS(24 * 30));
-      if (tab === "3M")   return all.filter((p) => p.ts >= now - MS(24 * 90));
-      if (tab === "YTD")  return all.filter((p) => p.ts >= jan1);
-      if (tab === "1Y")   return all.filter((p) => p.ts >= now - MS(24 * 365));
-      return all;
-    };
-    const FALLBACK_ORDER = ["ALL", "1Y", "3M", "1M", "YTD", "1W", "1D", "LIVE"] as const;
-    const idx = FALLBACK_ORDER.indexOf(timeRange as typeof FALLBACK_ORDER[number]);
-    const fallbacks = idx >= 0 ? FALLBACK_ORDER.slice(idx) : [timeRange];
-    for (const tab of fallbacks) {
-      const slice = sliceFor(tab);
-      if (slice.length >= 5) {
-        if (tab !== timeRange) console.log(`[chart] ${timeRange} has <5 pts, falling back to ${tab}`);
-        return slice;
-      }
+    if (pnlToggle === "TODAY") {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const slice = all.filter((p) => p.ts >= startOfToday.getTime());
+      // Fallback to last few points if today has no data yet
+      return slice.length >= 2 ? slice : all.slice(-10);
     }
-    return sliceFor(timeRange); // best effort — fewer than 5 in all windows
-  }, [timeRange, portfolioHistorySnapshot]);
+    // ALL_TIME — show full history
+    return all;
+  }, [pnlToggle, portfolioHistorySnapshot]);
 
   // If fewer than 10 real points, interpolate 2 synthetic points between each pair for a smoother line
   // biome-ignore lint/correctness/useExhaustiveDependencies: depends on filteredHistory
@@ -1260,7 +1251,7 @@ export function PortfolioHeader({
                         {Math.abs(displayPnLPct).toFixed(2)}%)
                       </span>{" "}
                       <span className="text-muted-foreground font-normal">
-                        {pnlToggle === "TODAY" ? "today" : "all time"}
+                        {pnlToggle === "TODAY" ? "TODAY" : "ALL TIME"}
                       </span>
                     </p>
 
@@ -1300,64 +1291,6 @@ export function PortfolioHeader({
             </div>
           </div>
 
-          {/* Capital split card */}
-          {(() => {
-            const availablePct =
-              totalPortfolioValue > 0 ? (cash / totalPortfolioValue) * 100 : 0;
-            const deployedPct = 100 - availablePct;
-            return (
-              <div
-                className="flex flex-col px-3 py-2 sm:px-4 sm:py-3 rounded-sm bg-white/[0.03] border border-border min-w-[220px]"
-                data-ocid="capital-split-card"
-              >
-                {/* Card label */}
-                <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold mb-1">
-                  Capital
-                </p>
-                {/* Primary value */}
-                <p className="hidden sm:block font-mono text-xl font-bold text-foreground tracking-tight mb-3">
-                  {fmt(totalPortfolioValue)}
-                </p>
-                {/* Two columns */}
-                <div className="flex gap-4">
-                  {/* Left — Available */}
-                  <div className="flex-1 flex flex-col relative pb-3">
-                    <p className="font-mono text-[12px] sm:text-sm font-semibold text-foreground">
-                      {fmt(cash)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
-                      Available
-                    </p>
-                    <p className="text-[11px] text-green-400 mt-0.5">
-                      {availablePct.toFixed(1)}%
-                    </p>
-                    {/* Solid green bar */}
-                    <div
-                      className="absolute bottom-0 left-0 h-[3px] rounded-full bg-green-400"
-                      style={{ width: `${availablePct}%` }}
-                    />
-                  </div>
-                  {/* Right — Deployed */}
-                  <div className="flex-1 flex flex-col relative pb-3">
-                    <p className="font-mono text-[12px] sm:text-sm font-semibold text-foreground">
-                      {fmt(holdingsTotal)}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-widest mt-0.5">
-                      Deployed
-                    </p>
-                    <p className="text-[11px] text-orange-400 mt-0.5">
-                      {deployedPct.toFixed(1)}%
-                    </p>
-                    {/* Dotted orange bar */}
-                    <div
-                      className="absolute bottom-0 left-0 h-[3px] border-t-2 border-dashed border-orange-400"
-                      style={{ width: `${deployedPct}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
         </div>
 
         {/* Scrubable Portfolio Chart */}
@@ -1374,10 +1307,8 @@ export function PortfolioHeader({
             const chartColor = chartLast >= chartFirst ? "#4ade80" : "#f87171";
             const fmtTs = (ts: number) => {
               const d = new Date(ts);
-              if (timeRange === "LIVE" || timeRange === "1D")
+              if (pnlToggle === "TODAY")
                 return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-              if (timeRange === "1W")
-                return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
               return d.toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
             };
             // Thin to ≤400 points for performance; strip zero/corrupt values first
@@ -1387,27 +1318,6 @@ export function PortfolioHeader({
               const step = Math.ceil(clean.length / 400);
               return clean.filter((_, i) => i % step === 0 || i === clean.length - 1);
             })();
-
-            const TIME_TABS = ["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
-            const tabRow = (
-              <div className="flex justify-between mt-2 mb-1 border-t border-border/20 pt-2">
-                {TIME_TABS.map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    data-ocid={`portfolio.chart.range.${tab.toLowerCase()}`}
-                    onClick={() => setTimeRange(tab)}
-                    className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded transition-all cursor-pointer ${
-                      timeRange === tab
-                        ? "text-white bg-white/10 border border-white/20"
-                        : "text-muted-foreground hover:text-white"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-            );
 
             return (
               <div>
@@ -1419,7 +1329,7 @@ export function PortfolioHeader({
                       {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(delta)}
                     </span>
                     <span className="opacity-70">({isPos ? "+" : ""}{pct.toFixed(2)}%)</span>
-                    <span className="text-muted-foreground font-normal text-[10px] uppercase tracking-wider ml-1">{timeRange}</span>
+                    <span className="text-muted-foreground font-normal text-[10px] uppercase tracking-wider ml-1">{pnlToggle === "TODAY" ? "TODAY" : "ALL TIME"}</span>
                   </div>
                 )}
 
@@ -1496,7 +1406,6 @@ export function PortfolioHeader({
                   )}
                 </div>
 
-                {tabRow}
               </div>
             );
           })()}
