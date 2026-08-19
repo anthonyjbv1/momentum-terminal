@@ -303,11 +303,11 @@ export function ScoreHistoryModal({
                 </svg>
                 <span
                   style={{
-                    fontFamily: "monospace",
+                    fontFamily: '"JetBrains Mono", "Fira Code", monospace',
                     fontSize: "11px",
                     fontWeight: 400,
                     letterSpacing: "0.025em",
-                    color: isUrgent ? "#f87171" : "rgba(255,255,255,0.7)",
+                    color: isUrgent ? "#f87171" : "oklch(0.93 0.01 240 / 0.7)",
                     transition: "color 0.15s",
                     fontVariantNumeric: "tabular-nums",
                   }}
