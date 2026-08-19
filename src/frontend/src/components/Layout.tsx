@@ -112,18 +112,18 @@ export function Layout({
           {/* Logo */}
           <div className="flex items-center gap-2.5">
             <MomentumLogoMark />
-            <div className="hidden sm:flex flex-col leading-none">
+            <div className="flex flex-col leading-none">
               <span className="text-foreground font-bold text-sm tracking-tight">
                 Momentum
               </span>
-              <span className="text-muted-foreground text-[9px] uppercase tracking-widest font-medium">
+              <span className="text-muted-foreground text-[9px] uppercase tracking-widest font-medium hidden sm:block">
                 Terminal
               </span>
             </div>
           </div>
 
           {/* Status indicators + profile button */}
-          <div className="flex items-center gap-3 flex-nowrap flex-shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-3 flex-nowrap flex-shrink-0">
             {isSyncing && (
               <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm bg-electric-blue/5 border border-electric-blue/20">
                 <RefreshCw className="w-3 h-3 text-electric-blue animate-spin" />
@@ -210,7 +210,7 @@ export function Layout({
             >
               <Search className="w-3 h-3 text-primary" />
               <span
-                className="text-[10px] uppercase tracking-widest font-medium"
+                className="hidden sm:inline text-[10px] uppercase tracking-widest font-medium"
                 style={{ color: "var(--muted-foreground, #64748b)" }}
               >
                 SEARCH
