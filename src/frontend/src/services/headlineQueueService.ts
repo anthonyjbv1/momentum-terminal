@@ -363,6 +363,11 @@ const ODDS_SPORTS = [
 
 async function fetchOddsAPIBatch(): Promise<void> {
   if (_isFetchingOddsAPI) return;
+  const ODDS_SUPPRESSED_UNTIL = new Date('2026-09-01').getTime();
+  if (Date.now() < ODDS_SUPPRESSED_UNTIL) {
+    console.log('[OddsAPI] Credits exhausted — suppressed until Sept 1');
+    return;
+  }
   _isFetchingOddsAPI = true;
   try {
     const key = import.meta.env.VITE_ODDS_API_KEY ?? "";
@@ -883,6 +888,12 @@ async function fetchBLSBatch(): Promise<void> {
   }
 }
 
+function formatQuarterDate(str: string): string {
+  return str.replace(/(\d{4})Q([1-4])/g, (_, year, q) => {
+    return `Q${q} ${year}`;
+  });
+}
+
 // ─── BEA (Bureau of Economic Analysis) direct fetch ──────────────────────────
 async function fetchBEABatch(): Promise<void> {
   if (_isFetchingBEA) return;
@@ -923,7 +934,7 @@ async function fetchBEABatch(): Promise<void> {
         if (Number.isNaN(gdpFloat)) continue;
 
         const item: QueuedHeadline = {
-          text: `${state.stateName}'s economy produced $${gdpFloat.toFixed(1)}B in ${latest.TimePeriod}`,
+          text: formatQuarterDate(`${state.stateName}'s economy produced $${gdpFloat.toFixed(1)}B in ${latest.TimePeriod}`),
           sourceTier: 2,
           source: "bea",
           forcedIndex: state.index,
@@ -997,10 +1008,10 @@ async function fetchWorldBankBatch(): Promise<void> {
             text: (() => {
               const val = latest.value;
               const year = latest.date;
-              if (indicator.code === "NY.GDP.MKTP.KD.ZG") return `${country.name}'s economy ${val >= 0 ? "grew" : "contracted"} ${Math.abs(val).toFixed(1)}% in ${year}`;
-              if (indicator.code === "FP.CPI.TOTL.ZG")    return `${country.name}'s inflation ran at ${val.toFixed(1)}% in ${year}`;
-              if (indicator.code === "SL.UEM.TOTL.ZS")    return `${country.name}'s unemployment stood at ${val.toFixed(1)}% in ${year}`;
-              return `${country.name} ${indicator.label.toLowerCase().replace(/\(.*?\)/g, "").trim()} at ${val.toFixed(2)} for ${year}`;
+              if (indicator.code === "NY.GDP.MKTP.KD.ZG") return formatQuarterDate(`${country.name}'s economy ${val >= 0 ? "grew" : "contracted"} ${Math.abs(val).toFixed(1)}% in ${year}`);
+              if (indicator.code === "FP.CPI.TOTL.ZG")    return formatQuarterDate(`${country.name}'s inflation ran at ${val.toFixed(1)}% in ${year}`);
+              if (indicator.code === "SL.UEM.TOTL.ZS")    return formatQuarterDate(`${country.name}'s unemployment stood at ${val.toFixed(1)}% in ${year}`);
+              return formatQuarterDate(`${country.name} ${indicator.label.toLowerCase().replace(/\(.*?\)/g, "").trim()} at ${val.toFixed(2)} for ${year}`);
             })(),
             sourceTier: 2,
             source: "worldbank",
@@ -1078,11 +1089,17 @@ async function fetchNBSChinaBatch(): Promise<void> {
 
         const item: QueuedHeadline = {
           text: (() => {
-            const v = numericValue.toFixed(2);
             const d = latest.date;
-            if (dataset.slug === "china-gdp") return `China's economy grew ${v}%${unit ? " " + unit : ""} in ${d}`;
-            if (dataset.slug === "china-cpi") return `China's consumer prices read ${v}${unit ? " " + unit : ""} in ${d}`;
-            return `China ${dataset.label.replace(/\(.*?\)/g, "").trim().toLowerCase()} at ${v}${unit ? " " + unit : ""} as of ${d}`;
+            if (dataset.slug === "china-gdp") {
+              if (numericValue > 50 || numericValue < -30) {
+                console.warn(`[NBSChina] Sanity check failed: ${numericValue} — skipping`);
+                return null as unknown as string;
+              }
+              const trillions = (numericValue / 10000).toFixed(2);
+              return `China's economy reached ${trillions} trillion CNY in ${d}`;
+            }
+            if (dataset.slug === "china-cpi") return `China consumer prices held at ${numericValue.toFixed(1)} in ${d} per NBS data`;
+            return `China ${dataset.label.replace(/\(.*?\)/g, "").trim().toLowerCase()} at ${numericValue.toFixed(2)} as of ${d}`;
           })(),
           sourceTier: 2,
           source: "nbschina",
@@ -1090,6 +1107,7 @@ async function fetchNBSChinaBatch(): Promise<void> {
           sourceLabelOverride: true,
           sentimentScore: 0,
         };
+        if (!item.text) { await new Promise((r) => setTimeout(r, 500)); continue; }
         const blockReason = shouldBlockHeadline(item.text);
         if (blockReason) {
           blockedHeadlines.push({ text: item.text, reason: blockReason, blockedAt: Date.now() });
@@ -2386,10 +2404,18 @@ async function fetchSpotifyBatch(): Promise<void> {
 const BILLBOARD_FETCH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const BILLBOARD_LS_KEY = "mt_billboard_last_fetch";
 
+const SIX_DAYS_MS = 6 * 24 * 60 * 60 * 1000;
+
 async function fetchBillboardBatch(): Promise<void> {
   if (_isFetchingBillboard) return;
-  const lastFetch = Number(localStorage.getItem(BILLBOARD_LS_KEY) ?? "0");
-  if (Date.now() - lastFetch < BILLBOARD_FETCH_INTERVAL_MS) return;
+  const lastFetch = localStorage.getItem(BILLBOARD_LS_KEY);
+  console.log('[BillboardService] Gate check —',
+    'lastFetch:', lastFetch,
+    'hoursAgo:', lastFetch
+      ? ((Date.now() - parseInt(lastFetch)) / 3600000).toFixed(1)
+      : 'never'
+  );
+  if (lastFetch && Date.now() - parseInt(lastFetch) < BILLBOARD_FETCH_INTERVAL_MS) return;
   _isFetchingBillboard = true;
   try {
     const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
@@ -2398,6 +2424,11 @@ async function fetchBillboardBatch(): Promise<void> {
       "https://billboard-api2.p.rapidapi.com/hot-100?date=2024-06-01&range=1-10",
       { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "billboard-api2.p.rapidapi.com" } },
     );
+    if (resp.status === 429) {
+      console.warn("[BillboardService] 429 Too Many Requests — suppressing for 24 hours");
+      localStorage.setItem(BILLBOARD_LS_KEY, (Date.now() - SIX_DAYS_MS).toString());
+      return;
+    }
     if (!resp.ok) { console.warn("[BillboardService] API error", resp.status); return; }
     const data = await resp.json() as { content?: Array<Record<string, unknown>> };
     const entries = data.content ?? [];
@@ -2503,15 +2534,19 @@ function matchPredictionMarketIndex(question: string): string | null {
   return null;
 }
 
+const POLY_CACHE_KEY = 'mt_polymarket_last_fetch';
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+
 async function fetchPolymarketBatch(): Promise<void> {
   if (_isFetchingPolymarket) return;
+  const lastFetch = localStorage.getItem(POLY_CACHE_KEY);
+  if (lastFetch && Date.now() - parseInt(lastFetch) < TWELVE_HOURS_MS) return;
   _isFetchingPolymarket = true;
   try {
     const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
     if (!key) { console.warn("[PolymarketService] VITE_RAPIDAPI_KEY not set."); return; }
     const polymarketHeaders = { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "polymarket-api2.p.rapidapi.com" };
     const polymarketEndpoints = [
-      "https://polymarket-api2.p.rapidapi.com/markets?limit=50&active=true&closed=false",
       "https://polymarket-api2.p.rapidapi.com/api/markets?limit=50&active=true&closed=false",
       "https://polymarket-api2.p.rapidapi.com/v1/markets?limit=50&active=true&closed=false",
     ];
@@ -2563,6 +2598,7 @@ async function fetchPolymarketBatch(): Promise<void> {
 
     const updatedSeen = [...seen].slice(-100);
     try { localStorage.setItem("mt_polymarket_seen", JSON.stringify(updatedSeen)); } catch { /* ignore */ }
+    try { localStorage.setItem(POLY_CACHE_KEY, String(Date.now())); } catch { /* ignore */ }
 
     if (mapped.length > 0) {
       saveHeadlinesToCache(mapped);
@@ -3659,9 +3695,9 @@ export function initHeadlineQueue(actor: ActorWithFedBLS): () => void {
   void fetchBillboardBatch();
   const billboardIntervalId = setInterval(fetchBillboardBatch, 168 * 60 * 60 * 1000);
 
-  // Polymarket — fire immediately, then every 6 hours
+  // Polymarket — fire immediately (guarded by 12-hour localStorage gate), then every 12 hours
   void fetchPolymarketBatch();
-  const polymarketIntervalId = setInterval(fetchPolymarketBatch, 360 * 60 * 1000);
+  const polymarketIntervalId = setInterval(fetchPolymarketBatch, 720 * 60 * 1000);
 
   // Kalshi — fire immediately, then every 6 hours
   void fetchKalshiBatch();
