@@ -71,6 +71,7 @@ export interface OracleTickContextValue {
   finalScores: Map<string, number>;
   currentGSI: number | null;
   tickCount: number;
+  secondsLeft: number;
   lastDispatchedHeadline: TickHeadline | null;
   activePreemptions: Map<
     string,
@@ -93,6 +94,7 @@ const OracleTickContext = createContext<OracleTickContextValue>({
   finalScores: new Map(),
   currentGSI: null,
   tickCount: 0,
+  secondsLeft: 30,
   lastDispatchedHeadline: null,
   activePreemptions: new Map(),
   scoreHistoryMap: new Map(),
@@ -129,10 +131,14 @@ const BURST_MIN_DRAIN = 2;
 export function OracleTickProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { isAuthenticated } = useAuth();
+  const [secondsLeft, setSecondsLeft] = useState(30);
+  const secondsLeftRef = useRef(30);
+
   const [tickState, setTickState] = useState<OracleTickContextValue>({
     finalScores: new Map(),
     currentGSI: null,
     tickCount: 0,
+    secondsLeft: 30,
     lastDispatchedHeadline: null,
     activePreemptions: new Map(),
     scoreHistoryMap: new Map(),
@@ -1276,8 +1282,36 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
     };
   }, [runTick]);
 
+  // Single shared countdown — all components read from here, always in sync.
+  useEffect(() => {
+    const countdownInterval = setInterval(() => {
+      if (document.hidden) return;
+      setSecondsLeft((prev) => {
+        const next = Math.max(0, prev - 1);
+        secondsLeftRef.current = next;
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(countdownInterval);
+  }, []);
+
+  // Reset to 30 whenever a new Oracle tick fires.
+  const prevTickCount = useRef(tickState.tickCount);
+  useEffect(() => {
+    if (tickState.tickCount !== prevTickCount.current) {
+      prevTickCount.current = tickState.tickCount;
+      setSecondsLeft(30);
+      secondsLeftRef.current = 30;
+    }
+  }, [tickState.tickCount]);
+
+  const contextValue: OracleTickContextValue = {
+    ...tickState,
+    secondsLeft,
+  };
+
   return (
-    <OracleTickContext.Provider value={tickState}>
+    <OracleTickContext.Provider value={contextValue}>
       {children}
     </OracleTickContext.Provider>
   );

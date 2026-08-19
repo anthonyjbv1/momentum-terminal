@@ -60,8 +60,10 @@ export function Layout({
 
   const { tier: loyaltyTier } = useLoyalty();
   const [isGSIModalOpen, setIsGSIModalOpen] = useState(false);
-  const { currentGSI, tickCount } = useOracleTick();
-  const [countdown, secondsLeft] = useCountdown(nextRefreshTimeNs, tickCount);
+  const { currentGSI, secondsLeft } = useOracleTick();
+  const minutes = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const countdown = `${minutes}:${secs.toString().padStart(2, "0")}`;
   const isCountdownUrgent = secondsLeft <= 5;
 
   // ── Profile icon in header → switches to Profile tab ─────────────────────────

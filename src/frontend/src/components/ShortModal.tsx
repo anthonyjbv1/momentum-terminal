@@ -7,7 +7,6 @@ import { useAuth } from "../contexts/AuthContext";
 import { useLocalHoldings } from "../contexts/LocalHoldingsContext";
 import { useWalletContext } from "../contexts/WalletContext";
 import { useOracleTick } from "../contexts/OracleTickContext";
-import { useCountdown } from "../hooks/useCountdown";
 import { useMomentumTemperature } from "../hooks/useMomentumTemperature";
 
 interface ShortModalProps {
@@ -104,8 +103,10 @@ export function ShortModal({
   const { userAccount } = useAuth();
   const { addShortCostBasis, openShort } = useLocalHoldings();
   const userId = userAccount?.email ?? "";
-  const { tickCount } = useOracleTick();
-  const [countdown, secondsLeft] = useCountdown(undefined, tickCount);
+  const { secondsLeft } = useOracleTick();
+  const minutes = Math.floor(secondsLeft / 60);
+  const secs = secondsLeft % 60;
+  const countdown = `${minutes}:${secs.toString().padStart(2, "0")}`;
   const isTimerUrgent = secondsLeft <= 5;
 
   const temperature = useMomentumTemperature(assetName, category);
