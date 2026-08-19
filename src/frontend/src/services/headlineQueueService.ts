@@ -32,6 +32,8 @@ export interface QueuedHeadline {
   commentCount?: number;
   /** When true, neutral impact suppression is skipped — headline always dispatches. Used for structured data sources (Forbes, YouTube, Twitch, Spotify). */
   sourceLabelOverride?: boolean;
+  /** Pre-assigned sentiment label — bypasses FinBERT label assignment when set. */
+  label?: string;
 }
 
 // ─── In-memory queue ─────────────────────────────────────────────────────────
@@ -1780,7 +1782,18 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
       else { mapped.push(item); _queue.push(item); }
     };
 
+    const SCORECARD_NAME_MAP: Record<string, string> = {
+      "Ohio State University-Main Campus": "Ohio State University",
+      "University of Michigan-Ann Arbor": "University of Michigan",
+      "Harvard University": "Harvard University",
+      "Yale University": "Yale University",
+    };
+
     for (const uni of UNIVERSITIES) {
+      let admissionHeadline: QueuedHeadline | null = null;
+      let earningsHeadline: QueuedHeadline | null = null;
+      let admDeltaFn: (() => void) | null = null;
+
       try {
         const url = `https://api.data.gov/ed/collegescorecard/v1/schools?api_key=${apiKey}&id=${uni.unitId}&fields=${fields}&_per_page=1`;
         const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(url)}`);
@@ -1796,59 +1809,40 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
           };
           const r = data.results?.[0];
           if (r) {
-            const schoolName = r["school.name"] ?? uni.name;
+            const rawName = r["school.name"] ?? uni.name;
+            const displayName = SCORECARD_NAME_MAP[rawName] ?? rawName;
 
             const admRate = r["latest.admissions.admission_rate.overall"];
             if (admRate !== null && admRate !== undefined && !Number.isNaN(admRate)) {
               const admPct = admRate * 100;
               const selectivity = admPct < 10 ? "highly selective" : admPct < 25 ? "selective" : admPct < 50 ? "moderately selective" : "accessible";
-              enqueueItem({
-                text: `${schoolName} admits ${admPct.toFixed(1)}% of applicants, making it ${selectivity}`,
+              admissionHeadline = {
+                text: `${displayName} admits ${admPct.toFixed(1)}% of applicants, making it ${selectivity}`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true,
                 sentimentScore: admPct < 10 ? 0.75 : 0,
-              });
-              const metricKey = `scorecard:${uni.index}:admission_rate`;
-              saveMetricSnapshot(metricKey, admPct, `${schoolName} admission rate`, "College Scorecard");
-              const weeklyDeltas = getDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
-              const dailyDeltas = getDailyDeltaHeadlines(metricKey, admPct, schoolName, "College Scorecard admission rate", uni.index);
-              const deltas = [...weeklyDeltas, ...dailyDeltas];
-              for (const d of deltas) {
-                const dr = shouldBlockHeadline(d.text);
-                if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
-                else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
-              }
-            }
-
-            const enrollment = r["latest.student.size"];
-            if (enrollment !== null && enrollment !== undefined) {
-              enqueueItem({
-                text: `${schoolName} enrolls ${enrollment >= 10000 ? `nearly ${Math.round(enrollment / 1000)}k` : enrollment.toLocaleString()} students`,
-                sourceTier: 2, source: "scorecard",
-                forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore: 0,
-              });
-            }
-
-            const gradRate = r["latest.completion.completion_rate_4yr_150_pooled"];
-            if (gradRate !== null && gradRate !== undefined && !Number.isNaN(gradRate)) {
-              const gradPct = gradRate * 100;
-              const perf = gradPct >= 90 ? "strong" : gradPct >= 80 ? "good" : gradPct >= 70 ? "moderate" : "concerning";
-              const sentimentScore = gradPct >= 90 ? 0.75 : gradPct >= 70 ? 0 : -0.75;
-              enqueueItem({
-                text: `${gradPct.toFixed(0)}% of ${schoolName} students graduate within four years`,
-                sourceTier: 2, source: "scorecard",
-                forcedIndex: uni.index, sourceLabelOverride: true, sentimentScore,
-              });
+              };
+              admDeltaFn = () => {
+                const metricKey = `scorecard:${uni.index}:admission_rate`;
+                saveMetricSnapshot(metricKey, admPct, `${displayName} admission rate`, "College Scorecard");
+                const weeklyDeltas = getDeltaHeadlines(metricKey, admPct, displayName, "College Scorecard admission rate", uni.index);
+                const dailyDeltas = getDailyDeltaHeadlines(metricKey, admPct, displayName, "College Scorecard admission rate", uni.index);
+                for (const d of [...weeklyDeltas, ...dailyDeltas]) {
+                  const dr = shouldBlockHeadline(d.text);
+                  if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
+                  else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
+                }
+              };
             }
 
             const earnings = r["latest.earnings.10_yrs_after_entry.median"];
             if (earnings !== null && earnings !== undefined) {
-              enqueueItem({
-                text: `${schoolName} graduates earn a median $${Math.round(earnings / 1000)}k annually a decade after enrollment`,
+              earningsHeadline = {
+                text: `${displayName} graduates earn a median $${Math.round(earnings / 1000)}k annually a decade after enrollment`,
                 sourceTier: 2, source: "scorecard",
                 forcedIndex: uni.index, sourceLabelOverride: true,
                 sentimentScore: earnings >= 80000 ? 0.75 : 0,
-              });
+              };
             }
           }
         }
@@ -1856,34 +1850,43 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
 
       // Static US News rankings
       const rankData = US_NEWS_RANKS[uni.index];
-      if (rankData) {
+      const rankingHeadline: QueuedHeadline | null = rankData ? (() => {
         const { rank } = rankData;
-        const rankLabel = rank <= 5 ? "elite" : rank <= 10 ? "top-10" : rank <= 25 ? "top-25" : "top-50";
-        enqueueItem({
+        return {
           text: `${uni.name} ranks #${rank} nationally in the 2026 US News Best Colleges list`,
           sourceTier: 2, source: "scorecard",
           forcedIndex: uni.index, sourceLabelOverride: true,
           sentimentScore: rank <= 10 ? 0.72 : 0,
-        });
-      }
+        };
+      })() : null;
 
       // Static endowment values
       const endowData = ENDOWMENTS[uni.index];
-      if (endowData) {
+      const endowmentHeadline: QueuedHeadline | null = endowData ? (() => {
         const { val } = endowData;
-        const tier = val >= 30 ? "mega-endowment" : val >= 10 ? "large-endowment" : "significant-endowment";
-        enqueueItem({
+        return {
           text: `${uni.name} holds a $${val}B endowment, among the ${val >= 30 ? "largest" : "largest"} in higher education`,
           sourceTier: 2, source: "scorecard",
           forcedIndex: uni.index, sourceLabelOverride: true,
           sentimentScore: val >= 30 ? 0.72 : 0,
-        });
+        };
+      })() : null;
+
+      // Cap at 2 headlines per university, in priority order
+      const universityHeadlines = [admissionHeadline, earningsHeadline, rankingHeadline, endowmentHeadline]
+        .filter((h): h is QueuedHeadline => h !== null)
+        .slice(0, 2);
+      for (const h of universityHeadlines) enqueueItem(h);
+
+      // Delta headlines are always enqueued (change signals, not capped)
+      admDeltaFn?.();
+      if (endowData) {
+        const { val } = endowData;
         const metricKey = `endowment:${uni.index}:value`;
         saveMetricSnapshot(metricKey, val, `${uni.name} endowment`, "College Scorecard");
         const weeklyDeltas = getDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
         const dailyDeltas = getDailyDeltaHeadlines(metricKey, val, uni.name, "College Scorecard endowment", uni.index);
-        const deltas = [...weeklyDeltas, ...dailyDeltas];
-        for (const d of deltas) {
+        for (const d of [...weeklyDeltas, ...dailyDeltas]) {
           const dr = shouldBlockHeadline(d.text);
           if (dr) { blockedHeadlines.push({ text: d.text, reason: dr, blockedAt: Date.now() }); }
           else { const dh = d as unknown as QueuedHeadline; mapped.push(dh); _queue.push(dh); }
@@ -1953,6 +1956,7 @@ async function fetchForbesBatch(): Promise<void> {
       const net_worth_b = finalWorth / 1000;
 
       const rankSentiment = rank <= 3 ? 0.60 : rank <= 7 ? 0.35 : rank <= 15 ? 0.15 : rank <= 25 ? 0.00 : -0.10;
+      const rankLabel = rank <= 15 ? "positive" : rank <= 25 ? "neutral" : "negative";
       const rankHeadline: QueuedHeadline = {
         text: `${name} net worth $${net_worth_b.toFixed(1)}B — Forbes Real-Time #${rank}`,
         sourceTier: 1,
@@ -1960,6 +1964,7 @@ async function fetchForbesBatch(): Promise<void> {
         forcedIndex,
         sourceLabelOverride: true,
         sentimentScore: rankSentiment,
+        label: rankLabel,
       };
       const blockReason1 = shouldBlockHeadline(rankHeadline.text);
       if (blockReason1) {
