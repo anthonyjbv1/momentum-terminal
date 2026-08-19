@@ -40,6 +40,7 @@ import {
   initCapacityState,
   tickCapacity,
 } from "../services/capacityTierService";
+import { INVERSE_PAIRS } from "../services/unifiedOraclePipeline";
 import type { Holding } from "../types/backendEnums";
 import { AllocationModal } from "./AllocationModal";
 import OracleAuditModal from "./OracleAuditModal";
@@ -401,7 +402,7 @@ function AssetRowInner({
   } = useWalletContext();
   const { data: allHoldings, isLoading: holdingsLoading } =
     useLocalHoldingsQuery();
-  const { clearHolding, redeemPartialHolding, localVolumeMap, addLocalVolume, shortPositions, closeShort } = useLocalHoldings();
+  const { clearHolding, redeemPartialHolding, localVolumeMap, addLocalVolume, shortPositions, closeShort, costBasisMap } = useLocalHoldings();
 
   // B4: Per-position loyalty tier — each index has its own independent clock
   const { getPositionTier, clearPositionTier } = useLoyalty();
@@ -518,6 +519,24 @@ function AssetRowInner({
   }, []);
 
   const userPositionValue = unitsOwned * asset.buyPrice;
+
+  // ── Uptick Rule: score velocity over last 3 ticks ─────────────────────────
+  const scoreHistory = scoreHistoryMap.get(asset.name) ?? [];
+  const scoreVelocity =
+    scoreHistory.length >= 4
+      ? (scoreHistory[scoreHistory.length - 1] ?? 0) -
+        (scoreHistory[scoreHistory.length - 4] ?? 0)
+      : 0;
+
+  // ── Correlated Pair Exposure Cap ──────────────────────────────────────────
+  const SINGLE_POSITION_LIMIT = 750;
+  const inversePairName = INVERSE_PAIRS[asset.name] ?? null;
+  const pairedLongExposure = inversePairName
+    ? (costBasisMap.get(inversePairName) ?? 0)
+    : 0;
+  const adjustedShortCap = inversePairName
+    ? Math.max(0, Math.min(500, SINGLE_POSITION_LIMIT - pairedLongExposure))
+    : 500;
 
   // Use dynamic tier cap (from capacityTierService) for the remaining capacity
   // that is passed into AllocationModal — not the static effectiveCapacity.
@@ -1135,7 +1154,10 @@ function AssetRowInner({
             currentScore={asset.baseScore}
             remainingPoolCapacity={remainingPoolCapacity}
             userPositionValue={userPositionValue}
-            shortPositionCap={500}
+            shortPositionCap={adjustedShortCap}
+            scoreVelocity={scoreVelocity}
+            inversePairName={inversePairName ?? undefined}
+            pairedLongExposure={pairedLongExposure}
           />
         )}
 

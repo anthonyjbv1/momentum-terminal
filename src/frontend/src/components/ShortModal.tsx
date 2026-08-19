@@ -24,6 +24,12 @@ interface ShortModalProps {
   userPositionValue: number;
   /** Maximum short exposure per user, per index — defaults to 500 */
   shortPositionCap?: number;
+  /** Score velocity over last 3 ticks (latestScore - scoreThreeTicksAgo). Negative = falling. */
+  scoreVelocity?: number;
+  /** Inverse pair index name, if this index has one */
+  inversePairName?: string;
+  /** Dollar value of user's long position in the inverse pair index */
+  pairedLongExposure?: number;
 }
 
 // ── Scenario Preview helpers (short-specific, inverted formula) ───────────────
@@ -79,6 +85,9 @@ export function ShortModal({
   remainingPoolCapacity,
   userPositionValue,
   shortPositionCap = DEFAULT_SHORT_POSITION_CAP,
+  scoreVelocity = 0,
+  inversePairName,
+  pairedLongExposure = 0,
 }: ShortModalProps) {
   const [inputValue, setInputValue] = useState("");
   const [allocInputMode, setAllocInputMode] = useState<"dollar" | "units">(
@@ -104,6 +113,20 @@ export function ShortModal({
 
   const isPoolExhausted = remainingPoolCapacity <= 0;
   const isUserAtLimit = userPositionValue >= shortPositionCap;
+
+  // ── Uptick Rule ───────────────────────────────────────────────────────────
+  const DROP_THRESHOLD = -3.0;
+  const DROP_WARNING_THRESHOLD = -2.0;
+  const isVelocityBlocked = scoreVelocity < DROP_THRESHOLD;
+  const isVelocityWarning =
+    !isVelocityBlocked &&
+    scoreVelocity < DROP_WARNING_THRESHOLD &&
+    scoreVelocity >= DROP_THRESHOLD;
+
+  // ── Correlated Pair Exposure ──────────────────────────────────────────────
+  const SINGLE_POSITION_LIMIT = 750;
+  const isPairedLongBlocking = pairedLongExposure >= SINGLE_POSITION_LIMIT;
+  const isCapReduced = !isPairedLongBlocking && shortPositionCap < DEFAULT_SHORT_POSITION_CAP && !!inversePairName;
 
   // shouldRender keeps the component mounted until the exit animation finishes.
   // isVisible drives the AnimatePresence child — set to false to trigger exit fade.
@@ -229,6 +252,25 @@ export function ShortModal({
     setErrorMsg("");
     setIsProcessing(true);
 
+    // ── Guard 0: Uptick Rule — block entry during active score decline ───────
+    if (isVelocityBlocked) {
+      setErrorMsg(
+        "Short entry restricted — score is in active decline. " +
+          "Wait for score stabilization before opening a short position.",
+      );
+      setIsProcessing(false);
+      return;
+    }
+
+    // ── Guard 0b: Correlated pair long blocks full short entry ───────────────
+    if (isPairedLongBlocking) {
+      setErrorMsg(
+        `Short entry unavailable — your existing long position in ${inversePairName} reaches the combined narrative exposure limit.`,
+      );
+      setIsProcessing(false);
+      return;
+    }
+
     // ── Guard 1: Pool capacity ceiling ──────────────────────────────────────
     if (parsedAmount > poolRemaining) {
       const fmt = poolRemaining.toLocaleString("en-US", {
@@ -308,7 +350,12 @@ export function ShortModal({
   if (!shouldRender) return null;
 
   const isConfirmDisabled =
-    !isValid || isProcessing || isPoolExhausted || isUserAtLimit;
+    !isValid ||
+    isProcessing ||
+    isPoolExhausted ||
+    isUserAtLimit ||
+    isVelocityBlocked ||
+    isPairedLongBlocking;
 
   const modalContent = (
     <AnimatePresence>
@@ -583,6 +630,78 @@ export function ShortModal({
                   </div>
                 </div>
               </div>
+
+              {/* ── Velocity Warning (amber) — shown when score approaching drop threshold ── */}
+              {isVelocityWarning && (
+                <div
+                  style={{
+                    margin: "0.75rem 1.25rem 0 1.25rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgba(245,158,11,0.35)",
+                    backgroundColor: "rgba(245,158,11,0.08)",
+                    color: "#F59E0B",
+                    fontSize: "0.6875rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  ⚠ Score declining — short entry may be restricted
+                </div>
+              )}
+
+              {/* ── Velocity Blocked (red) — entry hard-blocked ── */}
+              {isVelocityBlocked && (
+                <div
+                  style={{
+                    margin: "0.75rem 1.25rem 0 1.25rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgba(239,68,68,0.35)",
+                    backgroundColor: "rgba(239,68,68,0.08)",
+                    color: "#ef4444",
+                    fontSize: "0.6875rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Short entry restricted — score is in active decline. Wait for score stabilization.
+                </div>
+              )}
+
+              {/* ── Correlated pair blocking notice ── */}
+              {isPairedLongBlocking && inversePairName && (
+                <div
+                  style={{
+                    margin: "0.75rem 1.25rem 0 1.25rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgba(239,68,68,0.35)",
+                    backgroundColor: "rgba(239,68,68,0.08)",
+                    color: "#ef4444",
+                    fontSize: "0.6875rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Short entry unavailable — your existing long position in {inversePairName} reaches the combined narrative exposure limit.
+                </div>
+              )}
+
+              {/* ── Correlated pair cap-reduced notice (amber) ── */}
+              {isCapReduced && inversePairName && (
+                <div
+                  style={{
+                    margin: "0.75rem 1.25rem 0 1.25rem",
+                    padding: "0.5rem 0.75rem",
+                    borderRadius: "0.5rem",
+                    border: "1px solid rgba(245,158,11,0.35)",
+                    backgroundColor: "rgba(245,158,11,0.08)",
+                    color: "#F59E0B",
+                    fontSize: "0.6875rem",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Cap reduced — you hold a correlated long position in {inversePairName}. Combined exposure limit: ${SINGLE_POSITION_LIMIT.toLocaleString()}
+                </div>
+              )}
 
               {/* ── Input Mode Toggle ── */}
               <div
@@ -986,19 +1105,23 @@ export function ShortModal({
                 }}
               >
                 {isProcessing && <Loader2 size={14} className="animate-spin" />}
-                {isPoolExhausted
-                  ? "Liquidity Pool Exhausted"
-                  : isUserAtLimit
-                    ? "Position Limit Reached"
-                    : !isValid && parsedAmount === 0
-                      ? allocInputMode === "units"
-                        ? "Enter Share Count"
-                        : "Enter an Amount"
-                      : isInsufficient
-                        ? "Insufficient Funds"
-                        : isProcessing
-                          ? "Processing..."
-                          : `Confirm Low · $${parsedAmount.toFixed(2)}`}
+                {isVelocityBlocked
+                  ? "Entry Restricted — Score Declining"
+                  : isPairedLongBlocking
+                    ? "Blocked — Correlated Long at Limit"
+                    : isPoolExhausted
+                      ? "Liquidity Pool Exhausted"
+                      : isUserAtLimit
+                        ? "Position Limit Reached"
+                        : !isValid && parsedAmount === 0
+                          ? allocInputMode === "units"
+                            ? "Enter Share Count"
+                            : "Enter an Amount"
+                          : isInsufficient
+                            ? "Insufficient Funds"
+                            : isProcessing
+                              ? "Processing..."
+                              : `Confirm Low · $${parsedAmount.toFixed(2)}`}
               </button>
             </div>
           </div>

@@ -258,6 +258,18 @@ const INDEX_CATEGORY_MAP: Record<string, string> = Object.fromEntries(
   FALLBACK_ASSET_DEFS.map((a) => [a.name, a.category]),
 );
 
+/** Inverse pair registry — exported so position entry logic can check correlated exposure. */
+export const INVERSE_PAIRS: Record<string, string> = {
+  "Traditionalism Sentiment": "Progressivism Sentiment",
+  "Progressivism Sentiment": "Traditionalism Sentiment",
+  "Masculism Sentiment": "Feminism Sentiment",
+  "Feminism Sentiment": "Masculism Sentiment",
+  "F1 Constructor Sentiment": "NASCAR Sentiment",
+  "NASCAR Sentiment": "F1 Constructor Sentiment",
+  "Obesity Drug Sentiment": "Whole Food & Wellness Sentiment",
+  "Whole Food & Wellness Sentiment": "Obesity Drug Sentiment",
+};
+
 // ─── Core Pipeline ────────────────────────────────────────────────────────────────
 
 /**
@@ -276,6 +288,7 @@ function runPipelineForIndex(
   tickId: number,
   nowMs: number,
   hasSocialSignal: boolean,
+  maxAbsRawNewsImpact?: number,
 ): UnifiedOracleLogEntry {
   // ── Step 1: Time-Decay ──────────────────────────────────────────────────
   const decayState = getDecayState(indexName);
@@ -349,6 +362,14 @@ function runPipelineForIndex(
   }
   velocityMultiplier = Math.min(velocityMultiplier, 1.75);
   rawNewsImpact = Math.round(rawNewsImpact * velocityMultiplier * 100) / 100;
+
+  // Source concentration cap: if the outer loop computed a max, clamp here.
+  if (maxAbsRawNewsImpact !== undefined) {
+    rawNewsImpact =
+      Math.sign(rawNewsImpact) *
+      Math.min(Math.abs(rawNewsImpact), Math.max(0, maxAbsRawNewsImpact));
+    rawNewsImpact = Math.round(rawNewsImpact * 100) / 100;
+  }
 
   let postNewsScore = decayedScore + rawNewsImpact;
   postNewsScore = Math.round(Math.max(SCORE_FLOOR, postNewsScore) * 100) / 100;
@@ -580,19 +601,6 @@ export function runOraclePipelineForAll(
   // Store current GSI for next tick's "before" reference
   _prevGSI = gsiAfterTick;
 
-  // -- Inverse Relationship Registry
-  // When the primary index moves, a 40%-dampened inverse signal is applied
-  // to the paired index in the second pass (after all first-pass scores settle).
-  const INVERSE_PAIRS: Record<string, string> = {
-    "Traditionalism Sentiment": "Progressivism Sentiment",
-    "Progressivism Sentiment": "Traditionalism Sentiment",
-    "Masculism Sentiment": "Feminism Sentiment",
-    "Feminism Sentiment": "Masculism Sentiment",
-    "F1 Constructor Sentiment": "NASCAR Sentiment",
-    "NASCAR Sentiment": "F1 Constructor Sentiment",
-    "Obesity Drug Sentiment": "Whole Food & Wellness Sentiment",
-    "Whole Food & Wellness Sentiment": "Obesity Drug Sentiment",
-  };
   const INVERSE_DAMPENING = 0.4;
 
   // -- Convergent Relationship Registry
@@ -609,6 +617,11 @@ export function runOraclePipelineForAll(
   const tickEntries: UnifiedOracleLogEntry[] = [];
 
   const DEBUG_INDICES = new Set(["Progressivism Sentiment", "Traditionalism Sentiment", "Masculism Sentiment", "Feminism Sentiment", "NASCAR Sentiment"]);
+
+  // Source concentration tracking — resets each tick.
+  // Prevents a single source from exceeding 60% of total tick impact for any index.
+  const sourceImpactMap: Record<string, Record<string, number>> = {};
+  const totalTickImpactByIndex: Record<string, number> = {};
 
   for (const indexName of ALL_INDICES) {
     const rawScore = rawOracleScores[indexName];
@@ -632,6 +645,39 @@ export function runOraclePipelineForAll(
         (thisTickHeadline.source?.toLowerCase().includes("reddit") ?? false) ||
         (thisTickHeadline.tierMultiplier ?? 1.5) <= 0.5);
 
+    // ── Source Concentration Pre-check ────────────────────────────────────────
+    // Compute preliminary rawNewsImpact to enforce the 60% per-source cap before
+    // the full pipeline run. Mirrors the Step 2 formula in runPipelineForIndex.
+    let maxAbsRawNewsImpact: number | undefined;
+    const sourceName = thisTickHeadline?.source ?? null;
+    if (thisTickHeadline !== null && sourceName) {
+      const clampedSent = Math.max(-1, Math.min(1, thisTickHeadline.sentimentScore ?? 0));
+      const prelim = Math.abs(
+        (thisTickHeadline.baseImpact ?? 1.0) *
+          (thisTickHeadline.tierMultiplier ?? 1.0) *
+          (thisTickHeadline.correlationWeight ?? 1.0) *
+          clampedSent *
+          (thisTickHeadline.confidence ?? 0.75) *
+          Math.min(
+            (thisTickHeadline.headlineCount ?? 1) >= 6
+              ? 1.5
+              : (thisTickHeadline.headlineCount ?? 1) >= 3
+                ? 1.3
+                : 1.0,
+            1.75,
+          ),
+      );
+      const currentSourceTotal = (sourceImpactMap[indexName]?.[sourceName] ?? 0);
+      const totalTickImpact = totalTickImpactByIndex[indexName] ?? 0;
+      if (totalTickImpact > 0) {
+        const projectedShare = (currentSourceTotal + prelim) / (totalTickImpact + prelim);
+        if (projectedShare > 0.60) {
+          const allowedAdditional = Math.max(0, (0.60 * totalTickImpact - currentSourceTotal) / 0.40);
+          maxAbsRawNewsImpact = allowedAdditional;
+        }
+      }
+    }
+
     const entry = runPipelineForIndex(
       indexName,
       rawScore,
@@ -643,7 +689,17 @@ export function runOraclePipelineForAll(
       tickId,
       nowMs,
       hasSocialSignal,
+      maxAbsRawNewsImpact,
     );
+
+    // Update sourceImpactMap with actual impact applied
+    if (sourceName && entry.rawNewsImpact !== 0) {
+      if (!sourceImpactMap[indexName]) sourceImpactMap[indexName] = {};
+      sourceImpactMap[indexName][sourceName] =
+        (sourceImpactMap[indexName][sourceName] ?? 0) + Math.abs(entry.rawNewsImpact);
+      totalTickImpactByIndex[indexName] =
+        (totalTickImpactByIndex[indexName] ?? 0) + Math.abs(entry.rawNewsImpact);
+    }
 
     if (!Number.isFinite(entry.finalScore)) {
       console.warn(`[OraclePipeline] finalScore is NaN/Inf for "${indexName}" (rawScore=${rawScore}) — entry dropped from log. Pipeline math produced invalid result.`);
