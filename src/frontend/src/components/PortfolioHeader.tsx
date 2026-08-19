@@ -569,10 +569,10 @@ function IndexSlideOver({
       <motion.div
         className="fixed right-0 top-0 z-50 w-full sm:w-96"
         style={{ height: "100dvh", background: "#0a0a0a", borderLeft: "1px solid #1e1e1e", fontFamily: "'JetBrains Mono', 'Fira Code', monospace", display: "flex", flexDirection: "column", overflow: "hidden" }}
-        initial={{ x: "100%" }}
-        animate={{ x: 0 }}
-        exit={{ x: "100%" }}
-        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.3, ease: "easeOut" }}
         data-ocid="portfolio.index-slide-over"
       >
         {/* ── Header (not sticky — it's outside the scroll area) ── */}
@@ -1642,10 +1642,10 @@ export function PortfolioHeader({
             {/* Panel */}
             <motion.div
               className="fixed right-0 top-0 h-full w-[360px] bg-zinc-950 border-l border-border flex flex-col z-50"
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
               data-ocid="portfolio.category-slide-over"
             >
               {/* Header */}
