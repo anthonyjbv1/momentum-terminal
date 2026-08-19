@@ -355,9 +355,9 @@ async function fetchNewsAPIBatch(): Promise<void> {
 }
 
 const ODDS_SPORTS = [
-  { key: "americanfootball_nfl", label: "NFL" },
+  // { key: "americanfootball_nfl", label: "NFL" },        // removed: requires paid plan tier
   { key: "soccer_uefa_champs_league", label: "Champions League" },
-  { key: "soccer_spain_la_liga", label: "La Liga" },
+  // { key: "soccer_spain_la_liga", label: "La Liga" },    // removed: requires paid plan tier
   { key: "soccer_fifa_world_cup", label: "World Cup" },
 ];
 
@@ -1566,16 +1566,17 @@ async function fetchFotMobBatch(): Promise<void> {
 
     for (const endpoint of endpoints) {
       try {
-        const resp = await fetch(`/api/data-proxy?url=${encodeURIComponent(endpoint)}`, { headers: fotmobHeaders });
+        const resp = await fetch(endpoint, { headers: fotmobHeaders });
         if (resp.ok) {
           matchesData = await resp.json() as FotMobMatchesResponse;
+          console.info(`[FotMobService] Success via ${endpoint}`);
           break;
         }
       } catch { /* try next endpoint */ }
     }
 
     if (!matchesData) {
-      console.warn("[FotMobService] All endpoints failed for today's matches.");
+      console.warn(`[FotMobService] All endpoints failed for date ${today} — FotMob may have changed their API structure`);
       return;
     }
 
@@ -1626,7 +1627,7 @@ async function fetchFotMobBatch(): Promise<void> {
           // Fetch match details for stats
           try {
             const detailResp = await fetch(
-              `/api/data-proxy?url=${encodeURIComponent(`https://www.fotmob.com/api/matchDetails?matchId=${match.id}`)}`,
+              `https://www.fotmob.com/api/matchDetails?matchId=${match.id}`,
               { headers: fotmobHeaders },
             );
             if (detailResp.ok) {
@@ -2508,12 +2509,24 @@ async function fetchPolymarketBatch(): Promise<void> {
   try {
     const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
     if (!key) { console.warn("[PolymarketService] VITE_RAPIDAPI_KEY not set."); return; }
-    const resp = await fetch(
-      "https://polymarket-api2.p.rapidapi.com/api/v1/markets/search?limit=50&active=true&closed=false",
-      { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "polymarket-api2.p.rapidapi.com" } },
-    );
-    if (!resp.ok) { console.warn("[PolymarketService] API error", resp.status); return; }
-    const markets = await resp.json() as Array<{
+    const polymarketHeaders = { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "polymarket-api2.p.rapidapi.com" };
+    const polymarketEndpoints = [
+      "https://polymarket-api2.p.rapidapi.com/markets?limit=50&active=true&closed=false",
+      "https://polymarket-api2.p.rapidapi.com/api/markets?limit=50&active=true&closed=false",
+      "https://polymarket-api2.p.rapidapi.com/v1/markets?limit=50&active=true&closed=false",
+    ];
+    let polymarketResp: Response | null = null;
+    let polymarketSuccessUrl = "";
+    for (const url of polymarketEndpoints) {
+      try {
+        const r = await fetch(url, { headers: polymarketHeaders });
+        if (r.ok) { polymarketResp = r; polymarketSuccessUrl = url; break; }
+        console.warn(`[PolymarketService] ${url} returned ${r.status}`);
+      } catch { /* try next */ }
+    }
+    if (!polymarketResp) { console.warn("[PolymarketService] All endpoints failed."); return; }
+    console.info(`[PolymarketService] Success via ${polymarketSuccessUrl}`);
+    const markets = await polymarketResp.json() as Array<{
       question: string;
       conditionId: string;
       outcomePrices?: string[];
@@ -2605,21 +2618,32 @@ async function fetchKalshiBatch(): Promise<void> {
         const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
         events.push({ title: ev.title ?? "", ticker: ev.event_ticker ?? "", yesMid, volume: m.volume ?? 0 });
       }
-    } else if (primaryResp.status === 404 || primaryResp.status === 401) {
-      console.info("[KalshiService] /events returned", primaryResp.status, "— falling back to /markets.");
-      const fallbackResp = await fetch(
-        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/markets?limit=100&status=open",
-        { headers: { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" } },
-      );
-      if (!fallbackResp.ok) { console.warn("[KalshiService] Fallback also failed", fallbackResp.status); return; }
-      const data = await fallbackResp.json() as { markets?: Array<{ title?: string; ticker?: string; yes_bid?: number; yes_ask?: number; volume?: number }> };
-      for (const m of (data.markets ?? [])) {
-        if ((m.volume ?? 0) <= 500) continue;
-        const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
-        events.push({ title: m.title ?? "", ticker: m.ticker ?? "", yesMid, volume: m.volume ?? 0 });
-      }
     } else {
-      console.warn("[KalshiService] API error", primaryResp.status); return;
+      const kalshiHeaders = { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "kalshi-trading-api.p.rapidapi.com" };
+      const kalshiFallbacks = [
+        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/markets?limit=100&status=open",
+        "https://kalshi-trading-api.p.rapidapi.com/trade-api/v2/series",
+      ];
+      let kalshiFallbackSucceeded = false;
+      for (const url of kalshiFallbacks) {
+        try {
+          const r = await fetch(url, { headers: kalshiHeaders });
+          if (!r.ok) { console.warn(`[KalshiService] ${url} returned ${r.status}`); continue; }
+          console.info(`[KalshiService] Using fallback ${url}`);
+          const data = await r.json() as { markets?: Array<{ title?: string; ticker?: string; yes_bid?: number; yes_ask?: number; volume?: number }> };
+          for (const m of (data.markets ?? [])) {
+            if ((m.volume ?? 0) <= 500) continue;
+            const yesMid = Math.round(((m.yes_bid ?? 0) + (m.yes_ask ?? 0)) / 2);
+            events.push({ title: m.title ?? "", ticker: m.ticker ?? "", yesMid, volume: m.volume ?? 0 });
+          }
+          kalshiFallbackSucceeded = true;
+          break;
+        } catch { /* try next */ }
+      }
+      if (!kalshiFallbackSucceeded) {
+        console.warn("[KalshiService] All endpoints failed — verify RapidAPI subscription is active for kalshi-trading-api");
+        return;
+      }
     }
 
     const seenRaw = (() => { try { return JSON.parse(localStorage.getItem("mt_kalshi_seen") ?? "[]") as string[]; } catch { return [] as string[]; } })();
