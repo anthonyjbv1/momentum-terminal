@@ -825,8 +825,12 @@ export function PortfolioHeader({
   // Portfolio value history ref — persisted to localStorage
   const portfolioHistoryRef = useRef<Array<{ value: number; ts: number }>>([]);
   const portfolioHistoryLoadedRef = useRef(false);
+  // Tracks the timestamp of the last accepted push so we can enforce a time gate.
+  const lastPushTsRef = useRef<number>(0);
 
-  // Restore history from localStorage on first mount for this user
+  // Restore history from localStorage on first mount for this user.
+  // Runs a one-time migration that strips corrupted data points so existing
+  // spike artifacts don't persist across sessions.
   useEffect(() => {
     if (!PORTFOLIO_HISTORY_KEY || portfolioHistoryLoadedRef.current) return;
     portfolioHistoryLoadedRef.current = true;
@@ -835,14 +839,35 @@ export function PortfolioHeader({
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) {
-          // Discard any entries from the old { value, tick } format (no ts field)
-          portfolioHistoryRef.current = parsed.filter(
-            (e: unknown) =>
+          // Step 1: discard structurally invalid entries (old {value,tick} format, NaN, out-of-range)
+          const valid = parsed.filter(
+            (e: unknown): e is { value: number; ts: number } =>
               typeof e === "object" &&
               e !== null &&
               typeof (e as Record<string, unknown>).ts === "number" &&
-              typeof (e as Record<string, unknown>).value === "number",
+              typeof (e as Record<string, unknown>).value === "number" &&
+              Number.isFinite((e as { value: number }).value) &&
+              (e as { value: number }).value > 0 &&
+              (e as { value: number }).value <= 1_000_000,
           );
+          // Step 2: strip points that differ from both neighbors by >20% (spike artifacts)
+          const cleaned = valid.filter((pt, i, arr) => {
+            if (arr.length < 3) return true;
+            const prev = arr[i - 1];
+            const next = arr[i + 1];
+            if (!prev || !next) return true;
+            const diffPrev = Math.abs(pt.value - prev.value) / prev.value;
+            const diffNext = Math.abs(pt.value - next.value) / next.value;
+            return !(diffPrev > 0.20 && diffNext > 0.20);
+          });
+          portfolioHistoryRef.current = cleaned;
+          // Persist the cleaned version immediately
+          if (cleaned.length !== valid.length) {
+            try { localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(cleaned)); } catch { /* ignore */ }
+          }
+          // Seed lastPushTs from the last stored point so the time gate is accurate
+          const lastStored = cleaned[cleaned.length - 1];
+          if (lastStored) lastPushTsRef.current = lastStored.ts;
         }
       }
     } catch {
@@ -951,27 +976,38 @@ export function PortfolioHeader({
     return { activeHoldings: holdings, holdingsTotal: total };
   }, [holdingsData, finalScores, redeemPriceMap, shortPositions]);
 
-  // Portfolio history accumulator — push once per Oracle tick only.
-  // Keyed only on tickCount so a single tick never pushes multiple points.
-  // Reads shortHoldingsTotalRef directly so shorts are included without
-  // causing extra fires when the aggregator callback runs.
+  // Portfolio history accumulator — fires once per Oracle tick.
+  // Three guards prevent spike artifacts:
+  //   A) 25-second time gate — no two real data points within the same window
+  //   B) NaN / range validation — rejects 0, NaN, Infinity, and values > $1M
+  //   C) 15% spike filter — rejects single-tick swings that are likely transient
   useEffect(() => {
     const shortTotal = shortHoldingsTotalRef.current;
-    // Skip if short positions exist but aggregator hasn't reported yet (shortTotal still 0)
+    // Skip if short positions exist but aggregator hasn't reported yet
     const hasShortPositions = shortPositions.size > 0;
     if (hasShortPositions && shortTotal === 0) return;
+
     const currentValue = cash + holdingsTotal + shortTotal;
-    if (currentValue <= 0 || !Number.isFinite(currentValue)) return;
+
+    // Guard B: NaN / range validation
+    if (!currentValue || !Number.isFinite(currentValue) || currentValue <= 0 || currentValue > 1_000_000) return;
+
+    const now = Date.now();
+
+    // Guard A: 25-second time gate
+    if (now - lastPushTsRef.current < 25_000) return;
+
     const prev = portfolioHistoryRef.current;
     const last = prev[prev.length - 1];
-    // Skip exact duplicate within the same minute
-    const sameMinute = last && Math.floor(last.ts / 60000) === Math.floor(Date.now() / 60000);
-    if (sameMinute && last.value === Math.round(currentValue * 100) / 100) return;
-    // Skip outlier spikes: reject single-tick swings > 30% from last value
-    if (last && Math.abs(currentValue - last.value) / last.value > 0.3) return;
-    const entry = { value: Math.round(currentValue * 100) / 100, ts: Date.now() };
-    const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1 tick/min
+
+    // Guard C: 15% spike filter — skip transient swings
+    if (last && Math.abs(currentValue - last.value) / last.value > 0.15) return;
+
+    const entry = { value: Math.round(currentValue * 100) / 100, ts: now };
+    const next = [...portfolioHistoryRef.current, entry].slice(-525600); // up to 1Y at 1/min
     portfolioHistoryRef.current = next;
+    lastPushTsRef.current = now;
+
     if (PORTFOLIO_HISTORY_KEY) {
       try {
         localStorage.setItem(PORTFOLIO_HISTORY_KEY, JSON.stringify(next));
@@ -1245,7 +1281,7 @@ export function PortfolioHeader({
 
       <div className="w-full rounded-sm border border-border bg-card mb-8 overflow-hidden">
         {/* Top bar — Total Portfolio Value */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-border bg-white/[0.025]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-5 border-b border-dashed border-white/[0.15] bg-white/[0.025]">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-sm bg-primary/10 border border-primary/20 shrink-0">
               <TrendingUp className="w-4 h-4 text-primary" strokeWidth={2.5} />
