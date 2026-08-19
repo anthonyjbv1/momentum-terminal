@@ -304,9 +304,9 @@ export function ScoreHistoryModal({
                 <span
                   style={{
                     fontFamily: "monospace",
-                    fontSize: "0.6875rem",
-                    fontWeight: 600,
-                    letterSpacing: "0.04em",
+                    fontSize: "11px",
+                    fontWeight: 400,
+                    letterSpacing: "0.025em",
                     color: isUrgent ? "#f87171" : "rgba(255,255,255,0.7)",
                     transition: "color 0.15s",
                     fontVariantNumeric: "tabular-nums",
