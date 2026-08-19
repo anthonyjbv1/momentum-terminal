@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOracleTick } from "../contexts/OracleTickContext";
+import { useCountdown } from "../hooks/useCountdown";
 import {
   Area,
   CartesianGrid,
@@ -167,6 +169,10 @@ export function ScoreHistoryModal({
 
   const currentColor = currentScore >= avgVal ? "#22c55e" : "#ef4444";
 
+  const { tickCount } = useOracleTick();
+  const [countdown, secondsLeft] = useCountdown(undefined, tickCount);
+  const isUrgent = secondsLeft <= 5;
+
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -268,6 +274,48 @@ export function ScoreHistoryModal({
                   {indexSubLabel}
                 </p>
               </div>
+              {/* Synced 30s countdown timer */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.375rem",
+                  padding: "0.375rem 0.625rem",
+                  borderRadius: "0.375rem",
+                  backgroundColor: "rgba(255,255,255,0.03)",
+                  border: "1px solid #2a2a2a",
+                  flexShrink: 0,
+                  marginLeft: "0.75rem",
+                }}
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#6b6b6b"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: "0.6875rem",
+                    fontWeight: 600,
+                    letterSpacing: "0.04em",
+                    color: isUrgent ? "#f87171" : "rgba(255,255,255,0.7)",
+                    transition: "color 0.15s",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {countdown}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={onClose}
