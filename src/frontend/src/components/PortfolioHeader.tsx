@@ -815,6 +815,7 @@ export function PortfolioHeader({
   const [sortMode, setSortMode] = useState<
     "default" | "newest" | "oldest" | "capital" | "pct_change"
   >("default");
+  const [timeRange, setTimeRange] = useState<"LIVE" | "1D" | "1W" | "1M" | "3M" | "YTD" | "1Y" | "ALL">("1D");
   const [scrubbedValue, setScrubbedValue] = useState<number | null>(null);
 
   const PORTFOLIO_HISTORY_KEY = userId
@@ -1058,9 +1059,32 @@ export function PortfolioHeader({
       // Fallback to last few points if today has no data yet
       return slice.length >= 2 ? slice : all.slice(-10);
     }
-    // ALL_TIME — show full history
-    return all;
-  }, [pnlToggle, portfolioHistorySnapshot]);
+    // ALL_TIME — use timeRange tabs
+    const now = Date.now();
+    const MS = (h: number) => h * 60 * 60 * 1000;
+    const jan1 = new Date(new Date().getFullYear(), 0, 1).getTime();
+    const sliceFor = (tab: string) => {
+      if (tab === "LIVE") return all.filter((p) => p.ts >= now - MS(0.5));
+      if (tab === "1D")   return all.filter((p) => p.ts >= now - MS(24));
+      if (tab === "1W")   return all.filter((p) => p.ts >= now - MS(24 * 7));
+      if (tab === "1M")   return all.filter((p) => p.ts >= now - MS(24 * 30));
+      if (tab === "3M")   return all.filter((p) => p.ts >= now - MS(24 * 90));
+      if (tab === "YTD")  return all.filter((p) => p.ts >= jan1);
+      if (tab === "1Y")   return all.filter((p) => p.ts >= now - MS(24 * 365));
+      return all;
+    };
+    const FALLBACK_ORDER = ["ALL", "1Y", "3M", "1M", "YTD", "1W", "1D", "LIVE"] as const;
+    const idx = FALLBACK_ORDER.indexOf(timeRange as typeof FALLBACK_ORDER[number]);
+    const fallbacks = idx >= 0 ? FALLBACK_ORDER.slice(idx) : [timeRange];
+    for (const tab of fallbacks) {
+      const slice = sliceFor(tab);
+      if (slice.length >= 5) {
+        if (tab !== timeRange) console.log(`[chart] ${timeRange} has <5 pts, falling back to ${tab}`);
+        return slice;
+      }
+    }
+    return sliceFor(timeRange); // best effort — fewer than 5 in all windows
+  }, [pnlToggle, timeRange, portfolioHistorySnapshot]);
 
   // If fewer than 10 real points, interpolate 2 synthetic points between each pair for a smoother line
   // biome-ignore lint/correctness/useExhaustiveDependencies: depends on filteredHistory
@@ -1307,8 +1331,10 @@ export function PortfolioHeader({
             const chartColor = chartLast >= chartFirst ? "#4ade80" : "#f87171";
             const fmtTs = (ts: number) => {
               const d = new Date(ts);
-              if (pnlToggle === "TODAY")
+              if (pnlToggle === "TODAY" || timeRange === "LIVE" || timeRange === "1D")
                 return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+              if (timeRange === "1W")
+                return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
               return d.toLocaleDateString([], { month: "short", day: "numeric", year: "2-digit" });
             };
             // Thin to ≤400 points for performance; strip zero/corrupt values first
@@ -1329,7 +1355,7 @@ export function PortfolioHeader({
                       {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(delta)}
                     </span>
                     <span className="opacity-70">({isPos ? "+" : ""}{pct.toFixed(2)}%)</span>
-                    <span className="text-muted-foreground font-normal text-[10px] uppercase tracking-wider ml-1">{pnlToggle === "TODAY" ? "TODAY" : "ALL TIME"}</span>
+                    <span className="text-muted-foreground font-normal text-[10px] uppercase tracking-wider ml-1">{pnlToggle === "TODAY" ? "TODAY" : timeRange}</span>
                   </div>
                 )}
 
@@ -1406,6 +1432,28 @@ export function PortfolioHeader({
                   )}
                 </div>
 
+                {pnlToggle === "ALL_TIME" && (() => {
+                  const TIME_TABS = ["LIVE", "1D", "1W", "1M", "3M", "YTD", "1Y", "ALL"] as const;
+                  return (
+                    <div className="flex justify-between mt-2 mb-1 border-t border-border/20 pt-2">
+                      {TIME_TABS.map((tab) => (
+                        <button
+                          key={tab}
+                          type="button"
+                          data-ocid={`portfolio.chart.range.${tab.toLowerCase()}`}
+                          onClick={() => setTimeRange(tab)}
+                          className={`text-[10px] font-medium uppercase tracking-wider px-1.5 py-0.5 rounded transition-all cursor-pointer ${
+                            timeRange === tab
+                              ? "text-white bg-white/10 border border-white/20"
+                              : "text-muted-foreground hover:text-white"
+                          }`}
+                        >
+                          {tab}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
             );
           })()}
