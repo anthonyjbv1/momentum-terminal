@@ -73,6 +73,14 @@ export const INDEX_DISPLAY_NAMES: Record<string, string> = {
   "Wegovy Sentiment": "Wegovy Sentiment",
   "Mental Health Sentiment": "Mental Health Sentiment",
   "Cancer Research Sentiment": "Cancer Research Sentiment",
+  // ── Individuals (additional) ──────────────────────────────────────────────────
+  "Anthony Baptiste Sentiment": "Anthony Baptiste Sentiment",
+  // ── Privates ──────────────────────────────────────────────────────────────────
+  "Mars Inc. Sentiment": "Mars Inc. Sentiment",
+  "Vitol Sentiment": "Vitol Sentiment",
+  "Cargill Sentiment": "Cargill Sentiment",
+  "Stripe Sentiment": "Stripe Sentiment",
+  "Momentum Terminal Sentiment": "Momentum Terminal Sentiment",
   // ── Regional ─────────────────────────────────────────────────────────────────
   "California Sentiment": "California Sentiment",
   "New York Sentiment": "New York Sentiment",
@@ -100,6 +108,7 @@ export type IndexCategory =
   | "health"
   | "individuals"
   | "universities"
+  | "privates"
   | "regional";
 
 const MAX_BASE_IMPACT: Record<IndexCategory, number> = {
@@ -111,6 +120,7 @@ const MAX_BASE_IMPACT: Record<IndexCategory, number> = {
   health: 2.0,
   individuals: 2.0,
   universities: 1.5,
+  privates: 2.0,
   regional: 1.5,
 };
 
@@ -129,6 +139,7 @@ const DECAY_RATE: Record<IndexCategory, number> = {
   health: 0.4,
   individuals: 0.5,
   universities: 0.25,
+  privates: 0.35,
   regional: 0.3,
 };
 

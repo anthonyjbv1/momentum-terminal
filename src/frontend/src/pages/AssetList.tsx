@@ -289,6 +289,7 @@ export function AssetList() {
       HEALTH: allowedAssets.filter((a) => a.category === "HEALTH").length,
       INDIVIDUALS: allowedAssets.filter((a) => a.category === "INDIVIDUALS").length,
       UNIVERSITIES: allowedAssets.filter((a) => a.category === "UNIVERSITIES").length,
+      PRIVATES: allowedAssets.filter((a) => a.category === "PRIVATES").length,
       REGIONAL: allowedAssets.filter((a) => a.category === "REGIONAL").length,
     }),
     [allowedAssets],
