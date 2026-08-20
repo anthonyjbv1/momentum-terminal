@@ -6,6 +6,8 @@
  * Dynamic overrides drift ±8 from the base target based on sustained streaks.
  */
 
+import { FALLBACK_ASSET_DEFS } from "../data/fallbackAssets";
+
 // ─── Base Targets ─────────────────────────────────────────────────────────────
 
 export const REVERT_TARGETS: Record<string, number> = {
@@ -18,7 +20,6 @@ export const REVERT_TARGETS: Record<string, number> = {
   "United States Sentiment": 50,
   "China Sentiment": 47,
   "Germany Sentiment": 49,
-  "Russia Sentiment": 38,
 
   // TECHNOLOGY
   "Jensen Huang Sentiment": 63,
@@ -70,10 +71,10 @@ export const REVERT_TARGETS: Record<string, number> = {
   "Adin Ross Sentiment": 52,
 
   // UNIVERSITIES
-  "Harvard Sentiment": 67,
-  "Yale Sentiment": 65,
+  "Harvard University Sentiment": 67,
+  "Yale University Sentiment": 65,
   "University of Michigan Sentiment": 60,
-  "Ohio State Sentiment": 58,
+  "Ohio State University Sentiment": 58,
 
   // REGIONAL
   "California Sentiment": 51,
@@ -81,6 +82,13 @@ export const REVERT_TARGETS: Record<string, number> = {
   "Florida Sentiment": 50,
   "Texas Sentiment": 50,
 };
+
+// Runtime validation: warn on startup for any key that doesn't match FALLBACK_ASSET_DEFS
+Object.keys(REVERT_TARGETS).forEach((key) => {
+  if (!FALLBACK_ASSET_DEFS.find((a) => a.name === key)) {
+    console.warn("[RevertTarget] No matching index for:", key);
+  }
+});
 
 export function getRevertTarget(indexName: string): number {
   return REVERT_TARGETS[indexName] ?? 50;

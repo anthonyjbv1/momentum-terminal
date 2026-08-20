@@ -1097,6 +1097,20 @@ async function fetchNBSChinaBatch(): Promise<void> {
           : latest.value;
         if (Number.isNaN(numericValue)) { await new Promise((r) => setTimeout(r, 500)); continue; }
 
+        if (dataset.slug === "china-cpi") {
+          if (!numericValue || numericValue === 0 || isNaN(numericValue) || numericValue < 0.1) {
+            console.warn("[NBSChina] Skipping zero/invalid CPI value:", numericValue);
+            await new Promise((r) => setTimeout(r, 500)); continue;
+          }
+        }
+
+        if (dataset.slug === "china-gdp") {
+          if (!numericValue || numericValue === 0 || isNaN(numericValue)) {
+            console.warn("[NBSChina] Skipping zero/invalid GDP value:", numericValue);
+            await new Promise((r) => setTimeout(r, 500)); continue;
+          }
+        }
+
         const item: QueuedHeadline = {
           text: (() => {
             const d = latest.date;
@@ -1738,6 +1752,10 @@ async function fetchFotMobBatch(): Promise<void> {
 // ─── College Scorecard batch fetch ───────────────────────────────────────────
 async function fetchCollegeScorecardBatch(): Promise<void> {
   if (_isFetchingCollegeScorecard) return;
+  const SCORECARD_CACHE_KEY = "mt_scorecard_last_fetch";
+  const SEVENTY_TWO_HOURS_MS = 72 * 60 * 60 * 1000;
+  const lastFetch = localStorage.getItem(SCORECARD_CACHE_KEY);
+  if (lastFetch && Date.now() - parseInt(lastFetch) < SEVENTY_TWO_HOURS_MS) return;
   _isFetchingCollegeScorecard = true;
   try {
     const apiKey = import.meta.env.VITE_COLLEGE_SCORECARD_KEY ?? "";
@@ -1767,7 +1785,6 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
     const fields = [
       "school.name",
       "latest.admissions.admission_rate.overall",
-      "latest.student.size",
       "latest.completion.completion_rate_4yr_150_pooled",
       "latest.earnings.10_yrs_after_entry.median",
       "latest.cost.avg_net_price.public",
@@ -1802,7 +1819,6 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
             results?: Array<{
               "school.name"?: string;
               "latest.admissions.admission_rate.overall"?: number | null;
-              "latest.student.size"?: number | null;
               "latest.completion.completion_rate_4yr_150_pooled"?: number | null;
               "latest.earnings.10_yrs_after_entry.median"?: number | null;
             }>;
@@ -1898,6 +1914,7 @@ async function fetchCollegeScorecardBatch(): Promise<void> {
 
     if (mapped.length > 0) {
       saveHeadlinesToCache(mapped);
+      localStorage.setItem(SCORECARD_CACHE_KEY, Date.now().toString());
       console.info(`[CollegeScorecardService] Enqueued ${mapped.length} college headlines. Queue depth: ${_queue.length}`);
     }
   } catch (err) {
@@ -3206,7 +3223,7 @@ function parseSCOTUSResponse(rawXml: string): QueuedHeadline[] {
       headlines.push({
         text: `SCOTUS Opinion: ${title}`,
         sourceTier: 1,
-        forcedIndex: "Traditionalism Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment",
         source: "scotus",
       });
 
@@ -3282,7 +3299,7 @@ function parseCongressTraditionalResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Congress: ${title}`,
         sourceTier: 2,
-        forcedIndex: "Traditionalism Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment",
         source: "congress",
       });
     }
@@ -3333,7 +3350,7 @@ function parseCourtListenerResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Federal Court: ${caseName}`,
         sourceTier: 2,
-        forcedIndex: "Traditionalism Sentiment Index",
+        forcedIndex: "Traditionalism Sentiment",
         source: "courtlistener",
       });
     }
@@ -3403,7 +3420,7 @@ function parseSCOTUSProgressiveResponse(rawXml: string): QueuedHeadline[] {
       headlines.push({
         text: `SCOTUS Opinion: ${title}`,
         sourceTier: 1,
-        forcedIndex: "Progressivism Sentiment Index",
+        forcedIndex: "Progressivism Sentiment",
         source: "scotus",
       });
 
@@ -3482,7 +3499,7 @@ function parseCongressProgressiveResponse(rawJson: string): QueuedHeadline[] {
       headlines.push({
         text: `Congress: ${title}`,
         sourceTier: 2,
-        forcedIndex: "Progressivism Sentiment Index",
+        forcedIndex: "Progressivism Sentiment",
         source: "congress",
       });
     }
@@ -3546,7 +3563,7 @@ function parseACLUResponse(xmlText: string): QueuedHeadline[] {
         headlines.push({
           text: `ACLU: ${title}`,
           sourceTier: 2,
-          forcedIndex: "Progressivism Sentiment Index",
+          forcedIndex: "Progressivism Sentiment",
           source: "aclu",
         });
       }
