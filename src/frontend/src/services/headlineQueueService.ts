@@ -2585,6 +2585,12 @@ const PREDICTION_MARKET_KEYWORD_MAP: Record<string, string[]> = {
   "Texas Sentiment": ["texas governor", "texas election", "abbott governor"],
   "Germany Sentiment": ["germany election", "bundestag", "german chancellor", "merz"],
   "China Sentiment": ["china taiwan", "china trade", "pboc", "xi jinping"],
+  "Mars Inc. Sentiment": ["mars incorporated", "mars inc", "mars candy", "mars wrigley", "snickers mars", "m&ms mars", "petcare mars"],
+  "Vitol Sentiment": ["vitol", "vitol group", "vitol trading", "vitol energy"],
+  "Cargill Sentiment": ["cargill", "cargill incorporated", "cargill agriculture", "cargill commodities"],
+  "Stripe Sentiment": ["stripe payments", "stripe inc", "stripe fintech", "stripe valuation", "stripe ipo", "patrick collison", "john collison", "stripe api"],
+  "Anthony Baptiste Sentiment": ["anthony baptiste", "momentum terminal founder", "anthonyjbv1"],
+  "Momentum Terminal Sentiment": ["momentum terminal", "narrative terminal", "sentiment trading", "oracle terminal", "anthony baptiste founder", "mt platform", "narrative indices", "sentiment indices platform"],
 };
 
 function matchPredictionMarketIndex(question: string): string | null {
@@ -3851,4 +3857,17 @@ export async function dequeueHeadlines(n: number): Promise<QueuedHeadline[]> {
 
 export function getQueueLength(): number {
   return _queue.length;
+}
+
+export function injectHeadline(h: QueuedHeadline): void {
+  _queue.unshift(h);
+}
+
+export function recordFeedEngagement(indexName: string): void {
+  try {
+    const raw = localStorage.getItem("mt_feed_engagement");
+    const counts: Record<string, number> = raw ? JSON.parse(raw) : {};
+    counts[indexName] = (counts[indexName] ?? 0) + 1;
+    localStorage.setItem("mt_feed_engagement", JSON.stringify(counts));
+  } catch { /* ignore */ }
 }

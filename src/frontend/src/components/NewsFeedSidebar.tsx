@@ -182,6 +182,7 @@ type FeedCategoryFilter =
   | "technology"
   | "individuals"
   | "universities"
+  | "privates"
   | "regional";
 
 const FEED_CATEGORY_TABS: { value: FeedCategoryFilter; label: string }[] = [
@@ -194,6 +195,7 @@ const FEED_CATEGORY_TABS: { value: FeedCategoryFilter; label: string }[] = [
   { value: "health", label: "HEALTH" },
   { value: "individuals", label: "INDIVIDUALS" },
   { value: "universities", label: "UNIVERSITIES" },
+  { value: "privates", label: "PRIVATES" },
   { value: "regional", label: "REGIONAL" },
 ];
 
@@ -250,6 +252,14 @@ const INDEX_CATEGORY_MAP: Record<string, FeedCategoryFilter> = {
   "Wegovy Sentiment": "health",
   "Mental Health Sentiment": "health",
   "Cancer Research Sentiment": "health",
+  // ── Individuals (additional) ─────────────────────────────────────────────
+  "Anthony Baptiste Sentiment": "individuals",
+  // ── Privates ─────────────────────────────────────────────────────────────
+  "Mars Inc. Sentiment": "privates",
+  "Vitol Sentiment": "privates",
+  "Cargill Sentiment": "privates",
+  "Stripe Sentiment": "privates",
+  "Momentum Terminal Sentiment": "privates",
   // ── Regional ──────────────────────────────────────────────────────────────
   "California Sentiment": "regional",
   "New York Sentiment": "regional",

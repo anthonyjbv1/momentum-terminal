@@ -150,6 +150,13 @@ export const FALLBACK_ASSET_DEFS: FallbackAssetDef[] = [
   { name: "Wegovy Sentiment", category: "HEALTH", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "Mental Health Sentiment", category: "HEALTH", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "Cancer Research Sentiment", category: "HEALTH", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
+  // ── Privates ──────────────────────────────────────────────────────────────────
+  { name: "Anthony Baptiste Sentiment", category: "INDIVIDUALS", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
+  { name: "Mars Inc. Sentiment", category: "PRIVATES", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
+  { name: "Vitol Sentiment", category: "PRIVATES", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
+  { name: "Cargill Sentiment", category: "PRIVATES", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
+  { name: "Stripe Sentiment", category: "PRIVATES", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
+  { name: "Momentum Terminal Sentiment", category: "PRIVATES", baseScore: 50.0, spread: 0.5, maxAllocation: 90_000.0, volatilityBuffer: 0.1 },
   // ── Regional ──────────────────────────────────────────────────────────────────
   { name: "California Sentiment", category: "REGIONAL", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },
   { name: "New York Sentiment", category: "REGIONAL", baseScore: 50.0, spread: 0.5, maxAllocation: 100_000.0, volatilityBuffer: 0.1 },

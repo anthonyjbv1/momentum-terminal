@@ -43,6 +43,7 @@ import {
   getQueueLength,
   getSourceNameForTier,
   initHeadlineQueue,
+  injectHeadline,
 } from "../services/headlineQueueService";
 import { getActivePreemptions } from "../services/netOrderFlowEngine";
 import {
@@ -366,6 +367,35 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
       const roll = Math.random();
       drainCount = roll < 0.6 ? 1 : roll < 0.85 ? 2 : 3;
     }
+
+    // ── Platform Signal 1: active session proxy ──────────────────────────────
+    // Fires once per session when Oracle has processed >100 ticks and the
+    // persisted headline count has grown, indicating active platform use.
+    try {
+      const platformSignalFired = sessionStorage.getItem("mt_platform_signal_fired");
+      if (!platformSignalFired) {
+        const tickCount = tickIdRef.current;
+        const persistedRaw = localStorage.getItem("mt_persisted_headlines");
+        const persistedHeadlines = persistedRaw ? (JSON.parse(persistedRaw) as Array<unknown>) : [];
+        const headlineCount = persistedHeadlines.length;
+        const prevCountRaw = sessionStorage.getItem("mt_platform_signal_prev_count");
+        const prevCount = prevCountRaw ? Number(prevCountRaw) : 0;
+        sessionStorage.setItem("mt_platform_signal_prev_count", String(headlineCount));
+        if (tickCount > 100 && headlineCount > prevCount) {
+          sessionStorage.setItem("mt_platform_signal_fired", "1");
+          const label = headlineCount > 50 ? "positive" : "neutral";
+          injectHeadline({
+            text: `Momentum Terminal Oracle processed ${tickCount} ticks with ${headlineCount} headlines in active session`,
+            sourceTier: 3,
+            source: "platform",
+            forcedIndex: "Momentum Terminal Sentiment",
+            sourceLabelOverride: true,
+            sentimentScore: label === "positive" ? 0.7 : 0,
+            label,
+          });
+        }
+      }
+    } catch { /* localStorage unavailable */ }
 
     const rawHeadlines = await dequeueHeadlines(drainCount);
 

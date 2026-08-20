@@ -76,6 +76,16 @@ export const REVERT_TARGETS: Record<string, number> = {
   "University of Michigan Sentiment": 60,
   "Ohio State University Sentiment": 58,
 
+  // INDIVIDUALS
+  "Anthony Baptiste Sentiment": 60,
+
+  // PRIVATES
+  "Mars Inc. Sentiment": 54,
+  "Vitol Sentiment": 51,
+  "Cargill Sentiment": 53,
+  "Stripe Sentiment": 62,
+  "Momentum Terminal Sentiment": 58,
+
   // REGIONAL
   "California Sentiment": 51,
   "New York Sentiment": 51,

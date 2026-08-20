@@ -64,6 +64,14 @@ export const INDEX_NAMES = {
   WEGOVY: "Wegovy Sentiment",
   MHEALTH: "Mental Health Sentiment",
   CANCER: "Cancer Research Sentiment",
+  // ── Individuals (additional) ──────────────────────────────────────────────────
+  ABAPTISTE: "Anthony Baptiste Sentiment",
+  // ── Privates ──────────────────────────────────────────────────────────────────
+  MARS: "Mars Inc. Sentiment",
+  VITOL: "Vitol Sentiment",
+  CARGILL: "Cargill Sentiment",
+  STRIPE: "Stripe Sentiment",
+  MTERMINAL: "Momentum Terminal Sentiment",
   // ── Regional ─────────────────────────────────────────────────────────────────
   CALIFORNIA: "California Sentiment",
   NEWYORK: "New York Sentiment",
@@ -447,6 +455,25 @@ const ENTITY_KEYWORD_MAP: KeywordEntry[] = [
   { keyword: "immunotherapy", primary: INDEX_NAMES.CANCER },
   { keyword: "oncology", primary: INDEX_NAMES.CANCER },
   { keyword: "cancer trial", primary: INDEX_NAMES.CANCER },
+
+  // ── INDIVIDUALS (additional) ──────────────────────────────────────────────────
+  { keyword: "Anthony Baptiste", primary: INDEX_NAMES.ABAPTISTE },
+  { keyword: "anthonyjbv1", primary: INDEX_NAMES.ABAPTISTE },
+  { keyword: "Momentum Terminal founder", primary: INDEX_NAMES.ABAPTISTE },
+
+  // ── PRIVATES ──────────────────────────────────────────────────────────────────
+  { keyword: "Mars Incorporated", primary: INDEX_NAMES.MARS },
+  { keyword: "Mars Inc", primary: INDEX_NAMES.MARS },
+  { keyword: "Mars Wrigley", primary: INDEX_NAMES.MARS },
+  { keyword: "Vitol", primary: INDEX_NAMES.VITOL },
+  { keyword: "Vitol Group", primary: INDEX_NAMES.VITOL },
+  { keyword: "Cargill", primary: INDEX_NAMES.CARGILL },
+  { keyword: "Cargill Incorporated", primary: INDEX_NAMES.CARGILL },
+  { keyword: "Stripe payments", primary: INDEX_NAMES.STRIPE },
+  { keyword: "Patrick Collison", primary: INDEX_NAMES.STRIPE },
+  { keyword: "John Collison", primary: INDEX_NAMES.STRIPE },
+  { keyword: "Momentum Terminal", primary: INDEX_NAMES.MTERMINAL },
+  { keyword: "narrative terminal", primary: INDEX_NAMES.MTERMINAL },
 
   // ── REGIONAL ──────────────────────────────────────────────────────────────────
   { keyword: "California", primary: INDEX_NAMES.CALIFORNIA },

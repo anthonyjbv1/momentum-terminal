@@ -129,6 +129,7 @@ const CATEGORY_TABS = [
   "HEALTH",
   "INDIVIDUALS",
   "UNIVERSITIES",
+  "PRIVATES",
   "REGIONAL",
 ] as const;
 type CategoryTab = (typeof CATEGORY_TABS)[number];
