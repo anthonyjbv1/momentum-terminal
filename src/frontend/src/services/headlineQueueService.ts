@@ -1192,7 +1192,7 @@ async function fetchAPISportsSoccerBatch(): Promise<void> {
       try {
         // Call 1 — last 5 fixtures
         const fixtResp = await fetch(
-          `/api/data-proxy?url=${encodeURIComponent(`https://v3.football.api-sports.io/fixtures?team=${team.teamId}&last=5`)}`,
+          `https://v3.football.api-sports.io/fixtures?team=${team.teamId}&last=5`,
           { headers },
         );
         if (fixtResp.ok) {
@@ -1240,7 +1240,7 @@ async function fetchAPISportsSoccerBatch(): Promise<void> {
 
         // Call 2 — next fixture
         const nextResp = await fetch(
-          `/api/data-proxy?url=${encodeURIComponent(`https://v3.football.api-sports.io/fixtures?team=${team.teamId}&next=1`)}`,
+          `https://v3.football.api-sports.io/fixtures?team=${team.teamId}&next=1`,
           { headers },
         );
         if (nextResp.ok) {
@@ -1302,7 +1302,7 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
       try {
         // Call 1 — recent games
         const gamesResp = await fetch(
-          `/api/data-proxy?url=${encodeURIComponent(`https://v1.american-football.api-sports.io/games?team=${team.teamId}&season=2025&league=1`)}`,
+          `https://v1.american-football.api-sports.io/games?team=${team.teamId}&season=2025&league=1`,
           { headers },
         );
         if (gamesResp.ok) {
@@ -1350,7 +1350,7 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
 
         // Call 2 — standings
         const standResp = await fetch(
-          `/api/data-proxy?url=${encodeURIComponent(`https://v1.american-football.api-sports.io/standings?team=${team.teamId}&season=2025&league=1`)}`,
+          `https://v1.american-football.api-sports.io/standings?team=${team.teamId}&season=2025&league=1`,
           { headers },
         );
         if (standResp.ok) {
@@ -1390,7 +1390,7 @@ async function fetchAPISportsNFLBatch(): Promise<void> {
     // Patrick Mahomes stats
     try {
       const statsResp = await fetch(
-        `/api/data-proxy?url=${encodeURIComponent("https://v1.american-football.api-sports.io/players/statistics?id=1197&season=2025")}`,
+        `https://v1.american-football.api-sports.io/players/statistics?id=1197&season=2025`,
         { headers },
       );
       if (statsResp.ok) {
@@ -1454,7 +1454,7 @@ async function fetchAPISportsF1Batch(): Promise<void> {
     // Call 1 — constructor standings
     try {
       const standResp = await fetch(
-        `/api/data-proxy?url=${encodeURIComponent("https://v1.formula-1.api-sports.io/rankings/teams?season=2026")}`,
+        `https://v1.formula-1.api-sports.io/rankings/teams?season=2026`,
         { headers },
       );
       if (standResp.ok) {
@@ -1505,7 +1505,7 @@ async function fetchAPISportsF1Batch(): Promise<void> {
     // Call 2 — recent race results
     try {
       const racesResp = await fetch(
-        `/api/data-proxy?url=${encodeURIComponent("https://v1.formula-1.api-sports.io/rankings/races?season=2026")}`,
+        `https://v1.formula-1.api-sports.io/rankings/races?season=2026`,
         { headers },
       );
       if (racesResp.ok) {
@@ -2607,21 +2607,20 @@ async function fetchPolymarketBatch(): Promise<void> {
     const key = import.meta.env.VITE_RAPIDAPI_KEY as string | undefined;
     if (!key) { console.warn("[PolymarketService] VITE_RAPIDAPI_KEY not set."); return; }
     const polymarketHeaders = { "X-RapidAPI-Key": key, "X-RapidAPI-Host": "polymarket-api2.p.rapidapi.com" };
-    const polymarketEndpoints = [
-      "https://polymarket-api2.p.rapidapi.com/api/markets?limit=50&active=true&closed=false",
-      "https://polymarket-api2.p.rapidapi.com/v1/markets?limit=50&active=true&closed=false",
-    ];
+    const primaryUrl = "https://polymarket-api2.p.rapidapi.com/v1/markets?limit=50&active=true&closed=false";
     let polymarketResp: Response | null = null;
-    let polymarketSuccessUrl = "";
-    for (const url of polymarketEndpoints) {
-      try {
-        const r = await fetch(url, { headers: polymarketHeaders });
-        if (r.ok) { polymarketResp = r; polymarketSuccessUrl = url; break; }
-        console.warn(`[PolymarketService] ${url} returned ${r.status}`);
-      } catch { /* try next */ }
-    }
-    if (!polymarketResp) { console.warn("[PolymarketService] All endpoints failed."); return; }
-    console.info(`[PolymarketService] Success via ${polymarketSuccessUrl}`);
+    try {
+      const r = await fetch(primaryUrl, { headers: polymarketHeaders });
+      if (r.status === 429) {
+        console.warn("[PolymarketService] Rate limited (429) — suppressing for 24 hours");
+        try { localStorage.setItem(POLY_CACHE_KEY, (Date.now() - (TWELVE_HOURS_MS - 86400000)).toString()); } catch { /* ignore */ }
+        return;
+      }
+      if (r.ok) { polymarketResp = r; }
+      else { console.warn(`[PolymarketService] ${primaryUrl} returned ${r.status}`); }
+    } catch { /* fall through */ }
+    if (!polymarketResp) { console.warn("[PolymarketService] Endpoint failed."); return; }
+    console.info(`[PolymarketService] Success via ${primaryUrl}`);
     const markets = await polymarketResp.json() as Array<{
       question: string;
       conditionId: string;
@@ -2698,7 +2697,7 @@ async function fetchKalshiBatch(): Promise<void> {
     const events: Array<{ title: string; ticker: string; yesMid: number; volume: number }> = [];
 
     const resp = await fetch(
-      "https://api.elections.kalshi.com/trade-api/v2/markets?limit=100&status=open",
+      `/api/kalshi-proxy?limit=100&status=open`,
       { headers: { "Content-Type": "application/json" } },
     );
 
