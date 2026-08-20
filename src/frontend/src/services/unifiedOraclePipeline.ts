@@ -60,7 +60,12 @@ import {
   applyReflexivePricingForAll,
   computeAllocationRatios,
 } from "./syntheticLiquidityEngine";
-import { applyDecay, getDecayState, updateDecayState } from "./timeDecayEngine";
+import { applyDecay, getDecayState, getRevertTarget, updateDecayState } from "./timeDecayEngine";
+
+// ─── Feature Flags ────────────────────────────────────────────────────────────
+
+const REVERT_TARGET_ENABLED =
+  localStorage.getItem("mt_revert_target_enabled") !== "false";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -115,6 +120,8 @@ export interface UnifiedOracleLogEntry {
   decayedScore: number;
   /** Decayed_Score − Previous_Score (negative = moving toward 50) */
   thetaAdjustment: number;
+  /** The mean-reversion equilibrium target used this tick */
+  revertTarget: number;
 
   // ── Step 2: Oracle Impact ──────────────────────────────────────────────
   /** The headline that fired this tick for this index (null if none) */
@@ -310,9 +317,14 @@ function runPipelineForIndex(
     previousScore = decayState.previousScore;
     const deltaMs = Math.max(0, nowMs - decayState.lastUpdatedMs);
     deltaHours = deltaMs / (1000 * 60 * 60);
-    // Pass category-specific decay rate and indexName so applyDecay uses per-index revertTarget.
-    decayedScore = applyDecay(previousScore, deltaHours, categoryDecayRate, indexName);
+    // When REVERT_TARGET_ENABLED, pass indexName so applyDecay uses per-index target.
+    // When disabled, omit indexName so applyDecay falls back to hardcoded 50.0.
+    decayedScore = REVERT_TARGET_ENABLED
+      ? applyDecay(previousScore, deltaHours, categoryDecayRate, indexName)
+      : applyDecay(previousScore, deltaHours, categoryDecayRate);
   }
+
+  const activeRevertTarget = REVERT_TARGET_ENABLED ? getRevertTarget(indexName) : 50;
 
   const thetaAdjustment =
     Math.round((decayedScore - previousScore) * 100) / 100;
@@ -445,8 +457,7 @@ function runPipelineForIndex(
     scenarioLabel = "Scenario B — Silent Theta Decay";
   } else {
     scenario = "C";
-    scenarioLabel =
-      "Scenario C — Significant Decay (asset reverting to baseline 50.00)";
+    scenarioLabel = `Scenario C — Significant Decay (asset reverting to baseline ${activeRevertTarget.toFixed(2)})`;
   }
 
   // ── Build Entry ──────────────────────────────────────────────────────────────
@@ -458,6 +469,7 @@ function runPipelineForIndex(
     deltaHours: Math.round(deltaHours * 10000) / 10000,
     decayedScore,
     thetaAdjustment,
+    revertTarget: activeRevertTarget,
     headlineUsed: hasHeadline ? tickHeadline : null,
     rawNewsImpact,
     velocityMultiplier,

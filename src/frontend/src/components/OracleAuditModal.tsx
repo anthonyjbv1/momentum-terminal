@@ -1016,7 +1016,7 @@ function UnifiedTickEntry({
             }}
           >
             <span style={{ color: "#64748b" }}>
-              ① Mean Reversion (Δt={entry.deltaHours.toFixed(3)}h)
+              ① Mean Reversion (Δt={entry.deltaHours.toFixed(3)}h{entry.revertTarget !== undefined ? `, target=${entry.revertTarget}` : ""})
             </span>
             <span style={{ color: deltaColor(entry.thetaAdjustment) }}>
               {fmt(entry.thetaAdjustment)} → {entry.decayedScore.toFixed(2)}

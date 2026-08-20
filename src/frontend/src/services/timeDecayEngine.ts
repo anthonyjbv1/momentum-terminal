@@ -36,6 +36,7 @@
  */
 
 import { ACTIVE_INDICES } from "./gsiCovarianceEngine";
+import { getRevertTarget as getBaseRevertTarget } from "./revertTargetConfig";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -45,11 +46,8 @@ const LAMBDA = 0.35;
 /** Default revert target when no per-index override is set. */
 const DEFAULT_REVERT_TARGET = 50.0;
 
-/** Floor below which revertTarget cannot be pushed by regime adjustment. */
-const REVERT_TARGET_MIN = 35.0;
-
-/** Ceiling above which revertTarget cannot be pushed by regime adjustment. */
-const REVERT_TARGET_MAX = 50.0;
+/** Max drift from base target in either direction via regime adjustment. */
+const REVERT_TARGET_DRIFT_MAX = 8.0;
 
 /** Consecutive ticks below/above threshold required to shift revertTarget. */
 const STREAK_THRESHOLD = 5;
@@ -65,14 +63,6 @@ const LS_REVERT_TARGETS = "mt_revert_targets";
 
 /** localStorage key for persisted tick streak counters. */
 const LS_TICK_STREAKS = "mt_tick_streaks";
-
-/**
- * Seed overrides for specific indexes reflecting current real-world regime.
- * Applied once on module load if no persisted value exists for the index.
- */
-const INITIAL_REVERT_TARGET_OVERRIDES: Record<string, number> = {
-  "MENA Stability Sentiment": 42,
-};
 
 // ─── Revert Target Store ──────────────────────────────────────────────────────
 
@@ -93,15 +83,15 @@ function saveRevertTargets(targets: Record<string, number>): void {
 
 /**
  * Returns the current revert target for an index.
- * Precedence: localStorage persisted value → INITIAL_REVERT_TARGET_OVERRIDES → DEFAULT_REVERT_TARGET.
- * Applies INITIAL_REVERT_TARGET_OVERRIDES on first access if no persisted value exists.
+ * Precedence: localStorage persisted value → per-index base target → DEFAULT_REVERT_TARGET.
+ * Seeds from revertTargetConfig on first access if no persisted value exists.
  */
 export function getRevertTarget(indexName: string): number {
   const targets = loadRevertTargets();
   if (indexName in targets) return targets[indexName];
 
-  // Seed from override map or default — persist so regime can drift from here
-  const seed = INITIAL_REVERT_TARGET_OVERRIDES[indexName] ?? DEFAULT_REVERT_TARGET;
+  // Seed from config base targets — persist so regime can drift from here
+  const seed = getBaseRevertTarget(indexName);
   targets[indexName] = seed;
   saveRevertTargets(targets);
   return seed;
@@ -109,11 +99,12 @@ export function getRevertTarget(indexName: string): number {
 
 /**
  * Directly sets a revert target for an index (admin / seed path).
- * Clamps to [REVERT_TARGET_MIN, REVERT_TARGET_MAX].
+ * Clamps to [baseTarget - REVERT_TARGET_DRIFT_MAX, baseTarget + REVERT_TARGET_DRIFT_MAX].
  */
 export function setRevertTarget(indexName: string, value: number): void {
+  const base = getBaseRevertTarget(indexName);
   const targets = loadRevertTargets();
-  targets[indexName] = Math.max(REVERT_TARGET_MIN, Math.min(REVERT_TARGET_MAX, value));
+  targets[indexName] = Math.max(base - REVERT_TARGET_DRIFT_MAX, Math.min(base + REVERT_TARGET_DRIFT_MAX, value));
   saveRevertTargets(targets);
 }
 
@@ -172,13 +163,13 @@ export function applyRegimeAdjustment(indexName: string, finalScore: number): vo
 
   saveTickStreaks(streaks);
 
-  // Shift revertTarget when streak threshold is met
+  // Shift revertTarget when streak threshold is met (bounded ±8 from base target)
   if (streaks.low[indexName] >= STREAK_THRESHOLD) {
     const current = getRevertTarget(indexName);
-    const next = Math.max(REVERT_TARGET_MIN, current - REVERT_TARGET_STEP);
+    const next = Math.max(getBaseRevertTarget(indexName) - REVERT_TARGET_DRIFT_MAX, current - REVERT_TARGET_STEP);
     if (next !== current) {
       setRevertTarget(indexName, next);
-      streaks.low[indexName] = 0; // reset after adjustment
+      streaks.low[indexName] = 0;
       saveTickStreaks(streaks);
       console.info(
         `[DecayEngine] Regime shift DOWN: "${indexName}" revertTarget ${current} → ${next} (sustained low streak)`,
@@ -186,7 +177,7 @@ export function applyRegimeAdjustment(indexName: string, finalScore: number): vo
     }
   } else if (streaks.high[indexName] >= STREAK_THRESHOLD) {
     const current = getRevertTarget(indexName);
-    const next = Math.min(REVERT_TARGET_MAX, current + REVERT_TARGET_STEP);
+    const next = Math.min(getBaseRevertTarget(indexName) + REVERT_TARGET_DRIFT_MAX, current + REVERT_TARGET_STEP);
     if (next !== current) {
       setRevertTarget(indexName, next);
       streaks.high[indexName] = 0;
