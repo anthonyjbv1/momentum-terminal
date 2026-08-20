@@ -754,6 +754,9 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
             finalImpact >= 0 ? "+" : ""
           }${finalImpact.toFixed(2)}`;
 
+        const CONFIDENCE_FIX_ENABLED =
+          localStorage.getItem("mt_confidence_fix_enabled") !== "false";
+
         const uiEntry: TickHeadline = {
           indexName: targetIndex,
           sentimentScore: finalImpact,
@@ -764,6 +767,9 @@ export function OracleTickProvider({ children }: { children: ReactNode }) {
           tierMultiplier,
           correlationWeight,
           weight: correlationWeight,
+          ...(CONFIDENCE_FIX_ENABLED && scored.confidence
+            ? { confidence: scored.confidence }
+            : {}),
         };
 
         // Fix 1 — forcedIndex propagation: pass scored.forcedIndex through to the
